@@ -47,5 +47,12 @@
     "email": "gows@gmail.com",
     "address": "Trinco",
     "phone": "0772244481"
+  },
+  {
+    "id": 9,
+    "name": "Arivu",
+    "email": "ari@gmail.com",
+    "address": "Moongilaru",
+    "phone": "0772244481"
   }
 ]
