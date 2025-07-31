@@ -12,4 +12,8 @@ dependencies = [
     "prompt-toolkit>=3.0.0",
     "python-dotenv>=1.0.0",
     "inquirer>=3.0.0",
+    "streamlit>=1.47.1",
+    "protobuf==3.20.3",
+    "psycopg2-binary>=2.9.0",
+    "sqlalchemy>=2.0.0",
 ]

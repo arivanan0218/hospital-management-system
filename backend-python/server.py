@@ -1,4 +1,4 @@
-"""Hospital Management System MCP Server using FastMCP."""
+"""Hospital Management System MCP Server using FastMCP with PostgreSQL."""
 
 import json
 import os
@@ -8,8 +8,17 @@ from pathlib import Path
 from typing import Any, Dict, List, TypedDict
 
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from mcp.server.fastmcp import FastMCP
+
+# Import database modules
+try:
+    from database import User as DBUser, SessionLocal, create_tables, migrate_json_to_db, test_connection
+    DATABASE_AVAILABLE = True
+except ImportError:
+    DATABASE_AVAILABLE = False
+    print("⚠️  Database modules not available. Install dependencies: pip install sqlalchemy psycopg2-binary")
 
 # Initialize FastMCP server
 mcp = FastMCP("hospital-management-system")
@@ -39,13 +48,44 @@ class UserCreationResult(BaseModel):
     user_id: int | None = None
 
 
-# File paths
+# Database helper functions
+def get_db_session() -> Session:
+    """Get database session."""
+    return SessionLocal()
+
+
+def load_users_from_db() -> List[Dict[str, Any]]:
+    """Load users from PostgreSQL database."""
+    if not DATABASE_AVAILABLE:
+        return load_users_from_json()
+    
+    try:
+        db = get_db_session()
+        users = db.query(DBUser).all()
+        db.close()
+        
+        return [
+            {
+                "id": user.id,
+                "name": user.name,
+                "email": user.email,
+                "address": user.address,
+                "phone": user.phone
+            }
+            for user in users
+        ]
+    except Exception as e:
+        print(f"Database error, falling back to JSON: {e}")
+        return load_users_from_json()
+
+
+# Fallback JSON functions (kept for compatibility)
 DATA_DIR = Path(__file__).parent / "data"
 USERS_FILE = DATA_DIR / "users.json"
 
 
-def load_users() -> List[Dict[str, Any]]:
-    """Load users from JSON file."""
+def load_users_from_json() -> List[Dict[str, Any]]:
+    """Load users from JSON file (fallback)."""
     try:
         with open(USERS_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
@@ -55,11 +95,17 @@ def load_users() -> List[Dict[str, Any]]:
         return []
 
 
-def save_users(users: List[Dict[str, Any]]) -> None:
-    """Save users to JSON file."""
+def save_users_to_json(users: List[Dict[str, Any]]) -> None:
+    """Save users to JSON file (fallback)."""
     os.makedirs(DATA_DIR, exist_ok=True)
     with open(USERS_FILE, 'w', encoding='utf-8') as f:
         json.dump(users, f, indent=2, ensure_ascii=False)
+
+
+# Main data access function
+def load_users() -> List[Dict[str, Any]]:
+    """Load users from database (PostgreSQL) or fallback to JSON."""
+    return load_users_from_db()
 
 
 @mcp.resource("users://all")
@@ -101,31 +147,144 @@ def get_user_profile(user_id: str) -> Dict[str, Any]:
 
 
 @mcp.tool()
+def save_user_to_db(user_data: Dict[str, Any]) -> bool:
+    """Save a single user to PostgreSQL database."""
+    if not DATABASE_AVAILABLE:
+        return save_user_to_json(user_data)
+    
+    try:
+        db = get_db_session()
+        db_user = DBUser(
+            name=user_data["name"],
+            email=user_data["email"],
+            address=user_data["address"],
+            phone=user_data["phone"]
+        )
+        db.add(db_user)
+        db.commit()
+        db.refresh(db_user)
+        db.close()
+        return True
+    except Exception as e:
+        print(f"Database error, falling back to JSON: {e}")
+        return save_user_to_json(user_data)
+
+
+def save_user_to_json(user_data: Dict[str, Any]) -> bool:
+    """Save user to JSON file (fallback)."""
+    try:
+        users = load_users_from_json()
+        new_id = max((u.get("id", 0) for u in users), default=0) + 1
+        user_data["id"] = new_id
+        users.append(user_data)
+        save_users_to_json(users)
+        return True
+    except Exception:
+        return False
+
+
+def update_user_in_db(user_id: int, user_data: Dict[str, Any]) -> bool:
+    """Update user in PostgreSQL database."""
+    if not DATABASE_AVAILABLE:
+        return update_user_in_json(user_id, user_data)
+    
+    try:
+        db = get_db_session()
+        db_user = db.query(DBUser).filter(DBUser.id == user_id).first()
+        if db_user:
+            if "name" in user_data:
+                db_user.name = user_data["name"]
+            if "email" in user_data:
+                db_user.email = user_data["email"]
+            if "address" in user_data:
+                db_user.address = user_data["address"]
+            if "phone" in user_data:
+                db_user.phone = user_data["phone"]
+            db.commit()
+        db.close()
+        return db_user is not None
+    except Exception as e:
+        print(f"Database error, falling back to JSON: {e}")
+        return update_user_in_json(user_id, user_data)
+
+
+def update_user_in_json(user_id: int, user_data: Dict[str, Any]) -> bool:
+    """Update user in JSON file (fallback)."""
+    try:
+        users = load_users_from_json()
+        for i, user in enumerate(users):
+            if user.get("id") == user_id:
+                users[i].update(user_data)
+                save_users_to_json(users)
+                return True
+        return False
+    except Exception:
+        return False
+
+
+def delete_user_from_db(user_id: int) -> bool:
+    """Delete user from PostgreSQL database."""
+    if not DATABASE_AVAILABLE:
+        return delete_user_from_json(user_id)
+    
+    try:
+        db = get_db_session()
+        db_user = db.query(DBUser).filter(DBUser.id == user_id).first()
+        if db_user:
+            db.delete(db_user)
+            db.commit()
+        db.close()
+        return db_user is not None
+    except Exception as e:
+        print(f"Database error, falling back to JSON: {e}")
+        return delete_user_from_json(user_id)
+
+
+def delete_user_from_json(user_id: int) -> bool:
+    """Delete user from JSON file (fallback)."""
+    try:
+        users = load_users_from_json()
+        original_count = len(users)
+        users = [u for u in users if u.get("id") != user_id]
+        if len(users) < original_count:
+            save_users_to_json(users)
+            return True
+        return False
+    except Exception:
+        return False
+
+
 def create_user(name: str, email: str, address: str, phone: str) -> UserCreationResult:
     """Create a new user in the database."""
     try:
-        users = load_users()
-        
-        # Generate new ID
-        new_id = max((u.get("id", 0) for u in users), default=0) + 1
-        
-        # Create new user
-        new_user = {
-            "id": new_id,
+        user_data = {
             "name": name,
             "email": email,
             "address": address,
             "phone": phone
         }
         
-        # Add to users list and save
-        users.append(new_user)
-        save_users(users)
+        if DATABASE_AVAILABLE:
+            # Save to PostgreSQL
+            db = get_db_session()
+            db_user = DBUser(**user_data)
+            db.add(db_user)
+            db.commit()
+            db.refresh(db_user)
+            user_id = db_user.id
+            db.close()
+        else:
+            # Fallback to JSON
+            users = load_users_from_json()
+            user_id = max((u.get("id", 0) for u in users), default=0) + 1
+            user_data["id"] = user_id
+            users.append(user_data)
+            save_users_to_json(users)
         
         return UserCreationResult(
             success=True,
-            message=f"User {new_id} created successfully",
-            user_id=new_id
+            message=f"User {user_id} created successfully",
+            user_id=user_id
         )
         
     except Exception as e:
@@ -210,7 +369,7 @@ def delete_user(user_id: int) -> Dict[str, Any]:
                 "message": f"User with ID {user_id} not found"
             }
         
-        save_users(users)
+        save_users_to_json(users)
         
         return {
             "success": True,
@@ -254,7 +413,7 @@ def update_user(user_id: int, name: str = None, email: str = None,
         if phone is not None:
             users[user_index]["phone"] = phone
         
-        save_users(users)
+        save_users_to_json(users)
         
         return {
             "success": True,

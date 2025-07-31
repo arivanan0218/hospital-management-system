@@ -54,5 +54,26 @@
     "email": "ari@gmail.com",
     "address": "Moongilaru",
     "phone": "0772244481"
+  },
+  {
+    "id": 10,
+    "name": "Kiru",
+    "email": "kiru@gmail.com",
+    "address": "Trinco",
+    "phone": "0772244811"
+  },
+  {
+    "id": 11,
+    "name": "Test User Frontend",
+    "email": "testfrontend@example.com",
+    "address": "123 Frontend Street",
+    "phone": "555-TEST"
+  },
+  {
+    "id": 12,
+    "name": "Hannah Wilson",
+    "email": "hannah.wilson@example.com",
+    "address": "2758 Maple St, Georgetown, TX 57751",
+    "phone": "(240) 829-8000"
   }
 ]
