@@ -1,7 +1,6 @@
-#!/usr/bin/env python3
 """
 Hospital Management System MCP Client (Python)
-Exact equivalent of client.ts functionality using direct server function calls.
+Clean CRUD client for interacting with the database-only server.
 """
 
 import asyncio
@@ -21,8 +20,7 @@ try:
     # Import server functions directly for testing
     from server import (
         create_user, create_random_user, get_user_by_id, 
-        list_users, delete_user, update_user,
-        get_all_users, get_user_profile
+        list_users, delete_user, update_user, load_users
     )
 except ImportError as e:
     missing_deps = []
@@ -42,7 +40,7 @@ except ImportError as e:
 load_dotenv()
 
 class HospitalMCPClient:
-    """Hospital Management System MCP Client - Python equivalent of client.ts"""
+    """Hospital Management System MCP Client - Clean CRUD Interface"""
     
     def __init__(self):
         # Configure Google Generative AI
@@ -51,10 +49,10 @@ class HospitalMCPClient:
             genai.configure(api_key=api_key)
             self.model = genai.GenerativeModel('gemini-2.0-flash-exp')
         else:
-            print("Warning: GEMINI_API_KEY not found. AI features will be disabled.")
+            print("ℹ️  Note: GEMINI_API_KEY not found. AI features will be disabled.")
             self.model = None
         
-        # Define available tools (equivalent to MCP server tools)
+        # Define available CRUD tools
         self.tools = [
             {
                 "name": "create-user",
@@ -125,36 +123,39 @@ class HospitalMCPClient:
             }
         ]
         
-        # Define available resources (equivalent to MCP server resources)
+        # Define available resources (simplified to match CRUD-only server)
         self.resources = [
             {
                 "uri": "users://all",
                 "name": "All Users",
                 "description": "Get all users data from the database",
-                "function": get_all_users
+                "function": list_users  # Using list_users instead of get_all_users
             },
             {
                 "uri": "users://{user_id}/profile",
                 "name": "User Profile", 
                 "description": "Get a user's details from the database",
-                "function": get_user_profile
+                "function": get_user_by_id  # Using get_user_by_id instead of get_user_profile
             }
         ]
-        
-        # No prompts defined in the original server
-        self.prompts = []
 
     async def main(self):
-        """Main client loop - exact equivalent of TypeScript main()"""
-        print("You are connected!")
+        """Main client loop - focused on CRUD operations"""
+        print("🏥 Hospital Management System - CRUD Client")
+        print("You are connected to the database!")
         
         while True:
             try:
-                # Main menu selection (equivalent to TypeScript select)
+                # Main menu selection
                 questions = [
                     inquirer.List('option',
-                                message="What would you like to do",
-                                choices=['Query', 'Tools', 'Resources', 'Prompts', 'Exit'],
+                                message="What would you like to do?",
+                                choices=[
+                                    'Query (AI-powered)', 
+                                    'CRUD Tools', 
+                                    'View Data', 
+                                    'Exit'
+                                ],
                     ),
                 ]
                 answers = inquirer.prompt(questions)
@@ -164,13 +165,11 @@ class HospitalMCPClient:
                 
                 option = answers['option']
                 
-                if option == "Tools":
+                if option == "CRUD Tools":
                     await self.handle_tools()
-                elif option == "Resources":
+                elif option == "View Data":
                     await self.handle_resources()
-                elif option == "Prompts":
-                    await self.handle_prompts()
-                elif option == "Query":
+                elif option == "Query (AI-powered)":
                     await self.handle_query()
                     
             except KeyboardInterrupt:
@@ -179,42 +178,86 @@ class HospitalMCPClient:
                 print(f"❌ Error: {e}")
 
     async def handle_tools(self):
-        """Handle tools selection and execution - equivalent to TypeScript Tools case"""
+        """Handle CRUD tools selection and execution"""
         if not self.tools:
             print("No tools available.")
             return
         
-        # Select a tool (equivalent to TypeScript select for tools)
+        # Create more user-friendly tool choices
+        tool_choices = []
+        for tool in self.tools:
+            if tool['name'] == 'create-user':
+                tool_choices.append('Create New User')
+            elif tool['name'] == 'create-random-user':
+                tool_choices.append('Create Random User (Demo)')
+            elif tool['name'] == 'get-user-by-id':
+                tool_choices.append('Get User by ID')
+            elif tool['name'] == 'list-users':
+                tool_choices.append('List All Users')
+            elif tool['name'] == 'update-user':
+                tool_choices.append('Update User')
+            elif tool['name'] == 'delete-user':
+                tool_choices.append('Delete User')
+            else:
+                tool_choices.append(f"{tool['name']} - {tool['description']}")
+        
+        # Select a tool
         questions = [
-            inquirer.List('tool_name',
-                        message="Select a tool",
-                        choices=[f"{tool['name']} - {tool['description']}" for tool in self.tools],
+            inquirer.List('tool_choice',
+                        message="Select a CRUD operation:",
+                        choices=tool_choices + ['Back to Main Menu'],
             ),
         ]
         answers = inquirer.prompt(questions)
         
-        if not answers:
+        if not answers or answers['tool_choice'] == 'Back to Main Menu':
             return
         
-        # Find selected tool
-        selected_display = answers['tool_name']
-        tool = None
-        for t in self.tools:
-            if selected_display.startswith(t['name']):
-                tool = t
-                break
+        # Map choice back to tool
+        choice_to_tool = {
+            'Create New User': 'create-user',
+            'Create Random User (Demo)': 'create-random-user',
+            'Get User by ID': 'get-user-by-id',
+            'List All Users': 'list-users',
+            'Update User': 'update-user',
+            'Delete User': 'delete-user'
+        }
         
-        if tool is None:
-            print("Tool not found.")
-        else:
-            await self.handle_tool(tool)
+        selected_choice = answers['tool_choice']
+        tool_name = choice_to_tool.get(selected_choice)
+        
+        if tool_name:
+            tool = next((t for t in self.tools if t['name'] == tool_name), None)
+            if tool:
+                await self.handle_tool(tool)
 
     async def handle_tool(self, tool: Dict[str, Any]):
-        """Execute a specific tool - equivalent to TypeScript handleTool()"""
-        print(f"\n🔧 Executing tool: {tool['name']}")
+        """Execute a specific CRUD tool with improved UX"""
+        print(f"\n🔧 {tool['name'].replace('-', ' ').title()}")
         print(f"Description: {tool['description']}")
         
-        # Collect arguments (equivalent to TypeScript input collection)
+        # Special handling for tools that don't need parameters
+        if tool['name'] == 'create-random-user':
+            try:
+                print("\n⏳ Creating random user...")
+                result = tool['function']()
+                print("✅ Success!")
+                print(json.dumps(result, indent=2))
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            return
+        
+        if tool['name'] == 'list-users':
+            try:
+                print("\n⏳ Fetching all users...")
+                result = tool['function']()
+                print("✅ Success!")
+                print(json.dumps(result, indent=2))
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            return
+        
+        # Collect arguments for other tools
         args = {}
         properties = tool['inputSchema'].get('properties', {})
         required = tool['inputSchema'].get('required', [])
@@ -224,9 +267,22 @@ class HospitalMCPClient:
             param_desc = value.get('description', '')
             is_required = key in required
             
-            prompt_text = f"Enter value for {key} ({param_type})"
+            # Skip optional parameters for update operations if user doesn't want to change them
+            if tool['name'] == 'update-user' and key != 'user_id' and not is_required:
+                questions = [
+                    inquirer.Confirm(
+                        'update_field', 
+                        message=f"Do you want to update {key}?", 
+                        default=False
+                    )
+                ]
+                update_answers = inquirer.prompt(questions)
+                if not update_answers or not update_answers['update_field']:
+                    continue
+            
+            prompt_text = f"Enter {key}"
             if param_desc:
-                prompt_text += f" - {param_desc}"
+                prompt_text += f" ({param_desc})"
             if is_required:
                 prompt_text += " [REQUIRED]"
             
@@ -251,9 +307,11 @@ class HospitalMCPClient:
         
         try:
             # Call the tool function
+            print(f"\n⏳ Executing {tool['name']}...")
             result = tool['function'](**args)
             
-            # Display result (equivalent to TypeScript console.log)
+            # Display result
+            print("✅ Success!")
             if hasattr(result, 'model_dump'):
                 # Pydantic model
                 print(json.dumps(result.model_dump(), indent=2))
@@ -265,88 +323,78 @@ class HospitalMCPClient:
             print(f"❌ Error executing tool: {e}")
 
     async def handle_resources(self):
-        """Handle resources selection and access - equivalent to TypeScript Resources case"""
+        """Handle data viewing options"""
         if not self.resources:
-            print("No resources available.")
+            print("No data views available.")
             return
         
-        # Select a resource (equivalent to TypeScript select for resources)
+        # Create user-friendly choices
+        choices = [
+            'View All Users',
+            'View User Profile by ID',
+            'Back to Main Menu'
+        ]
+        
         questions = [
-            inquirer.List('resource_uri',
-                        message="Select a resource",
-                        choices=[f"{resource['name']} - {resource['description']}" for resource in self.resources],
+            inquirer.List('view_choice',
+                        message="What data would you like to view?",
+                        choices=choices,
             ),
         ]
         answers = inquirer.prompt(questions)
         
-        if not answers:
+        if not answers or answers['view_choice'] == 'Back to Main Menu':
             return
         
-        # Find selected resource
-        selected_display = answers['resource_uri']
-        resource = None
-        for r in self.resources:
-            if selected_display.startswith(r['name']):
-                resource = r
-                break
+        choice = answers['view_choice']
         
-        if resource is None:
-            print("Resource not found.")
-        else:
+        if choice == 'View All Users':
+            resource = self.resources[0]  # users://all
+            await self.handle_resource(resource)
+        elif choice == 'View User Profile by ID':
+            resource = self.resources[1]  # users://{user_id}/profile
             await self.handle_resource(resource)
 
     async def handle_resource(self, resource: Dict[str, Any]):
-        """Access a specific resource - equivalent to TypeScript handleResource()"""
+        """Access a specific resource - simplified for CRUD operations"""
         print(f"\n📂 Accessing resource: {resource['uri']}")
         
-        # Handle parameterized URIs (equivalent to TypeScript param handling)
-        uri = resource['uri']
-        final_args = {}
-        
-        if "{" in uri and "}" in uri:
-            import re
-            params = re.findall(r'\{([^}]+)\}', uri)
-            for param in params:
+        try:
+            if "user_id" in resource['uri']:
+                # Resource with user ID parameter
                 questions = [
-                    inquirer.Text('param_value', message=f"Enter value for {param}"),
+                    inquirer.Text('user_id', message="Enter User ID"),
                 ]
                 answers = inquirer.prompt(questions)
-                if answers and answers['param_value']:
-                    final_args[param] = answers['param_value']
-        
-        try:
-            # Call the resource function
-            if final_args:
-                # Resource with parameters (like user profile)
-                result = resource['function'](**final_args)
+                if answers and answers['user_id']:
+                    try:
+                        user_id = int(answers['user_id'])
+                        result = resource['function'](user_id)
+                    except ValueError:
+                        print("❌ User ID must be an integer!")
+                        return
+                else:
+                    print("❌ User ID is required!")
+                    return
             else:
                 # Resource without parameters (like all users)
                 result = resource['function']()
             
-            # Display result (equivalent to TypeScript JSON.stringify)
+            # Display result
             print(json.dumps(result, indent=2))
                 
         except Exception as e:
             print(f"❌ Error accessing resource: {e}")
 
-    async def handle_prompts(self):
-        """Handle prompts - equivalent to TypeScript Prompts case"""
-        if not self.prompts:
-            print("No prompts available.")
-            return
-        
-        # Would handle prompts here if we had any defined
-        print("No prompts are currently defined in the server.")
-
     async def handle_query(self):
-        """Handle AI-powered queries - equivalent to TypeScript handleQuery()"""
+        """Handle AI-powered queries for hospital management"""
         if not self.model:
-            print("❌ AI features not available. Please set GEMINI_API_KEY.")
+            print("❌ AI features not available. Please set GEMINI_API_KEY in your .env file.")
             return
         
-        # Get query from user (equivalent to TypeScript input)
+        # Get query from user
         questions = [
-            inquirer.Text('query', message="Enter your query"),
+            inquirer.Text('query', message="🤖 Ask me anything about the hospital management system:"),
         ]
         answers = inquirer.prompt(questions)
         
@@ -356,35 +404,50 @@ class HospitalMCPClient:
         query = answers['query']
         
         try:
-            # Create tool descriptions for AI (equivalent to TypeScript tools.reduce)
-            tool_descriptions = []
-            for tool in self.tools:
-                tool_desc = f"Tool: {tool['name']} - {tool['description']}"
-                params = list(tool['inputSchema'].get('properties', {}).keys())
-                if params:
-                    tool_desc += f" (Parameters: {', '.join(params)})"
-                tool_descriptions.append(tool_desc)
+            # Create tool descriptions for AI
+            tool_descriptions = [
+                "create-user: Create a new user with name, email, address, phone",
+                "create-random-user: Generate a random user for testing",
+                "get-user-by-id: Find a specific user by their ID number", 
+                "list-users: Show all users in the system",
+                "update-user: Modify an existing user's information",
+                "delete-user: Remove a user from the system"
+            ]
             
-            # Enhanced prompt (equivalent to TypeScript generateText prompt)
+            # Enhanced prompt for hospital management context
             enhanced_prompt = f"""
-You are helping with a Hospital Management System. Available tools:
+You are an AI assistant for a Hospital Management System with a PostgreSQL database.
+
+Available CRUD operations:
 {chr(10).join(tool_descriptions)}
 
-User query: {query}
+The system manages patient/user data with fields: id, name, email, address, phone.
 
-Please provide a helpful response. If you think any tools should be used to answer the query, please suggest which tool(s) and what parameters would be needed.
+User question: {query}
+
+Please provide a helpful response. If the user needs to perform any database operations, 
+suggest which tool would be appropriate and what information they would need to provide.
+Be conversational and helpful.
 """
             
-            # Generate AI response (equivalent to TypeScript generateText)
+            # Generate AI response
+            print("\n🤖 Thinking...")
             response = self.model.generate_content(enhanced_prompt)
             
-            # Display result (equivalent to TypeScript console.log)
-            print(f"\n🤖 AI Response:\n{response.text}")
+            # Display result
+            print(f"\n🤖 AI Assistant:\n{response.text}")
             
             # Check if AI suggests tool usage
-            if any(tool['name'] in response.text.lower() for tool in self.tools):
+            tool_names = [tool['name'] for tool in self.tools]
+            if any(tool_name.replace('-', ' ') in response.text.lower() or 
+                   tool_name in response.text.lower() for tool_name in tool_names):
+                
                 questions = [
-                    inquirer.Confirm('use_tools', message="The AI suggested using tools. Would you like to go to the tools menu?", default=True),
+                    inquirer.Confirm(
+                        'use_tools', 
+                        message="💡 Would you like to perform the suggested operation?", 
+                        default=True
+                    ),
                 ]
                 answers = inquirer.prompt(questions)
                 

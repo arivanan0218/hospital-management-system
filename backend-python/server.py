@@ -1,17 +1,14 @@
-"""Hospital Management System MCP Server using FastMCP with PostgreSQL."""
+"""Hospital Management System MCP Server - CRUD Tools Only."""
 
 import random
-from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict
 
-from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-
 from mcp.server.fastmcp import FastMCP
 
 # Import database modules
 try:
-    from database import User as DBUser, SessionLocal, create_tables, migrate_json_to_db, test_connection
+    from database import User as DBUser, SessionLocal
     DATABASE_AVAILABLE = True
 except ImportError:
     DATABASE_AVAILABLE = False
@@ -20,30 +17,6 @@ except ImportError:
 # Initialize FastMCP server
 mcp = FastMCP("hospital-management-system")
 
-# Data models using Pydantic for structured output
-class User(BaseModel):
-    """User information structure."""
-    id: int
-    name: str = Field(description="User's full name")
-    email: str = Field(description="User's email address")
-    address: str = Field(description="User's address")
-    phone: str = Field(description="User's phone number")
-
-
-class UserCreateInput(BaseModel):
-    """Input structure for creating a new user."""
-    name: str = Field(description="User's full name")
-    email: str = Field(description="User's email address")
-    address: str = Field(description="User's address")
-    phone: str = Field(description="User's phone number")
-
-
-class UserCreationResult(BaseModel):
-    """Result of user creation."""
-    success: bool
-    message: str
-    user_id: int | None = None
-
 
 # Database helper functions
 def get_db_session() -> Session:
@@ -51,10 +24,9 @@ def get_db_session() -> Session:
     return SessionLocal()
 
 
-def load_users_from_db() -> List[Dict[str, Any]]:
+def load_users():
     """Load users from PostgreSQL database."""
     if not DATABASE_AVAILABLE:
-        print("Database not available. Please install dependencies: pip install sqlalchemy psycopg2-binary")
         return []
     
     try:
@@ -77,91 +49,9 @@ def load_users_from_db() -> List[Dict[str, Any]]:
         return []
 
 
-# Main data access function
-def load_users() -> List[Dict[str, Any]]:
-    """Load users from PostgreSQL database."""
-    return load_users_from_db()
-
-
-@mcp.resource("users://all")
-def get_all_users() -> Dict[str, Any]:
-    """Get all users data from the database."""
-    if not DATABASE_AVAILABLE:
-        return {
-            "error": "Database not available. Please install dependencies: pip install sqlalchemy psycopg2-binary",
-            "data": [],
-            "count": 0
-        }
-    
-    users = load_users()
-    return {
-        "description": "All users in the hospital management system",
-        "data": users,
-        "count": len(users)
-    }
-
-
-@mcp.resource("users://{user_id}/profile")
-def get_user_profile(user_id: str) -> Dict[str, Any]:
-    """Get a user's details from the database."""
-    if not DATABASE_AVAILABLE:
-        return {
-            "error": "Database not available. Please install dependencies: pip install sqlalchemy psycopg2-binary"
-        }
-    
-    try:
-        user_id_int = int(user_id)
-        users = load_users()
-        
-        user = next((u for u in users if u.get("id") == user_id_int), None)
-        
-        if user is None:
-            return {
-                "error": "User not found",
-                "user_id": user_id_int
-            }
-        
-        return {
-            "description": f"Profile for user {user_id}",
-            "data": user
-        }
-    
-    except ValueError:
-        return {
-            "error": "Invalid user ID format",
-            "user_id": user_id
-        }
-
-
-@mcp.tool()
-def save_user_to_db(user_data: Dict[str, Any]) -> bool:
-    """Save a single user to PostgreSQL database."""
-    if not DATABASE_AVAILABLE:
-        print("Database not available. Please install dependencies: pip install sqlalchemy psycopg2-binary")
-        return False
-    
-    try:
-        db = get_db_session()
-        db_user = DBUser(
-            name=user_data["name"],
-            email=user_data["email"],
-            address=user_data["address"],
-            phone=user_data["phone"]
-        )
-        db.add(db_user)
-        db.commit()
-        db.refresh(db_user)
-        db.close()
-        return True
-    except Exception as e:
-        print(f"Database error: {e}")
-        return False
-
-
 def update_user_in_db(user_id: int, user_data: Dict[str, Any]) -> bool:
     """Update user in PostgreSQL database."""
     if not DATABASE_AVAILABLE:
-        print("Database not available. Please install dependencies: pip install sqlalchemy psycopg2-binary")
         return False
     
     try:
@@ -187,7 +77,6 @@ def update_user_in_db(user_id: int, user_data: Dict[str, Any]) -> bool:
 def delete_user_from_db(user_id: int) -> bool:
     """Delete user from PostgreSQL database."""
     if not DATABASE_AVAILABLE:
-        print("Database not available. Please install dependencies: pip install sqlalchemy psycopg2-binary")
         return False
     
     try:
@@ -203,14 +92,16 @@ def delete_user_from_db(user_id: int) -> bool:
         return False
 
 
-def create_user(name: str, email: str, address: str, phone: str) -> UserCreationResult:
+# CRUD Tools
+@mcp.tool()
+def create_user(name: str, email: str, address: str, phone: str) -> Dict[str, Any]:
     """Create a new user in the database."""
     if not DATABASE_AVAILABLE:
-        return UserCreationResult(
-            success=False,
-            message="Database not available. Please install dependencies: pip install sqlalchemy psycopg2-binary",
-            user_id=None
-        )
+        return {
+            "success": False,
+            "message": "Database not available. Please install dependencies: pip install sqlalchemy psycopg2-binary",
+            "user_id": None
+        }
     
     try:
         user_data = {
@@ -229,24 +120,29 @@ def create_user(name: str, email: str, address: str, phone: str) -> UserCreation
         user_id = db_user.id
         db.close()
         
-        return UserCreationResult(
-            success=True,
-            message=f"User {user_id} created successfully",
-            user_id=user_id
-        )
+        return {
+            "success": True,
+            "message": f"User {user_id} created successfully",
+            "user_id": user_id
+        }
         
     except Exception as e:
-        return UserCreationResult(
-            success=False,
-            message=f"Failed to create user: {str(e)}",
-            user_id=None
-        )
+        return {
+            "success": False,
+            "message": f"Failed to create user: {str(e)}",
+            "user_id": None
+        }
 
 
 @mcp.tool()
-def create_random_user() -> UserCreationResult:
+def create_random_user() -> Dict[str, Any]:
     """Create a random user with fake data."""
-    import random
+    if not DATABASE_AVAILABLE:
+        return {
+            "success": False,
+            "message": "Database not available. Please install dependencies: pip install sqlalchemy psycopg2-binary",
+            "user_id": None
+        }
     
     # Sample data for generating random users
     first_names = ["Alice", "Bob", "Charlie", "Diana", "Edward", "Fiona", "George", "Hannah"]
@@ -394,48 +290,6 @@ def update_user(user_id: int, name: str = None, email: str = None,
             "success": False,
             "message": f"Failed to update user: {str(e)}"
         }
-
-
-# Resource functions for client access (not MCP tools, but helper functions)
-def get_all_users() -> dict:
-    """Get all users data from the database (resource function)."""
-    if not DATABASE_AVAILABLE:
-        return {
-            "error": "Database not available. Please install dependencies: pip install sqlalchemy psycopg2-binary"
-        }
-    
-    try:
-        users = load_users()
-        return {
-            "users": users,
-            "total_count": len(users),
-            "timestamp": datetime.now().isoformat()
-        }
-    except Exception as e:
-        return {"error": str(e)}
-
-
-def get_user_profile(user_id: int) -> dict:
-    """Get a user's details from the database (resource function)."""
-    if not DATABASE_AVAILABLE:
-        return {
-            "error": "Database not available. Please install dependencies: pip install sqlalchemy psycopg2-binary"
-        }
-    
-    try:
-        users = load_users()
-        
-        for user in users:
-            if user['id'] == int(user_id):
-                return {
-                    "profile": user,
-                    "timestamp": datetime.now().isoformat()
-                }
-        
-        return {"error": f"User with ID {user_id} not found"}
-        
-    except Exception as e:
-        return {"error": str(e)}
 
 
 if __name__ == "__main__":
