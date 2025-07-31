@@ -1,11 +1,8 @@
 """Hospital Management System MCP Server using FastMCP with PostgreSQL."""
 
-import json
-import os
 import random
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, TypedDict
+from typing import Any, Dict, List
 
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -57,7 +54,8 @@ def get_db_session() -> Session:
 def load_users_from_db() -> List[Dict[str, Any]]:
     """Load users from PostgreSQL database."""
     if not DATABASE_AVAILABLE:
-        return load_users_from_json()
+        print("Database not available. Please install dependencies: pip install sqlalchemy psycopg2-binary")
+        return []
     
     try:
         db = get_db_session()
@@ -75,42 +73,26 @@ def load_users_from_db() -> List[Dict[str, Any]]:
             for user in users
         ]
     except Exception as e:
-        print(f"Database error, falling back to JSON: {e}")
-        return load_users_from_json()
-
-
-# Fallback JSON functions (kept for compatibility)
-DATA_DIR = Path(__file__).parent / "data"
-USERS_FILE = DATA_DIR / "users.json"
-
-
-def load_users_from_json() -> List[Dict[str, Any]]:
-    """Load users from JSON file (fallback)."""
-    try:
-        with open(USERS_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except FileNotFoundError:
+        print(f"Database error: {e}")
         return []
-    except json.JSONDecodeError:
-        return []
-
-
-def save_users_to_json(users: List[Dict[str, Any]]) -> None:
-    """Save users to JSON file (fallback)."""
-    os.makedirs(DATA_DIR, exist_ok=True)
-    with open(USERS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(users, f, indent=2, ensure_ascii=False)
 
 
 # Main data access function
 def load_users() -> List[Dict[str, Any]]:
-    """Load users from database (PostgreSQL) or fallback to JSON."""
+    """Load users from PostgreSQL database."""
     return load_users_from_db()
 
 
 @mcp.resource("users://all")
 def get_all_users() -> Dict[str, Any]:
     """Get all users data from the database."""
+    if not DATABASE_AVAILABLE:
+        return {
+            "error": "Database not available. Please install dependencies: pip install sqlalchemy psycopg2-binary",
+            "data": [],
+            "count": 0
+        }
+    
     users = load_users()
     return {
         "description": "All users in the hospital management system",
@@ -122,6 +104,11 @@ def get_all_users() -> Dict[str, Any]:
 @mcp.resource("users://{user_id}/profile")
 def get_user_profile(user_id: str) -> Dict[str, Any]:
     """Get a user's details from the database."""
+    if not DATABASE_AVAILABLE:
+        return {
+            "error": "Database not available. Please install dependencies: pip install sqlalchemy psycopg2-binary"
+        }
+    
     try:
         user_id_int = int(user_id)
         users = load_users()
@@ -150,7 +137,8 @@ def get_user_profile(user_id: str) -> Dict[str, Any]:
 def save_user_to_db(user_data: Dict[str, Any]) -> bool:
     """Save a single user to PostgreSQL database."""
     if not DATABASE_AVAILABLE:
-        return save_user_to_json(user_data)
+        print("Database not available. Please install dependencies: pip install sqlalchemy psycopg2-binary")
+        return False
     
     try:
         db = get_db_session()
@@ -166,27 +154,15 @@ def save_user_to_db(user_data: Dict[str, Any]) -> bool:
         db.close()
         return True
     except Exception as e:
-        print(f"Database error, falling back to JSON: {e}")
-        return save_user_to_json(user_data)
-
-
-def save_user_to_json(user_data: Dict[str, Any]) -> bool:
-    """Save user to JSON file (fallback)."""
-    try:
-        users = load_users_from_json()
-        new_id = max((u.get("id", 0) for u in users), default=0) + 1
-        user_data["id"] = new_id
-        users.append(user_data)
-        save_users_to_json(users)
-        return True
-    except Exception:
+        print(f"Database error: {e}")
         return False
 
 
 def update_user_in_db(user_id: int, user_data: Dict[str, Any]) -> bool:
     """Update user in PostgreSQL database."""
     if not DATABASE_AVAILABLE:
-        return update_user_in_json(user_id, user_data)
+        print("Database not available. Please install dependencies: pip install sqlalchemy psycopg2-binary")
+        return False
     
     try:
         db = get_db_session()
@@ -204,28 +180,15 @@ def update_user_in_db(user_id: int, user_data: Dict[str, Any]) -> bool:
         db.close()
         return db_user is not None
     except Exception as e:
-        print(f"Database error, falling back to JSON: {e}")
-        return update_user_in_json(user_id, user_data)
-
-
-def update_user_in_json(user_id: int, user_data: Dict[str, Any]) -> bool:
-    """Update user in JSON file (fallback)."""
-    try:
-        users = load_users_from_json()
-        for i, user in enumerate(users):
-            if user.get("id") == user_id:
-                users[i].update(user_data)
-                save_users_to_json(users)
-                return True
-        return False
-    except Exception:
+        print(f"Database error: {e}")
         return False
 
 
 def delete_user_from_db(user_id: int) -> bool:
     """Delete user from PostgreSQL database."""
     if not DATABASE_AVAILABLE:
-        return delete_user_from_json(user_id)
+        print("Database not available. Please install dependencies: pip install sqlalchemy psycopg2-binary")
+        return False
     
     try:
         db = get_db_session()
@@ -236,26 +199,19 @@ def delete_user_from_db(user_id: int) -> bool:
         db.close()
         return db_user is not None
     except Exception as e:
-        print(f"Database error, falling back to JSON: {e}")
-        return delete_user_from_json(user_id)
-
-
-def delete_user_from_json(user_id: int) -> bool:
-    """Delete user from JSON file (fallback)."""
-    try:
-        users = load_users_from_json()
-        original_count = len(users)
-        users = [u for u in users if u.get("id") != user_id]
-        if len(users) < original_count:
-            save_users_to_json(users)
-            return True
-        return False
-    except Exception:
+        print(f"Database error: {e}")
         return False
 
 
 def create_user(name: str, email: str, address: str, phone: str) -> UserCreationResult:
     """Create a new user in the database."""
+    if not DATABASE_AVAILABLE:
+        return UserCreationResult(
+            success=False,
+            message="Database not available. Please install dependencies: pip install sqlalchemy psycopg2-binary",
+            user_id=None
+        )
+    
     try:
         user_data = {
             "name": name,
@@ -264,22 +220,14 @@ def create_user(name: str, email: str, address: str, phone: str) -> UserCreation
             "phone": phone
         }
         
-        if DATABASE_AVAILABLE:
-            # Save to PostgreSQL
-            db = get_db_session()
-            db_user = DBUser(**user_data)
-            db.add(db_user)
-            db.commit()
-            db.refresh(db_user)
-            user_id = db_user.id
-            db.close()
-        else:
-            # Fallback to JSON
-            users = load_users_from_json()
-            user_id = max((u.get("id", 0) for u in users), default=0) + 1
-            user_data["id"] = user_id
-            users.append(user_data)
-            save_users_to_json(users)
+        # Save to PostgreSQL
+        db = get_db_session()
+        db_user = DBUser(**user_data)
+        db.add(db_user)
+        db.commit()
+        db.refresh(db_user)
+        user_id = db_user.id
+        db.close()
         
         return UserCreationResult(
             success=True,
@@ -333,6 +281,11 @@ def create_random_user() -> UserCreationResult:
 @mcp.tool()
 def get_user_by_id(user_id: int) -> Dict[str, Any]:
     """Get a specific user by their ID."""
+    if not DATABASE_AVAILABLE:
+        return {
+            "error": "Database not available. Please install dependencies: pip install sqlalchemy psycopg2-binary"
+        }
+    
     users = load_users()
     user = next((u for u in users if u.get("id") == user_id), None)
     
@@ -345,6 +298,13 @@ def get_user_by_id(user_id: int) -> Dict[str, Any]:
 @mcp.tool()
 def list_users() -> Dict[str, Any]:
     """List all users in the system."""
+    if not DATABASE_AVAILABLE:
+        return {
+            "error": "Database not available. Please install dependencies: pip install sqlalchemy psycopg2-binary",
+            "users": [],
+            "count": 0
+        }
+    
     users = load_users()
     return {
         "users": users,
@@ -356,20 +316,20 @@ def list_users() -> Dict[str, Any]:
 @mcp.tool()
 def delete_user(user_id: int) -> Dict[str, Any]:
     """Delete a user from the database."""
+    if not DATABASE_AVAILABLE:
+        return {
+            "success": False,
+            "message": "Database not available. Please install dependencies: pip install sqlalchemy psycopg2-binary"
+        }
+    
     try:
-        users = load_users()
-        original_count = len(users)
+        success = delete_user_from_db(user_id)
         
-        # Filter out the user with the specified ID
-        users = [u for u in users if u.get("id") != user_id]
-        
-        if len(users) == original_count:
+        if not success:
             return {
                 "success": False,
                 "message": f"User with ID {user_id} not found"
             }
-        
-        save_users_to_json(users)
         
         return {
             "success": True,
@@ -387,38 +347,46 @@ def delete_user(user_id: int) -> Dict[str, Any]:
 def update_user(user_id: int, name: str = None, email: str = None, 
                 address: str = None, phone: str = None) -> Dict[str, Any]:
     """Update an existing user's information."""
+    if not DATABASE_AVAILABLE:
+        return {
+            "success": False,
+            "message": "Database not available. Please install dependencies: pip install sqlalchemy psycopg2-binary"
+        }
+    
     try:
-        users = load_users()
+        # Prepare update data
+        update_data = {}
+        if name is not None:
+            update_data["name"] = name
+        if email is not None:
+            update_data["email"] = email
+        if address is not None:
+            update_data["address"] = address
+        if phone is not None:
+            update_data["phone"] = phone
         
-        # Find the user to update
-        user_index = None
-        for i, user in enumerate(users):
-            if user.get("id") == user_id:
-                user_index = i
-                break
+        if not update_data:
+            return {
+                "success": False,
+                "message": "No fields provided for update"
+            }
         
-        if user_index is None:
+        success = update_user_in_db(user_id, update_data)
+        
+        if not success:
             return {
                 "success": False,
                 "message": f"User with ID {user_id} not found"
             }
         
-        # Update fields if provided
-        if name is not None:
-            users[user_index]["name"] = name
-        if email is not None:
-            users[user_index]["email"] = email
-        if address is not None:
-            users[user_index]["address"] = address
-        if phone is not None:
-            users[user_index]["phone"] = phone
-        
-        save_users_to_json(users)
+        # Get updated user data
+        users = load_users()
+        updated_user = next((u for u in users if u.get("id") == user_id), None)
         
         return {
             "success": True,
             "message": f"User {user_id} updated successfully",
-            "user": users[user_index]
+            "user": updated_user
         }
         
     except Exception as e:
@@ -431,6 +399,11 @@ def update_user(user_id: int, name: str = None, email: str = None,
 # Resource functions for client access (not MCP tools, but helper functions)
 def get_all_users() -> dict:
     """Get all users data from the database (resource function)."""
+    if not DATABASE_AVAILABLE:
+        return {
+            "error": "Database not available. Please install dependencies: pip install sqlalchemy psycopg2-binary"
+        }
+    
     try:
         users = load_users()
         return {
@@ -444,6 +417,11 @@ def get_all_users() -> dict:
 
 def get_user_profile(user_id: int) -> dict:
     """Get a user's details from the database (resource function)."""
+    if not DATABASE_AVAILABLE:
+        return {
+            "error": "Database not available. Please install dependencies: pip install sqlalchemy psycopg2-binary"
+        }
+    
     try:
         users = load_users()
         
