@@ -1,6 +1,5 @@
 {
 	"servers": {
-
 		"hospital-management-server": {
 			"type": "stdio",
 			"command": "node",
@@ -11,6 +10,15 @@
 				"debug": {
 					"type": "node"
 				}
+			}
+		},
+		"hospital-management-python": {
+			"type": "stdio",
+			"command": "python",
+			"args": ["server.py"],
+			"cwd": "${workspaceFolder}/backend-python",
+			"dev": {
+				"watch": "**/*.py"
 			}
 		}
 	},
