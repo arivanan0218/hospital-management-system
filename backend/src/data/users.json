@@ -137,5 +137,12 @@
     "email": "arivu@gmail.com",
     "address": "katha",
     "phone": "09988877"
+  },
+  {
+    "id": 20,
+    "name": "Ari",
+    "email": "a@gmail.com",
+    "address": "jafna",
+    "phone": "09987788"
   }
 ]
