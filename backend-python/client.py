@@ -6,12 +6,18 @@ Intelligent autonomous agent for hospital management with decision-making capabi
 import asyncio
 import json
 import traceback
+import os
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from datetime import datetime, date, timedelta
 import uuid
 import random
 import re
+from dotenv import load_dotenv
+import google.generativeai as genai
+
+# Load environment variables
+load_dotenv()
 
 
 class HospitalManagementClient:
@@ -20,6 +26,142 @@ class HospitalManagementClient:
         self.stdio_context = None
         self.agent_memory = {}  # Store agent context and decisions
         self.available_tools = []
+        self.llm_model = None
+        self._initialize_llm()
+        
+    def _initialize_llm(self):
+        """Initialize Google Gemini LLM."""
+        try:
+            api_key = os.getenv("GEMINI_API_KEY")
+            if api_key:
+                genai.configure(api_key=api_key)
+                self.llm_model = genai.GenerativeModel('gemini-2.0-flash-exp')
+                print("✅ LLM (Gemini) initialized successfully")
+            else:
+                print("⚠️ GEMINI_API_KEY not found in environment variables")
+                self.llm_model = None
+        except Exception as e:
+            print(f"⚠️ Failed to initialize LLM: {e}")
+            self.llm_model = None
+    
+    async def process_natural_language_query(self, user_query: str):
+        """Process natural language queries using LLM and execute appropriate hospital management tasks."""
+        if not self.llm_model:
+            return "LLM not available. Please check your GEMINI_API_KEY configuration."
+        
+        try:
+            # Create a context-aware prompt for hospital management
+            system_prompt = """
+            You are an intelligent hospital management AI assistant. You have access to various hospital management tools and can perform operations like:
+            - Patient management (create, list, search patients)
+            - Bed management (check availability, assign beds)
+            - Staff management (list staff, departments)
+            - Equipment tracking (list equipment, update status)
+            - Supply management (check inventory, low stock alerts)
+            - Appointment scheduling
+            - Hospital analytics and optimization
+            
+            Based on the user's query, determine what action they want to take and respond with:
+            1. The specific action/tool to use
+            2. Any parameters needed
+            3. A helpful explanation
+            
+            Available tools: list_patients, create_patient, list_beds, assign_bed_to_patient, list_staff, 
+            list_departments, list_equipment, list_supplies, create_appointment, analyze_hospital_state
+            """
+            
+            full_prompt = f"{system_prompt}\n\nUser Query: {user_query}\n\nPlease analyze this query and provide a structured response."
+            
+            response = self.llm_model.generate_content(full_prompt)
+            llm_response = response.text
+            
+            # Parse LLM response and execute appropriate actions
+            action_result = await self._execute_llm_suggested_action(user_query, llm_response)
+            
+            return f"🤖 **AI Analysis:** {llm_response}\n\n📋 **Action Result:**\n{action_result}"
+            
+        except Exception as e:
+            return f"Error processing query with LLM: {str(e)}"
+    
+    async def _execute_llm_suggested_action(self, user_query: str, llm_response: str):
+        """Execute actions suggested by the LLM based on the user query."""
+        query_lower = user_query.lower()
+        
+        try:
+            # Determine action based on keywords and LLM guidance
+            if any(word in query_lower for word in ["patients", "patient", "list patients", "show patients"]):
+                result = await self._safe_call_tool("list_patients", {})
+                patients = result.get("patients", [])
+                if patients:
+                    return f"Found {len(patients)} patients:\n" + "\n".join([
+                        f"• {p.get('first_name', '')} {p.get('last_name', '')} (ID: {p.get('patient_number', 'N/A')})"
+                        for p in patients[:5]
+                    ]) + (f"\n... and {len(patients) - 5} more" if len(patients) > 5 else "")
+                else:
+                    return "No patients found in the system."
+                    
+            elif any(word in query_lower for word in ["beds", "bed availability", "available beds"]):
+                result = await self._safe_call_tool("list_beds", {})
+                beds = result.get("beds", [])
+                available = [b for b in beds if b.get("status") == "available"]
+                occupied = [b for b in beds if b.get("status") == "occupied"]
+                return f"Bed Status: {len(available)} available, {len(occupied)} occupied out of {len(beds)} total beds"
+                
+            elif any(word in query_lower for word in ["staff", "doctors", "employees"]):
+                result = await self._safe_call_tool("list_staff", {})
+                staff = result.get("staff", [])
+                return f"Found {len(staff)} staff members in the system"
+                
+            elif any(word in query_lower for word in ["departments", "department"]):
+                result = await self._safe_call_tool("list_departments", {})
+                departments = result.get("departments", [])
+                if departments:
+                    return f"Hospital Departments ({len(departments)}):\n" + "\n".join([
+                        f"• {d.get('name', 'Unknown')} - Floor {d.get('floor_number', 'N/A')}"
+                        for d in departments
+                    ])
+                else:
+                    return "No departments found."
+                    
+            elif any(word in query_lower for word in ["equipment", "machines", "devices"]):
+                result = await self._safe_call_tool("list_equipment", {})
+                equipment = result.get("equipment", [])
+                return f"Found {len(equipment)} equipment items in the system"
+                
+            elif any(word in query_lower for word in ["supplies", "inventory", "stock"]):
+                result = await self._safe_call_tool("list_supplies", {})
+                supplies = result.get("supplies", [])
+                low_stock = await self._safe_call_tool("list_supplies", {"low_stock_only": True})
+                low_count = len(low_stock.get("supplies", []))
+                return f"Inventory: {len(supplies)} total items, {low_count} items need restocking"
+                
+            elif any(word in query_lower for word in ["analyze", "analysis", "hospital state", "overview"]):
+                analysis = await self.analyze_hospital_state()
+                return "Hospital state analysis completed - see detailed output above"
+                
+            elif any(word in query_lower for word in ["optimize", "autonomous", "ai management"]):
+                await self.autonomous_hospital_management()
+                return "Autonomous hospital management cycle completed"
+                
+            else:
+                # Use LLM to provide general guidance
+                return "I can help you with hospital management tasks. Try asking about patients, beds, staff, departments, equipment, supplies, or hospital analysis."
+                
+        except Exception as e:
+            return f"Error executing action: {str(e)}"
+    
+    async def intelligent_query_handler(self, query: str):
+        """Main entry point for handling natural language queries with LLM integration."""
+        print(f"\n🤖 === INTELLIGENT QUERY HANDLER ===")
+        print(f"📝 Query: {query}")
+        
+        if self.llm_model:
+            response = await self.process_natural_language_query(query)
+            print(f"\n💬 Response:\n{response}")
+            return response
+        else:
+            # Fallback to rule-based processing
+            return await self._execute_llm_suggested_action(query, "No LLM available - using rule-based processing")
         
     # === AGENTIC AI CORE METHODS ===
     
@@ -1701,6 +1843,78 @@ class HospitalManagementClient:
             import traceback
             traceback.print_exc()
 
+    async def demo_llm_integration(self):
+        """Demonstrate LLM integration with natural language processing."""
+        print("\n🧠 === LLM INTEGRATION DEMO ===")
+        
+        if not self.llm_model:
+            print("⚠️ LLM not available. Please check GEMINI_API_KEY configuration.")
+            return
+        
+        # Connect to MCP server first
+        server_params = StdioServerParameters(
+            command="python",
+            args=["comprehensive_server.py"],
+            env=None
+        )
+        
+        try:
+            async with stdio_client(server_params) as (read, write):
+                async with ClientSession(read, write) as session:
+                    self.session = session
+                    await session.initialize()
+                    print("✅ Connected to MCP server")
+                    
+                    print("\n🎯 Testing natural language queries:")
+                    
+                    # Demo queries to test LLM integration
+                    demo_queries = [
+                        "Show me all patients in the hospital",
+                        "What's the current bed availability?",
+                        "List all departments",
+                        "Check equipment status",
+                        "Show supply inventory levels",
+                        "Give me a hospital overview",
+                        "How many staff members do we have?",
+                        "Analyze the hospital's current state"
+                    ]
+                    
+                    for i, query in enumerate(demo_queries, 1):
+                        print(f"\n--- Query {i}: {query} ---")
+                        response = await self.intelligent_query_handler(query)
+                        print(f"✅ Completed query {i}")
+                        
+                        # Add a small delay between queries
+                        await asyncio.sleep(1)
+                    
+                    # Interactive mode
+                    print(f"\n🎮 === INTERACTIVE LLM MODE ===")
+                    print("You can now ask questions in natural language!")
+                    print("Type 'exit' to quit this demo")
+                    
+                    while True:
+                        try:
+                            user_input = input("\n🤖 Ask me anything about hospital management: ").strip()
+                            
+                            if user_input.lower() in ['exit', 'quit', 'bye']:
+                                print("👋 Exiting LLM demo...")
+                                break
+                            
+                            if user_input:
+                                response = await self.intelligent_query_handler(user_input)
+                                print(f"\n💡 Response: {response}")
+                            else:
+                                print("Please enter a valid question.")
+                                
+                        except KeyboardInterrupt:
+                            print("\n👋 Exiting LLM demo...")
+                            break
+            
+        except Exception as e:
+            print(f"❌ LLM Demo failed: {e}")
+            import traceback
+            traceback.print_exc()
+
     async def run_agentic_mode(self):
         """Run the AI agent in autonomous mode."""
         print("🤖 HOSPITAL MANAGEMENT SYSTEM - AGENTIC AI MODE")
@@ -1857,13 +2071,14 @@ class HospitalManagementClient:
                     print("13. Intelligent Patient Admission")
                     print("14. Smart Resource Optimization")
                     print("15. Run Full Agentic Demo")
+                    print("18. LLM Integration Demo (Natural Language)")
                     print("\n=== DEMOS ===")
                     print("16. Run Comprehensive Demo")
                     print("0. Exit")
                     
                     while True:
                         try:
-                            choice = input("\nEnter your choice (0-17): ").strip()
+                            choice = input("\nEnter your choice (0-18): ").strip()
                             
                             if choice == "0":
                                 break
@@ -1906,8 +2121,11 @@ class HospitalManagementClient:
                             elif choice == "17":
                                 # Master Data CRUD Operations
                                 await self.master_data_management()
+                            elif choice == "18":
+                                # LLM Integration Demo
+                                await self.demo_llm_integration()
                             else:
-                                print("Invalid choice. Please enter 0-17.")
+                                print("Invalid choice. Please enter 0-18.")
                                 
                         except KeyboardInterrupt:
                             print("\n\nExiting...")

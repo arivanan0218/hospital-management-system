@@ -7,6 +7,7 @@ from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
+from sqlalchemy import Date
 from mcp.server.fastmcp import FastMCP
 
 # Import database modules
@@ -19,7 +20,7 @@ try:
     DATABASE_AVAILABLE = True
 except ImportError:
     DATABASE_AVAILABLE = False
-    print("⚠️  Database modules not available. Install dependencies: pip install sqlalchemy psycopg2-binary")
+    print("WARNING: Database modules not available. Install dependencies: pip install sqlalchemy psycopg2-binary")
 
 # Initialize FastMCP server
 mcp = FastMCP("hospital-management-system")
@@ -886,5 +887,14 @@ def list_legacy_users() -> Dict[str, Any]:
         return {"error": f"Failed to list legacy users: {str(e)}", "users": [], "count": 0}
 
 if __name__ == "__main__":
-    # Run the MCP server
-    mcp.run()
+    try:
+        # Run the MCP server silently - no print statements allowed
+        # as they interfere with the MCP protocol communication
+        mcp.run()
+    except Exception as e:
+        # Log errors to stderr (not stdout) if needed
+        import sys
+        sys.stderr.write(f"FATAL ERROR: Server failed to start: {e}\n")
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        exit(1)

@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "hospital-management-system": {
+      "command": "C:\\Python313\\python.exe",
+      "args": [
+        "C:\\Users\\Arivanan\\hospital-management-system\\backend-python\\comprehensive_server.py"
+      ],
+      "env": {
+        "PYTHONPATH": "C:\\Users\\Arivanan\\hospital-management-system\\backend-python",
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONIOENCODING": "utf-8"
+      }
+    }
+  }
+}

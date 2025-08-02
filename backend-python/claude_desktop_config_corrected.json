@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "hospital-management-system": {
+      "command": "python",
+      "args": [
+        "-u",
+        "comprehensive_server.py"
+      ],
+      "cwd": "C:\\Users\\Arivanan\\hospital-management-system\\backend-python"
+    }
+  }
+}

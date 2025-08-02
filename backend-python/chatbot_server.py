@@ -239,20 +239,46 @@ class HospitalChatBot:
             return await self._handle_user_queries(message)
         
         else:
-            # Default intelligent response
-            return ChatResponse(
-                response="I understand you're asking about hospital management. Here are some things I can help you with:\n\n" +
-                        "• **Analyze hospital state** - Get comprehensive analysis\n" +
-                        "• **Patient management** - Add, view, or manage patients\n" +
-                        "• **Bed management** - Check availability and allocate beds\n" +
-                        "• **Staff operations** - Manage doctors, nurses, and staff\n" +
-                        "• **Equipment tracking** - Monitor and maintain equipment\n" +
-                        "• **Supply management** - Track inventory and supplies\n" +
-                        "• **Autonomous AI** - Let AI optimize hospital operations\n\n" +
-                        "Please be more specific about what you'd like to do!",
-                timestamp=datetime.now().isoformat(),
-                type="text"
-            )
+            # Use LLM integration for natural language processing
+            try:
+                if hasattr(self.client, 'llm_model') and self.client.llm_model:
+                    llm_response = await self.client.intelligent_query_handler(message)
+                    return ChatResponse(
+                        response=f"🧠 **AI-Powered Response:**\n\n{llm_response}",
+                        timestamp=datetime.now().isoformat(),
+                        type="text"
+                    )
+                else:
+                    # Fallback to rule-based response
+                    return ChatResponse(
+                        response="I understand you're asking about hospital management. Here are some things I can help you with:\n\n" +
+                                "• **Analyze hospital state** - Get comprehensive analysis\n" +
+                                "• **Patient management** - Add, view, or manage patients\n" +
+                                "• **Bed management** - Check availability and allocate beds\n" +
+                                "• **Staff operations** - Manage doctors, nurses, and staff\n" +
+                                "• **Equipment tracking** - Monitor and maintain equipment\n" +
+                                "• **Supply management** - Track inventory and supplies\n" +
+                                "• **Autonomous AI** - Let AI optimize hospital operations\n\n" +
+                                "Please be more specific about what you'd like to do!",
+                        timestamp=datetime.now().isoformat(),
+                        type="text"
+                    )
+            except Exception as e:
+                # Fallback response if LLM fails
+                return ChatResponse(
+                    response="I understand you're asking about hospital management. Here are some things I can help you with:\n\n" +
+                            "• **Analyze hospital state** - Get comprehensive analysis\n" +
+                            "• **Patient management** - Add, view, or manage patients\n" +
+                            "• **Bed management** - Check availability and allocate beds\n" +
+                            "• **Staff operations** - Manage doctors, nurses, and staff\n" +
+                            "• **Equipment tracking** - Monitor and maintain equipment\n" +
+                            "• **Supply management** - Track inventory and supplies\n" +
+                            "• **Autonomous AI** - Let AI optimize hospital operations\n\n" +
+                            "Please be more specific about what you'd like to do!\n\n" +
+                            f"Note: Advanced AI features are currently unavailable: {str(e)}",
+                    timestamp=datetime.now().isoformat(),
+                    type="text"
+                )
     
     async def _show_capabilities(self) -> ChatResponse:
         """Show bot capabilities."""
