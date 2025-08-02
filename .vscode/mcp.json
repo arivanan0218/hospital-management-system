@@ -1,21 +1,21 @@
 {
 	"servers": {
-		"hospital-management-server": {
-			"type": "stdio",
-			"command": "node",
-			"args": ["build/server.js"],
-			"cwd": "${workspaceFolder}/backend",
-			"dev": {
-				"watch": "build/**/*.js",
-				"debug": {
-					"type": "node"
-				}
-			}
-		},
+		// "hospital-management-server": {
+		// 	"type": "stdio",
+		// 	"command": "node",
+		// 	"args": ["build/server.js"],
+		// 	"cwd": "${workspaceFolder}/backend",
+		// 	"dev": {
+		// 		"watch": "build/**/*.js",
+		// 		"debug": {
+		// 			"type": "node"
+		// 		}
+		// 	}
+		// },
 		"hospital-management-python": {
 			"type": "stdio",
 			"command": "python",
-			"args": ["server.py"],
+			"args": ["comprehensive_server.py"],
 			"cwd": "${workspaceFolder}/backend-python",
 			"dev": {
 				"watch": "**/*.py"

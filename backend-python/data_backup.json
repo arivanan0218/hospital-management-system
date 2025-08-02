@@ -1,0 +1,107 @@
+[
+  {
+    "id": 1,
+    "name": "Alice Johnson",
+    "email": "alice@test.com",
+    "address": "123 Maple St, Springfield, IL",
+    "phone": "555-1234"
+  },
+  {
+    "id": 2,
+    "name": "Bob Smith",
+    "email": "bob@test.com",
+    "address": "456 Oak St, Springfield, IL",
+    "phone": "555-5678"
+  },
+  {
+    "id": 3,
+    "name": "Charlie Brown",
+    "email": "charlie@test.com",
+    "address": "123 Main St, Omaha, NE",
+    "phone": "555-8765"
+  },
+  {
+    "id": 4,
+    "name": "Diana Brown",
+    "email": "diana.brown@yahoo.com",
+    "address": "5415 Oak St, Madison, NY 13681",
+    "phone": "(486) 725-9271"
+  },
+  {
+    "id": 5,
+    "name": "Bob Miller",
+    "email": "bob.miller@outlook.com",
+    "address": "2438 Main St, Clinton, IL 13393",
+    "phone": "(314) 322-4660"
+  },
+  {
+    "id": 6,
+    "name": "John Doe",
+    "email": "john@example.com",
+    "address": "123 Main St",
+    "phone": "555-1234"
+  },
+  {
+    "id": 7,
+    "name": "Gowsalya",
+    "email": "gows@gmail.com",
+    "address": "Trinco",
+    "phone": "0772244481"
+  },
+  {
+    "id": 8,
+    "name": "Arivu",
+    "email": "ari@gmail.com",
+    "address": "Moongilaru",
+    "phone": "0772244481"
+  },
+  {
+    "id": 9,
+    "name": "Kiru",
+    "email": "kiru@gmail.com",
+    "address": "Trinco",
+    "phone": "0772244811"
+  },
+  {
+    "id": 10,
+    "name": "Test User Frontend",
+    "email": "testfrontend@example.com",
+    "address": "123 Frontend Street",
+    "phone": "555-TEST"
+  },
+  {
+    "id": 11,
+    "name": "Hannah Wilson",
+    "email": "hannah.wilson@example.com",
+    "address": "2758 Maple St, Georgetown, TX 57751",
+    "phone": "(240) 829-8000"
+  },
+  {
+    "id": 12,
+    "name": "Test User",
+    "email": "test@postgresql.com",
+    "address": "123 DB Street",
+    "phone": "555-0123"
+  },
+  {
+    "id": 14,
+    "name": "Gowsi",
+    "email": "gow@gmail.com",
+    "address": "Trincomalee",
+    "phone": "0773344482"
+  },
+  {
+    "id": 15,
+    "name": "Alice Davis",
+    "email": "alice.davis@gmail.com",
+    "address": "5431 Maple St, Clinton, IL 30050",
+    "phone": "(851) 709-2505"
+  },
+  {
+    "id": 20,
+    "name": "kiru",
+    "email": "ki@gmail.com",
+    "address": "London",
+    "phone": "0774499930"
+  }
+]
