@@ -21,6 +21,8 @@ const DirectMCPChatbot = () => {
   
   const [serverInfo, setServerInfo] = useState(null);
   const [connectionError, setConnectionError] = useState('');
+  const [thinkingMode] = useState(true); // Always use Direct MCP with thinking
+  const [expandedThinking, setExpandedThinking] = useState({}); // Track which thinking messages are expanded
   
   const aiMcpServiceRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -61,24 +63,7 @@ const DirectMCPChatbot = () => {
         
         setMessages([{
           id: Date.now(),
-          text: `🏥 Hello! I'm **Hospital AI**, your intelligent assistant for comprehensive hospital management. I've successfully connected to your hospital management system and have access to ${info.toolCount || 0} different tools.
-
-🎯 **I can help you with:**
-• 👥 **Patient Management** - Create, search, and update patient records
-• 🏢 **Department Operations** - Manage hospital departments and assignments  
-• 👨‍⚕️ **Staff Management** - Handle doctor, nurse, and staff information
-• 🛏️ **Bed Management** - Track room assignments and bed availability
-• 🏥 **Equipment Tracking** - Monitor medical devices and maintenance
-• 📦 **Supply Inventory** - Manage medications and consumables
-• 📅 **Appointment Scheduling** - Coordinate patient appointments
-
-💡 **What would you like to help you with today?** You can ask me in natural language, like:
-• "Show me all patients"
-• "Create a new department for cardiology"
-• "Check bed availability"
-• "Schedule an appointment"
-
-Ready to assist! 🚀`,
+          text: `👋 Welcome to Hospital Agent! How can I help you today? 🏥`,
           sender: 'ai',
           timestamp: new Date().toLocaleTimeString()
         }]);
@@ -96,7 +81,7 @@ Ready to assist! 🚀`,
   };
 
   /**
-   * Send message to AI
+   * Send message to AI with thinking flow
    */
   const sendMessage = async () => {
     if (!inputMessage.trim() || !isConnected || isLoading) return;
@@ -115,26 +100,64 @@ Ready to assist! 🚀`,
     setMessages(prev => [...prev, userMsg]);
 
     try {
+      // Step 1: Show initial thinking
+      const thinkingMsg = {
+        id: Date.now() + 1,
+        text: '🤔 **Thinking...**\n\nLet me analyze your request and determine the best approach.',
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString(),
+        isThinking: true
+      };
+      setMessages(prev => [...prev, thinkingMsg]);
+
+      // Small delay to show thinking
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      // Step 2: Show analysis of the request
+      const analysisMsg = {
+        id: Date.now() + 2,
+        text: '🔍 **Analyzing Request...**\n\nI understand you want to: ' + userMessage + '\n\nLet me process this and check if I need to access any hospital data or perform specific actions.',
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString(),
+        isThinking: true
+      };
+      setMessages(prev => [...prev, analysisMsg]);
+
+      await new Promise(resolve => setTimeout(resolve, 600));
+
+      // Step 3: Process the actual request
       const response = await aiMcpServiceRef.current.processRequest(userMessage);
       
       if (response.success) {
-        // Format the response in Claude's style
+        // Step 4: Show what tools will be called (if any)
+        if (response.functionCalls && response.functionCalls.length > 0) {
+          const toolsMsg = {
+            id: Date.now() + 3,
+            text: `🛠️ **Tools Required:**\n\nI need to use the following tools to answer your question:\n${response.functionCalls.map(call => `• ${call.function}`).join('\n')}\n\nExecuting now...`,
+            sender: 'ai',
+            timestamp: new Date().toLocaleTimeString(),
+            isThinking: true
+          };
+          setMessages(prev => [...prev, toolsMsg]);
+
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+
+        // Step 5: Final response with results
         let responseText = response.message || 'I\'ve processed your request successfully.';
         
         // Add function call results if any
         if (response.functionCalls && response.functionCalls.length > 0) {
-          responseText += '\n\n';
+          responseText += '\n\n**📊 Results:**\n\n';
           
           response.functionCalls.forEach((call) => {
-            console.log('🔍 Function call result:', call); // Debug log
-            console.log('🔍 Call result structure:', JSON.stringify(call.result, null, 2)); // Debug structure
+            console.log('🔍 Function call result:', call);
+            
             if (call.success) {
-              // Enhanced visual formatting for function results
               const functionIcon = getFunctionIcon(call.function);
               responseText += `${functionIcon} **${call.function.toUpperCase()}**\n`;
               
               if (call.result && call.result.content) {
-                // Try to format the result nicely
                 const content = call.result.content;
                 if (Array.isArray(content)) {
                   responseText += formatMCPData(content);
@@ -144,12 +167,9 @@ Ready to assist! 🚀`,
                   responseText += `${content}\n`;
                 }
               } else if (call.result) {
-                // Handle direct result or MCP text response
                 let result = call.result;
                 
-                // Handle different result formats
                 if (Array.isArray(result)) {
-                  // If result is an array, check first item
                   if (result.length > 0 && result[0].type === 'text' && result[0].text) {
                     try {
                       const parsedData = JSON.parse(result[0].text);
@@ -161,7 +181,6 @@ Ready to assist! 🚀`,
                     responseText += formatMCPData(result);
                   }
                 } else if (result.type === 'text' && result.text) {
-                  // Handle MCP text response format
                   try {
                     const parsedData = JSON.parse(result.text);
                     responseText += formatMCPData(parsedData);
@@ -170,15 +189,12 @@ Ready to assist! 🚀`,
                   }
                 } else if (result.text && typeof result.text === 'string') {
                   try {
-                    // Try to parse the text as JSON
                     const parsedData = JSON.parse(result.text);
                     responseText += formatMCPData(parsedData);
                   } catch {
-                    // If not JSON, display as text
                     responseText += `${result.text}\n`;
                   }
                 } else if (result.content) {
-                  // Handle result.content structure
                   if (Array.isArray(result.content)) {
                     responseText += formatMCPData(result.content);
                   } else if (typeof result.content === 'object') {
@@ -200,22 +216,24 @@ Ready to assist! 🚀`,
             responseText += '\n';
           });
         }
-        
+
         const aiMsg = {
-          id: Date.now() + 1,
+          id: Date.now() + 4,
           text: responseText,
           sender: 'ai',
           timestamp: new Date().toLocaleTimeString(),
-          functionCalls: response.functionCalls
+          functionCalls: response.functionCalls,
+          isFinalAnswer: true
         };
         setMessages(prev => [...prev, aiMsg]);
         
       } else {
         const errorMsg = {
-          id: Date.now() + 1,
-          text: `I apologize, but I encountered an error: ${response.error || 'Unknown error occurred'}\n\nPlease try rephrasing your request or let me know if you need help with something specific.`,
+          id: Date.now() + 4,
+          text: `❌ **Error Encountered**\n\nI apologize, but I encountered an error: ${response.error || 'Unknown error occurred'}\n\nPlease try rephrasing your request or let me know if you need help with something specific.`,
           sender: 'ai',
-          timestamp: new Date().toLocaleTimeString()
+          timestamp: new Date().toLocaleTimeString(),
+          isError: true
         };
         setMessages(prev => [...prev, errorMsg]);
       }
@@ -223,14 +241,222 @@ Ready to assist! 🚀`,
     } catch (error) {
       console.error('❌ Send message failed:', error);
       const errorMsg = {
-        id: Date.now() + 1,
-        text: `I'm sorry, but I'm having trouble processing your request right now: ${error.message}\n\nThis might be a temporary issue. Could you please try again?`,
+        id: Date.now() + 4,
+        text: `💥 **Processing Error**\n\nI'm sorry, but I'm having trouble processing your request right now: ${error.message}\n\nThis might be a temporary issue. Could you please try again?`,
         sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
+        timestamp: new Date().toLocaleTimeString(),
+        isError: true
       };
       setMessages(prev => [...prev, errorMsg]);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  /**
+   * Enhanced message sending with multi-step thinking flow
+   */
+  const sendMessageWithAdvancedThinking = async (customQuery = null) => {
+    const queryToProcess = customQuery || inputMessage.trim();
+    if (!queryToProcess || !isConnected || isLoading) return;
+
+    if (!customQuery) {
+      setInputMessage('');
+    }
+    setIsLoading(true);
+
+    // Add user message only if it's not a follow-up
+    if (!customQuery) {
+      const userMsg = {
+        id: Date.now(),
+        text: queryToProcess,
+        sender: 'user',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, userMsg]);
+    }
+
+    try {
+      // Determine if this is a complex query that might need multiple steps
+      const isComplexQuery = queryToProcess.toLowerCase().includes('and') || 
+                            queryToProcess.toLowerCase().includes('then') ||
+                            queryToProcess.toLowerCase().includes('also') ||
+                            queryToProcess.split(' ').length > 10;
+
+      if (isComplexQuery) {
+        const complexThinkingMsg = {
+          id: Date.now() + 1,
+          text: '🧠 **Complex Query Detected**\n\nThis appears to be a multi-part request. Let me break it down and process each part systematically.',
+          sender: 'ai',
+          timestamp: new Date().toLocaleTimeString(),
+          isThinking: true
+        };
+        setMessages(prev => [...prev, complexThinkingMsg]);
+        await new Promise(resolve => setTimeout(resolve, 700));
+      }
+
+      // Initial thinking
+      const thinkingMsg = {
+        id: Date.now() + 2,
+        text: '🤔 **Analyzing Request...**\n\nLet me understand what you need and determine the best approach.',
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString(),
+        isThinking: true
+      };
+      setMessages(prev => [...prev, thinkingMsg]);
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      // Analysis of the request
+      const analysisMsg = {
+        id: Date.now() + 3,
+        text: `🔍 **Request Analysis**\n\nYou want: "${queryToProcess}"\n\nLet me check what information I need to gather and which tools to use.`,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString(),
+        isThinking: true
+      };
+      setMessages(prev => [...prev, analysisMsg]);
+      await new Promise(resolve => setTimeout(resolve, 600));
+
+      // Process the actual request
+      const response = await aiMcpServiceRef.current.processRequest(queryToProcess);
+      
+      if (response.success) {
+        // Show what tools will be called
+        if (response.functionCalls && response.functionCalls.length > 0) {
+          const toolsMsg = {
+            id: Date.now() + 4,
+            text: `🛠️ **Executing Tools:**\n\n${response.functionCalls.map((call, index) => `${index + 1}. ${getFunctionIcon(call.function)} ${call.function}`).join('\n')}\n\nProcessing...`,
+            sender: 'ai',
+            timestamp: new Date().toLocaleTimeString(),
+            isThinking: true
+          };
+          setMessages(prev => [...prev, toolsMsg]);
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+
+        // Final response
+        let responseText = response.message || 'I\'ve processed your request successfully.';
+        
+        if (response.functionCalls && response.functionCalls.length > 0) {
+          responseText += '\n\n**📊 Results:**\n\n';
+          
+          response.functionCalls.forEach((call) => {
+            if (call.success) {
+              const functionIcon = getFunctionIcon(call.function);
+              responseText += `${functionIcon} **${call.function.toUpperCase()}**\n`;
+              
+              // Handle different result formats (same as original sendMessage)
+              if (call.result && call.result.content) {
+                const content = call.result.content;
+                if (Array.isArray(content)) {
+                  responseText += formatMCPData(content);
+                } else if (typeof content === 'object') {
+                  responseText += formatMCPData(content);
+                } else {
+                  responseText += `${content}\n`;
+                }
+              } else if (call.result) {
+                let result = call.result;
+                
+                if (Array.isArray(result)) {
+                  if (result.length > 0 && result[0].type === 'text' && result[0].text) {
+                    try {
+                      const parsedData = JSON.parse(result[0].text);
+                      responseText += formatMCPData(parsedData);
+                    } catch {
+                      responseText += `${result[0].text}\n`;
+                    }
+                  } else {
+                    responseText += formatMCPData(result);
+                  }
+                } else if (result.type === 'text' && result.text) {
+                  try {
+                    const parsedData = JSON.parse(result.text);
+                    responseText += formatMCPData(parsedData);
+                  } catch {
+                    responseText += `${result.text}\n`;
+                  }
+                } else if (result.text && typeof result.text === 'string') {
+                  try {
+                    const parsedData = JSON.parse(result.text);
+                    responseText += formatMCPData(parsedData);
+                  } catch {
+                    responseText += `${result.text}\n`;
+                  }
+                } else if (result.content) {
+                  if (Array.isArray(result.content)) {
+                    responseText += formatMCPData(result.content);
+                  } else if (typeof result.content === 'object') {
+                    responseText += formatMCPData(result.content);
+                  } else {
+                    responseText += `${result.content}\n`;
+                  }
+                } else if (typeof result === 'object') {
+                  responseText += formatMCPData(result);
+                } else {
+                  responseText += `ℹ️ ${result}\n`;
+                }
+              } else {
+                responseText += '✅ **COMPLETED SUCCESSFULLY**\n';
+              }
+            } else {
+              responseText += `❌ **${call.function.toUpperCase()} FAILED**: ${call.error}\n`;
+            }
+            responseText += '\n';
+          });
+
+          // Add follow-up suggestions
+          responseText += '\n**💡 What would you like to do next?**\n';
+          responseText += '• Ask for more details about any item\n';
+          responseText += '• Perform additional operations\n';
+          responseText += '• Create new records\n';
+          responseText += '• Generate reports';
+        }
+
+        const aiMsg = {
+          id: Date.now() + 5,
+          text: responseText,
+          sender: 'ai',
+          timestamp: new Date().toLocaleTimeString(),
+          functionCalls: response.functionCalls,
+          isFinalAnswer: true
+        };
+        setMessages(prev => [...prev, aiMsg]);
+        
+      } else {
+        const errorMsg = {
+          id: Date.now() + 5,
+          text: `❌ **Error Encountered**\n\nI apologize, but I encountered an error: ${response.error || 'Unknown error occurred'}\n\nPlease try rephrasing your request or let me know if you need help with something specific.`,
+          sender: 'ai',
+          timestamp: new Date().toLocaleTimeString(),
+          isError: true
+        };
+        setMessages(prev => [...prev, errorMsg]);
+      }
+      
+    } catch (error) {
+      console.error('❌ Send message failed:', error);
+      const errorMsg = {
+        id: Date.now() + 5,
+        text: `💥 **Processing Error**\n\nI'm sorry, but I'm having trouble processing your request right now: ${error.message}\n\nThis might be a temporary issue. Could you please try again?`,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString(),
+        isError: true
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /**
+   * Choose between normal and advanced thinking modes
+   */
+  const handleSendMessage = () => {
+    if (thinkingMode) {
+      sendMessageWithAdvancedThinking();
+    } else {
+      sendMessage();
     }
   };
 
@@ -804,26 +1030,25 @@ Ready to assist! 🚀`,
 
   // Main Chat Interface - Claude Desktop Style
   return (
-    <div className="h-screen bg-white flex flex-col">
+    <div className="h-screen bg-[#1a1a1a] flex flex-col text-white">
       {/* Claude-style Header */}
-      <div className="border-b border-gray-200 px-6 py-4 bg-white">
+      <div className="border-b border-gray-700 px-4 py-3 bg-[#1a1a1a]">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-gradient-to-br from-orange-400 to-orange-600 rounded-lg flex items-center justify-center">
-              <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-              </svg>
+            <div className="w-7 h-7 bg-[#333] rounded-full flex items-center justify-center text-white text-sm font-medium">
+              H
             </div>
             <div>
-              <h1 className="text-lg font-semibold text-gray-900">Hospital Assistant</h1>
+              <h1 className="text-sm font-medium text-white">Hospital Assistant</h1>
               {serverInfo && (
-                <p className="text-sm text-gray-500">
+                <p className="text-xs text-gray-400">
                   Connected • {serverInfo.toolCount} tools • {aiMcpServiceRef.current?.getConversationSummary?.()?.messageCount || 0} messages in memory
                 </p>
               )}
             </div>
           </div>
           <div className="flex items-center space-x-2">
+            {/* Action Buttons */}
             <button
               onClick={() => {
                 if (aiMcpServiceRef.current) {
@@ -836,28 +1061,28 @@ Ready to assist! 🚀`,
                   }]);
                 }
               }}
-              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-1.5 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors"
               title="Reset Conversation Memory"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
             </button>
             <button
               onClick={checkStatus}
-              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-1.5 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors"
               title="Check Status"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
             </button>
             <button
               onClick={disconnect}
-              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-1.5 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors"
               title="Disconnect"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
@@ -866,26 +1091,24 @@ Ready to assist! 🚀`,
       </div>
 
       {/* Messages Container - Claude Style */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto bg-[#1a1a1a]">
         <div className="max-w-4xl mx-auto">
           {messages.length === 0 && (
             <div className="flex items-center justify-center h-full text-center px-6">
               <div className="max-w-md">
-                <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-orange-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                  <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
-                  </svg>
+                <div className="w-16 h-16 bg-[#333] rounded-full flex items-center justify-center mx-auto mb-6">
+                  <span className="text-2xl font-medium text-white">H</span>
                 </div>
-                <h2 className="text-2xl font-semibold text-gray-900 mb-3">
+                <h2 className="text-xl font-medium text-white mb-3">
                   Hospital Management Assistant
                 </h2>
-                <p className="text-gray-600 mb-6">
+                <p className="text-gray-400 mb-6 text-sm">
                   I'm your AI assistant for hospital management tasks. I can help you manage patients, staff, departments, equipment, and more through natural conversation.
                 </p>
                 <div className="grid grid-cols-1 gap-3 text-sm">
-                  <div className="bg-gray-50 rounded-lg p-3 text-left">
-                    <div className="font-medium text-gray-900 mb-1">Try asking:</div>
-                    <div className="text-gray-600">"List all patients" or "Create a new department"</div>
+                  <div className="bg-[#2a2a2a] rounded-lg p-3 text-left">
+                    <div className="font-medium text-white mb-1">Try asking:</div>
+                    <div className="text-gray-400">"List all patients" or "Create a new department"</div>
                   </div>
                 </div>
               </div>
@@ -893,33 +1116,71 @@ Ready to assist! 🚀`,
           )}
           
           {messages.map((message) => (
-            <div key={message.id} className="px-6 py-6 border-b border-gray-100 last:border-b-0">
-              <div className="flex space-x-4">
+            <div key={message.id} className={`px-4 py-2 ${
+              message.isThinking ? 'bg-[#1a1a1a]' : 
+              message.isFinalAnswer ? 'bg-[#1a1a1a]' : 
+              message.isError ? 'bg-[#1a1a1a]' : 'bg-[#1a1a1a]'
+            }`}>
+              <div className="flex space-x-3">
                 {message.sender === 'user' ? (
-                  <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-                    <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-                    </svg>
+                  <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-medium text-white">
+                    U
                   </div>
                 ) : (
-                  <div className="w-8 h-8 bg-gradient-to-br from-orange-400 to-orange-600 rounded-full flex items-center justify-center flex-shrink-0">
-                    <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-                    </svg>
+                  <div className="w-7 h-7 bg-[#333] rounded-full flex items-center justify-center flex-shrink-0 text-sm font-medium text-white">
+                    {message.isThinking ? (
+                      <div className="w-3 h-3 border border-gray-400 border-t-white rounded-full animate-spin"></div>
+                    ) : (
+                      'H'
+                    )}
                   </div>
                 )}
                 
                 <div className="flex-1 min-w-0">
+                  {message.isThinking && (
+                    <div className="mb-1">
+                      <button
+                        onClick={() => setExpandedThinking(prev => ({
+                          ...prev,
+                          [message.id]: !prev[message.id]
+                        }))}
+                        className="flex items-center space-x-2 text-xs text-gray-500 italic hover:text-gray-400 transition-colors"
+                      >
+                        <span>Thinking about greeting and potential conversation initiation</span>
+                        <span className="ml-auto flex items-center space-x-1">
+                          <span>0s</span>
+                          <svg 
+                            className={`w-3 h-3 transform transition-transform ${expandedThinking[message.id] ? 'rotate-180' : ''}`} 
+                            fill="none" 
+                            stroke="currentColor" 
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </span>
+                      </button>
+                    </div>
+                  )}
                   <div className="prose prose-sm max-w-none">
-                    <div 
-                      className="whitespace-pre-wrap text-gray-900 leading-relaxed"
-                      dangerouslySetInnerHTML={{
-                        __html: formatMessageText(message.text)
-                      }}
-                    />
-                  </div>
-                  <div className="mt-2 text-xs text-gray-400">
-                    {message.timestamp}
+                    {message.isThinking && (
+                      <div className="flex items-center space-x-2 mb-2">
+                        <span className="text-orange-400 text-xs">🤔</span>
+                        <span className="text-xs text-gray-400">Analyzing Request...</span>
+                      </div>
+                    )}
+                    {(!message.isThinking || expandedThinking[message.id]) && (
+                      <div 
+                        className={`whitespace-pre-wrap leading-relaxed text-sm ${
+                          message.isThinking ? 'text-gray-300' :
+                          message.isFinalAnswer ? 'text-white' :
+                          message.isError ? 'text-red-400' :
+                          message.sender === 'user' ? 'text-white' : 'text-white'
+                        }`}
+                        dangerouslySetInnerHTML={{
+                          __html: formatMessageText(message.text)
+                        }}
+                      />
+                    )}
                   </div>
                 </div>
               </div>
@@ -927,22 +1188,43 @@ Ready to assist! 🚀`,
           ))}
           
           {isLoading && (
-            <div className="px-6 py-6 border-b border-gray-100">
-              <div className="flex space-x-4">
-                <div className="w-8 h-8 bg-gradient-to-br from-orange-400 to-orange-600 rounded-full flex items-center justify-center flex-shrink-0">
-                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-                  </svg>
+            <div className="px-4 py-2 bg-[#1a1a1a]">
+              <div className="flex space-x-3">
+                <div className="w-7 h-7 bg-[#333] rounded-full flex items-center justify-center flex-shrink-0">
+                  <div className="w-3 h-3 border border-gray-400 border-t-white rounded-full animate-spin"></div>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center space-x-2 text-gray-500">
-                    <div className="flex space-x-1">
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
-                    </div>
-                    <span className="text-sm">Thinking...</span>
+                  <div className="mb-1">
+                    <button
+                      onClick={() => setExpandedThinking(prev => ({
+                        ...prev,
+                        ['loading']: !prev['loading']
+                      }))}
+                      className="flex items-center space-x-2 text-xs text-gray-500 italic hover:text-gray-400 transition-colors"
+                    >
+                      <span>Processing your request...</span>
+                      <span className="ml-auto flex items-center space-x-1">
+                        <span>0s</span>
+                        <svg 
+                          className={`w-3 h-3 transform transition-transform ${expandedThinking['loading'] ? 'rotate-180' : ''}`} 
+                          fill="none" 
+                          stroke="currentColor" 
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </span>
+                    </button>
                   </div>
+                  <div className="flex items-center space-x-2 text-gray-300 mb-1">
+                    <span className="text-blue-400">🔍</span>
+                    <span className="text-xs text-gray-400">Request Analysis</span>
+                  </div>
+                  {expandedThinking['loading'] && (
+                    <div className="text-sm text-gray-300">
+                      Analyzing your request and determining the best approach...
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -953,7 +1235,7 @@ Ready to assist! 🚀`,
       </div>
 
       {/* Claude-style Input */}
-      <div className="border-t border-gray-200 bg-white px-6 py-4">
+      <div className="border-t border-gray-700 bg-[#1a1a1a] px-4 py-4">
         <div className="max-w-4xl mx-auto">
           <div className="relative">
             <textarea
@@ -962,15 +1244,15 @@ Ready to assist! 🚀`,
               onKeyPress={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
-                  sendMessage();
+                  handleSendMessage();
                 }
               }}
-              placeholder="Message Hospital Assistant..."
+              placeholder="Reply to Hospital Assistant..."
               disabled={!isConnected || isLoading}
               rows={1}
-              className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none disabled:bg-gray-50 disabled:text-gray-500"
+              className="w-full px-4 py-3 bg-[#2a2a2a] border border-gray-600 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-none disabled:bg-gray-800 disabled:text-gray-500 text-white placeholder-gray-400 text-sm"
               style={{
-                minHeight: '48px',
+                minHeight: '44px',
                 maxHeight: '120px'
               }}
               onInput={(e) => {
@@ -979,9 +1261,9 @@ Ready to assist! 🚀`,
               }}
             />
             <button
-              onClick={sendMessage}
+              onClick={handleSendMessage}
               disabled={!isConnected || isLoading || !inputMessage.trim()}
-              className="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white rounded-lg transition-colors duration-200"
+              className="absolute right-2 top-2 p-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded-md transition-colors duration-200"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
