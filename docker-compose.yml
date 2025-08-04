@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: hospital-postgres
+    environment:
+      POSTGRES_DB: hospital_management
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hospital-network
+
+  # Backend Python (MCP Server)
+  backend-python:
+    build:
+      context: ./backend-python
+      dockerfile: Dockerfile
+    container_name: hospital-backend-python
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/hospital_management
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend-python:/app
+    networks:
+      - hospital-network
+    restart: unless-stopped
+
+  # MCP Process Manager
+  mcp-manager:
+    build:
+      context: ./mcp-process-manager
+      dockerfile: Dockerfile
+    container_name: hospital-mcp-manager
+    environment:
+      - PORT=3001
+      - NODE_ENV=production
+    depends_on:
+      - backend-python
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./mcp-process-manager:/app
+      - ./backend-python:/backend-python
+    networks:
+      - hospital-network
+    restart: unless-stopped
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: hospital-frontend
+    environment:
+      - VITE_MCP_BRIDGE_URL=http://localhost:3001
+      - VITE_CLAUDE_API_KEY=${VITE_CLAUDE_API_KEY}
+      - VITE_OPENAI_API_KEY=${VITE_OPENAI_API_KEY}
+      - VITE_GROQ_API_KEY=${VITE_GROQ_API_KEY}
+      - VITE_GOOGLE_API_KEY=${VITE_GOOGLE_API_KEY}
+    depends_on:
+      - mcp-manager
+    ports:
+      - "80:80"
+    networks:
+      - hospital-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  hospital-network:
+    driver: bridge

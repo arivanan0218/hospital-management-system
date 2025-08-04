@@ -172,13 +172,13 @@ class MCPProcessManager {
       
       this.mcpProcess.stdin.write(JSON.stringify(request) + '\n');
       
-      // Timeout after 30 seconds
+      // Timeout after 300 seconds (5 minutes) to allow for package installation
       setTimeout(() => {
         if (this.pendingRequests.has(id)) {
           this.pendingRequests.delete(id);
           reject(new Error('Request timeout'));
         }
-      }, 30000);
+      }, 300000);
     });
   }
 

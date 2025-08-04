@@ -1,0 +1,42 @@
+# Python specific docker ignore
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+.pytest_cache/
+.coverage
+.env
+.env.local
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Lock files (we copy them separately)
+# uv.lock
+
+# Database files
+*.sqlite
+*.db
+
+# Logs
+*.log

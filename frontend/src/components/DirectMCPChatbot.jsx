@@ -11,12 +11,12 @@ const DirectMCPChatbot = () => {
   // Configuration state
   const [openaiApiKey, setOpenaiApiKey] = useState(import.meta.env.VITE_OPENAI_API_KEY || '');
   const [mcpServerConfig, setMcpServerConfig] = useState({
-    command: 'python',
-    args: ['comprehensive_server.py'],
+    command: 'uv',
+    args: ['run', 'python', 'comprehensive_server.py'],
     env: {
-      'PYTHONPATH': 'c:\\Users\\Arivanan\\hospital-management-system\\backend-python'
+      'PYTHONPATH': '/backend-python'
     },
-    cwd: 'c:\\Users\\Arivanan\\hospital-management-system\\backend-python'
+    cwd: '/backend-python'
   });
   
   const [serverInfo, setServerInfo] = useState(null);
@@ -47,11 +47,21 @@ const DirectMCPChatbot = () => {
     try {
       aiMcpServiceRef.current = new DirectAIMCPService();
       
-      console.log('🚀 Initializing with config:', mcpServerConfig);
+      // Force the correct containerized configuration
+      const containerizedConfig = {
+        command: 'uv',
+        args: ['run', 'python', 'comprehensive_server.py'],
+        env: {
+          'PYTHONPATH': '/backend-python'
+        },
+        cwd: '/backend-python'
+      };
+      
+      console.log('🚀 Initializing with config:', containerizedConfig);
       
       const initialized = await aiMcpServiceRef.current.initialize(
         openaiApiKey,
-        mcpServerConfig
+        containerizedConfig
       );
       
       if (initialized) {
