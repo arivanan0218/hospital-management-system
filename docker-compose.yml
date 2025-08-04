@@ -50,8 +50,12 @@ services:
     environment:
       - PORT=3001
       - NODE_ENV=production
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/hospital_management
     depends_on:
-      - backend-python
+      postgres:
+        condition: service_healthy
+      backend-python:
+        condition: service_started
     ports:
       - "3001:3001"
     volumes:
