@@ -888,139 +888,194 @@ const DirectMCPChatbot = () => {
     }
   };
 
-  // Setup Panel - Claude Desktop Style
+  // Setup Panel - Dark Chatbot Style
   if (showSetup) {
     return (
-      <div className="h-screen bg-gray-50 flex items-center justify-center">
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
-          <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-orange-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
-              </svg>
+      <div className="h-screen bg-[#1a1a1a] flex flex-col text-white">
+        {/* Header */}
+        <div className="border-b border-gray-700 px-4 py-3 bg-[#1a1a1a]">
+          <div className="flex items-center space-x-3">
+            <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-medium shadow-lg">
+              H
             </div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">
-              Hospital Assistant
-            </h1>
-            <p className="text-gray-600">
-              Connect to your hospital management system
-            </p>
+            <div>
+              <h1 className="text-sm font-medium text-white">Hospital Assistant</h1>
+              <p className="text-xs text-gray-400">Setup & Configuration</p>
+            </div>
           </div>
+        </div>
 
-          <div className="space-y-6">
-            {/* OpenAI API Key */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                OpenAI API Key
-              </label>
-              <input
-                type="password"
-                value={openaiApiKey}
-                onChange={(e) => setOpenaiApiKey(e.target.value)}
-                placeholder="sk-..."
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              />
+        {/* Main Setup Content */}
+        <div className="flex-1 overflow-y-auto bg-[#1a1a1a] flex items-center justify-center">
+          <div className="max-w-lg w-full mx-4">
+            {/* Welcome Section */}
+            <div className="text-center mb-8">
+              <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+                <span className="text-2xl font-medium text-white">H</span>
+              </div>
+              <h1 className="text-2xl font-medium text-white mb-3">
+                Welcome to Hospital Assistant
+              </h1>
+              <p className="text-gray-400 mb-6 text-sm">
+                Connect to your hospital management system to get started with AI-powered healthcare administration.
+              </p>
             </div>
 
-            {/* Advanced Configuration - Collapsible */}
-            <div>
-              <details className="group">
-                <summary className="flex items-center justify-between cursor-pointer text-sm font-medium text-gray-700 hover:text-gray-900">
-                  <span>Advanced Configuration</span>
-                  <svg className="w-4 h-4 transform group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </summary>
-                
-                <div className="mt-4 space-y-4">
-                  <div>
-                    <label className="block text-xs text-gray-600 mb-1">Command</label>
-                    <input
-                      type="text"
-                      value={mcpServerConfig.command}
-                      onChange={(e) => setMcpServerConfig(prev => ({
-                        ...prev,
-                        command: e.target.value
-                      }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
-                    />
+            {/* Configuration Form */}
+            <div className="space-y-6">
+              {/* API Key Section */}
+              <div className="bg-[#2a2a2a] rounded-lg p-6 border border-gray-700">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                    </svg>
                   </div>
-                  
                   <div>
-                    <label className="block text-xs text-gray-600 mb-1">Arguments</label>
-                    <textarea
-                      value={mcpServerConfig.args ? mcpServerConfig.args.join('\n') : ''}
-                      onChange={(e) => setMcpServerConfig(prev => ({
-                        ...prev,
-                        args: e.target.value.split('\n').filter(arg => arg.trim())
-                      }))}
-                      rows={2}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-xs text-gray-600 mb-1">Working Directory</label>
-                    <input
-                      type="text"
-                      value={mcpServerConfig.cwd || ''}
-                      onChange={(e) => setMcpServerConfig(prev => ({
-                        ...prev,
-                        cwd: e.target.value
-                      }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
-                    />
+                    <h3 className="text-white font-medium">OpenAI API Key</h3>
+                    <p className="text-xs text-gray-400">Required for AI conversation processing</p>
                   </div>
                 </div>
-              </details>
-            </div>
-
-            {/* Connection Status */}
-            {connectionError && (
-              <div className={`p-4 rounded-xl text-sm ${
-                connectionError.includes('✅') 
-                  ? 'bg-green-50 text-green-800 border border-green-200' 
-                  : 'bg-red-50 text-red-800 border border-red-200'
-              }`}>
-                {connectionError}
+                <input
+                  type="password"
+                  value={openaiApiKey}
+                  onChange={(e) => setOpenaiApiKey(e.target.value)}
+                  placeholder="sk-..."
+                  className="w-full px-4 py-3 bg-[#1a1a1a] border border-gray-600 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-white placeholder-gray-400 text-sm"
+                />
               </div>
-            )}
 
-            {/* Action Buttons */}
-            <div className="space-y-3">
-              <button
-                onClick={async () => {
-                  setConnectionError('');
-                  try {
-                    const response = await fetch('http://localhost:3001/mcp/status');
-                    if (response.ok) {
-                      setConnectionError('✅ MCP Process Manager is running and ready');
-                    } else {
-                      setConnectionError(`❌ Process Manager error: ${response.status}`);
-                    }
-                  } catch (error) {
-                    setConnectionError(`❌ Cannot reach Process Manager: ${error.message}`);
-                  }
-                }}
-                className="w-full py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-colors text-sm font-medium"
-              >
-                Test Connection
-              </button>
-              
-              <button
-                onClick={initializeService}
-                disabled={isLoading || !openaiApiKey.trim()}
-                className="w-full py-3 px-4 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-gray-300 disabled:to-gray-400 text-white rounded-xl transition-all duration-200 font-medium"
-              >
-                {isLoading ? (
-                  <div className="flex items-center justify-center space-x-2">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span>Connecting...</span>
+              {/* Advanced Configuration */}
+              <div className="bg-[#2a2a2a] rounded-lg border border-gray-700">
+                <details className="group">
+                  <summary className="flex items-center justify-between cursor-pointer p-6 hover:bg-[#333] rounded-lg transition-colors">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-gray-600 rounded-lg flex items-center justify-center">
+                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h3 className="text-white font-medium">Advanced Configuration</h3>
+                        <p className="text-xs text-gray-400">MCP server settings (optional)</p>
+                      </div>
+                    </div>
+                    <svg className="w-4 h-4 text-gray-400 transform group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </summary>
+                  
+                  <div className="px-6 pb-6 space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Command</label>
+                      <input
+                        type="text"
+                        value={mcpServerConfig.command}
+                        onChange={(e) => setMcpServerConfig(prev => ({
+                          ...prev,
+                          command: e.target.value
+                        }))}
+                        className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-white text-sm"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Arguments</label>
+                      <textarea
+                        value={mcpServerConfig.args ? mcpServerConfig.args.join('\n') : ''}
+                        onChange={(e) => setMcpServerConfig(prev => ({
+                          ...prev,
+                          args: e.target.value.split('\n').filter(arg => arg.trim())
+                        }))}
+                        rows={2}
+                        className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-white text-sm resize-none"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Working Directory</label>
+                      <input
+                        type="text"
+                        value={mcpServerConfig.cwd || ''}
+                        onChange={(e) => setMcpServerConfig(prev => ({
+                          ...prev,
+                          cwd: e.target.value
+                        }))}
+                        className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-white text-sm"
+                      />
+                    </div>
                   </div>
-                ) : (
-                  'Connect to Hospital System'
-                )}
-              </button>
+                </details>
+              </div>
+
+              {/* Connection Status */}
+              {connectionError && (
+                <div className={`p-4 rounded-lg text-sm border ${
+                  connectionError.includes('✅') 
+                    ? 'bg-green-900/20 text-green-400 border-green-800' 
+                    : 'bg-red-900/20 text-red-400 border-red-800'
+                }`}>
+                  {connectionError}
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="space-y-3">
+                <button
+                  onClick={async () => {
+                    setConnectionError('');
+                    try {
+                      const response = await fetch('http://localhost:3001/mcp/status');
+                      if (response.ok) {
+                        setConnectionError('✅ MCP Process Manager is running and ready');
+                      } else {
+                        setConnectionError(`❌ Process Manager error: ${response.status}`);
+                      }
+                    } catch (error) {
+                      setConnectionError(`❌ Cannot reach Process Manager: ${error.message}`);
+                    }
+                  }}
+                  className="w-full py-3 px-4 bg-[#333] hover:bg-[#404040] text-white rounded-lg transition-colors text-sm font-medium border border-gray-600"
+                >
+                  <div className="flex items-center justify-center space-x-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>Test Connection</span>
+                  </div>
+                </button>
+                
+                <button
+                  onClick={initializeService}
+                  disabled={isLoading || !openaiApiKey.trim()}
+                  className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-all duration-200 font-medium"
+                >
+                  {isLoading ? (
+                    <div className="flex items-center justify-center space-x-2">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Connecting to Hospital System...</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center space-x-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      <span>Connect to Hospital System</span>
+                    </div>
+                  )}
+                </button>
+              </div>
+
+              {/* Quick Tips */}
+              <div className="bg-[#2a2a2a] rounded-lg p-4 border border-gray-700">
+                <h4 className="text-white font-medium mb-2 text-sm">Quick Tips:</h4>
+                <ul className="text-xs text-gray-400 space-y-1">
+                  <li>• Make sure the MCP Process Manager is running on port 3001</li>
+                  <li>• Your OpenAI API key needs GPT-4 access for best results</li>
+                  <li>• Advanced configuration is optional for most users</li>
+                </ul>
+              </div>
             </div>
           </div>
         </div>
@@ -1035,7 +1090,7 @@ const DirectMCPChatbot = () => {
       <div className="border-b border-gray-700 px-4 py-3 bg-[#1a1a1a]">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-7 h-7 bg-[#333] rounded-full flex items-center justify-center text-white text-sm font-medium">
+            <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-medium shadow-lg">
               H
             </div>
             <div>
@@ -1096,7 +1151,7 @@ const DirectMCPChatbot = () => {
           {messages.length === 0 && (
             <div className="flex items-center justify-center h-full text-center px-6">
               <div className="max-w-md">
-                <div className="w-16 h-16 bg-[#333] rounded-full flex items-center justify-center mx-auto mb-6">
+                <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
                   <span className="text-2xl font-medium text-white">H</span>
                 </div>
                 <h2 className="text-xl font-medium text-white mb-3">
@@ -1127,7 +1182,7 @@ const DirectMCPChatbot = () => {
                     U
                   </div>
                 ) : (
-                  <div className="w-7 h-7 bg-[#333] rounded-full flex items-center justify-center flex-shrink-0 text-sm font-medium text-white">
+                  <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-medium text-white shadow-lg">
                     {message.isThinking ? (
                       <div className="w-3 h-3 border border-gray-400 border-t-white rounded-full animate-spin"></div>
                     ) : (
@@ -1190,7 +1245,7 @@ const DirectMCPChatbot = () => {
           {isLoading && (
             <div className="px-4 py-2 bg-[#1a1a1a]">
               <div className="flex space-x-3">
-                <div className="w-7 h-7 bg-[#333] rounded-full flex items-center justify-center flex-shrink-0">
+                <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg">
                   <div className="w-3 h-3 border border-gray-400 border-t-white rounded-full animate-spin"></div>
                 </div>
                 <div className="flex-1 min-w-0">
