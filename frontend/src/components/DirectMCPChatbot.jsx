@@ -22,6 +22,7 @@ const DirectMCPChatbot = () => {
   const [serverInfo, setServerInfo] = useState(null);
   const [connectionError, setConnectionError] = useState('');
   const [expandedThinking, setExpandedThinking] = useState({}); // Track which thinking messages are expanded
+  const [isInputFocused, setIsInputFocused] = useState(false); // Track input focus state
   
   // Auto-scroll to bottom only when new messages are added, not on timer updates
   useEffect(() => {
@@ -50,6 +51,7 @@ const DirectMCPChatbot = () => {
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const lastMessageCountRef = useRef(0);
+  const inputFieldRef = useRef(null); // Add ref for input field
 
   // Controlled scroll function
   const scrollToBottom = React.useCallback(() => {
@@ -76,6 +78,21 @@ const DirectMCPChatbot = () => {
     }
     lastMessageCountRef.current = currentMessageCount;
   }, [messages.length, scrollToBottom]);
+
+  // Add keyboard shortcut to focus input (Ctrl/Cmd + /)
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === '/') {
+        event.preventDefault();
+        if (inputFieldRef.current && isConnected) {
+          inputFieldRef.current.focus();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isConnected]);
 
   /**
    * Initialize the AI-MCP service
@@ -122,6 +139,13 @@ const DirectMCPChatbot = () => {
           sender: 'ai',
           timestamp: new Date().toLocaleTimeString()
         }]);
+        
+        // Auto-focus the input field after successful connection
+        setTimeout(() => {
+          if (inputFieldRef.current) {
+            inputFieldRef.current.focus();
+          }
+        }, 500); // Delay to ensure UI is fully rendered
         
       } else {
         throw new Error('Failed to initialize service');
@@ -325,6 +349,13 @@ const DirectMCPChatbot = () => {
       setMessages(prev => [...prev, errorMsg]);
     } finally {
       setIsLoading(false);
+      
+      // Auto-focus the input field after sending message
+      setTimeout(() => {
+        if (inputFieldRef.current) {
+          inputFieldRef.current.focus();
+        }
+      }, 100); // Small delay to ensure state updates are complete
     }
   };
 
@@ -965,7 +996,17 @@ const DirectMCPChatbot = () => {
       </div>
 
       {/* Messages Container - Claude Style */}
-      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto bg-[#1a1a1a]">
+      <div 
+        ref={messagesContainerRef} 
+        className="flex-1 overflow-y-auto bg-[#1a1a1a]"
+        onClick={() => {
+          // Focus input when clicking anywhere in the chat area, but not when selecting text
+          const selection = window.getSelection();
+          if (inputFieldRef.current && isConnected && selection.toString().length === 0) {
+            inputFieldRef.current.focus();
+          }
+        }}
+      >
         <div className="max-w-4xl mx-auto">
           {messages.length === 0 && (
             <div className="flex items-center justify-center h-full text-center px-6">
@@ -1130,16 +1171,91 @@ const DirectMCPChatbot = () => {
         </div>
       </div>
 
+      {/* Action Buttons Above Input */}
+      <div className="bg-[#1a1a1a] px-4 py-1">
+        <div className="max-w-4xl mx-auto">
+          {/* Desktop: 1 row 4 columns, Mobile: 2 rows 2 columns */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
+            {/* View All Patients */}
+            <button
+              onClick={() => {
+                setInputMessage("List all patients");
+                setTimeout(() => {
+                  if (inputFieldRef.current) {
+                    inputFieldRef.current.focus();
+                  }
+                }, 100);
+              }}
+              className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md px-1.5 py-1 sm:px-2 sm:py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
+              title="View all patients"
+            >
+              <span className="font-medium">View Patients</span>
+            </button>
+
+            {/* Check Bed Status */}
+            <button
+              onClick={() => {
+                setInputMessage("Show bed availability");
+                setTimeout(() => {
+                  if (inputFieldRef.current) {
+                    inputFieldRef.current.focus();
+                  }
+                }, 100);
+              }}
+              className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md px-1.5 py-1 sm:px-2 sm:py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
+              title="Check bed availability"
+            >
+              <span className="font-medium">Bed Status</span>
+            </button>
+
+            {/* Emergency Alert */}
+            <button
+              onClick={() => {
+                setInputMessage("Show emergency status and available emergency beds");
+                setTimeout(() => {
+                  if (inputFieldRef.current) {
+                    inputFieldRef.current.focus();
+                  }
+                }, 100);
+              }}
+              className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md px-1.5 py-1 sm:px-2 sm:py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
+              title="Emergency status"
+            >
+              <span className="font-medium">Emergency</span>
+            </button>
+
+            {/* Today's Schedule */}
+            <button
+              onClick={() => {
+                setInputMessage("Show today's appointments");
+                setTimeout(() => {
+                  if (inputFieldRef.current) {
+                    inputFieldRef.current.focus();
+                  }
+                }, 100);
+              }}
+              className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md px-1.5 py-1 sm:px-2 sm:py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
+              title="Today's appointments"
+            >
+              <span className="font-medium">Today's Schedule</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Modern Chat Input - Two Row Layout */}
-      <div className="bg-[#1a1a1a] px-4 py-4">
+      <div className="bg-[#1a1a1a] px-4 py-2">
         <div className="max-w-4xl mx-auto">
           <div className="relative">
             {/* Main Input Container - Rounded Rectangle */}
-            <div className="bg-[#2a2a2a] rounded-3xl border border-gray-600 px-4 py-4">
+            <div className={`bg-[#2a2a2a] rounded-3xl border px-4 py-4 transition-colors duration-200 ${
+              isInputFocused ? 'border-blue-500' : 'border-gray-600'
+            }`}>
               
               {/* First Row - Text Input (Full Width) */}
               <div className="mb-3">
                 <textarea
+                  ref={inputFieldRef}
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
                   onKeyPress={(e) => {
@@ -1148,7 +1264,9 @@ const DirectMCPChatbot = () => {
                       handleSendMessage();
                     }
                   }}
-                  placeholder="Ask anything"
+                  onFocus={() => setIsInputFocused(true)}
+                  onBlur={() => setIsInputFocused(false)}
+                  placeholder={isConnected ? "Ask anything (Ctrl+/ to focus)" : "Ask anything"}
                   disabled={!isConnected || isLoading}
                   rows={1}
                   className="w-full bg-transparent border-none outline-none resize-none text-white placeholder-gray-400 text-base"
