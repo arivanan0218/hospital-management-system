@@ -21,16 +21,61 @@ const DirectMCPChatbot = () => {
   
   const [serverInfo, setServerInfo] = useState(null);
   const [connectionError, setConnectionError] = useState('');
-  const [thinkingMode] = useState(true); // Always use Direct MCP with thinking
   const [expandedThinking, setExpandedThinking] = useState({}); // Track which thinking messages are expanded
+  
+  // Auto-scroll to bottom only when new messages are added, not on timer updates
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages.length]); // Only trigger on message count change, not message content changes
+
+  // Component to display thinking duration
+  const ThinkingDuration = React.memo(({ startTime }) => {
+    const [duration, setDuration] = React.useState(1);
+    
+    React.useEffect(() => {
+      if (!startTime) return;
+      
+      // Update every 500ms instead of 100ms for better performance
+      const interval = setInterval(() => {
+        setDuration(Math.ceil((Date.now() - startTime) / 1000));
+      }, 500);
+      
+      return () => clearInterval(interval);
+    }, [startTime]);
+    
+    return <span>{duration}s</span>;
+  });
   
   const aiMcpServiceRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
+  const lastMessageCountRef = useRef(0);
 
-  // Auto-scroll to bottom
+  // Controlled scroll function
+  const scrollToBottom = React.useCallback(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, []);
+
+  // Auto-scroll only when new messages are added, with smart scrolling
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    const currentMessageCount = messages.length;
+    if (currentMessageCount > lastMessageCountRef.current) {
+      // Only scroll if user is near the bottom (within 100px) or if it's the first message
+      if (messagesContainerRef.current) {
+        const container = messagesContainerRef.current;
+        const isNearBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 100;
+        
+        if (isNearBottom || currentMessageCount === 1) {
+          setTimeout(scrollToBottom, 50); // Small delay to ensure DOM is updated
+        }
+      } else {
+        setTimeout(scrollToBottom, 50);
+      }
+    }
+    lastMessageCountRef.current = currentMessageCount;
+  }, [messages.length, scrollToBottom]);
 
   /**
    * Initialize the AI-MCP service
@@ -91,9 +136,9 @@ const DirectMCPChatbot = () => {
   };
 
   /**
-   * Send message to AI with thinking flow
+   * Smart conversation flow: only show thinking when tools are needed
    */
-  const sendMessage = async () => {
+  const sendMessageClaudeStyle = async () => {
     if (!inputMessage.trim() || !isConnected || isLoading) return;
 
     const userMessage = inputMessage.trim();
@@ -109,150 +154,170 @@ const DirectMCPChatbot = () => {
     };
     setMessages(prev => [...prev, userMsg]);
 
+    // Check if this request likely needs tool calls
+    const toolKeywords = ['list', 'show', 'get', 'find', 'search', 'create', 'add', 'update', 'delete', 'assign', 'check', 'manage', 'patient', 'staff', 'bed', 'department', 'appointment', 'equipment', 'supply'];
+    const needsTools = toolKeywords.some(keyword => 
+      userMessage.toLowerCase().includes(keyword)
+    );
+
+    let thinkingMessageId = null;
+    let thinkingStartTime = null;
+
     try {
-      // Step 1: Show initial thinking
-      const thinkingMsg = {
-        id: Date.now() + 1,
-        text: '🤔 **Thinking...**\n\nLet me analyze your request and determine the best approach.',
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString(),
-        isThinking: true
-      };
-      setMessages(prev => [...prev, thinkingMsg]);
+      // Only show thinking if we expect tool usage
+      if (needsTools) {
+        thinkingStartTime = Date.now();
+        thinkingMessageId = Date.now() + Math.random();
+        
+        // Generate contextual thinking message based on user input
+        let thinkingText = 'Thinking about ';
+        if (userMessage.toLowerCase().includes('list') || userMessage.toLowerCase().includes('show')) {
+          thinkingText += 'listing ';
+        } else if (userMessage.toLowerCase().includes('create') || userMessage.toLowerCase().includes('add')) {
+          thinkingText += 'creating ';
+        } else if (userMessage.toLowerCase().includes('find') || userMessage.toLowerCase().includes('search')) {
+          thinkingText += 'finding ';
+        } else if (userMessage.toLowerCase().includes('update') || userMessage.toLowerCase().includes('assign')) {
+          thinkingText += 'updating ';
+        } else {
+          thinkingText += 'processing ';
+        }
 
-      // Small delay to show thinking
-      await new Promise(resolve => setTimeout(resolve, 800));
+        // Add the subject based on keywords
+        if (userMessage.toLowerCase().includes('patient')) {
+          thinkingText += 'patient information';
+        } else if (userMessage.toLowerCase().includes('staff')) {
+          thinkingText += 'staff records';
+        } else if (userMessage.toLowerCase().includes('bed')) {
+          thinkingText += 'available beds';
+        } else if (userMessage.toLowerCase().includes('department')) {
+          thinkingText += 'departments';
+        } else if (userMessage.toLowerCase().includes('appointment')) {
+          thinkingText += 'appointments';
+        } else if (userMessage.toLowerCase().includes('equipment')) {
+          thinkingText += 'equipment status';
+        } else if (userMessage.toLowerCase().includes('supply')) {
+          thinkingText += 'supply inventory';
+        } else {
+          thinkingText += 'your request';
+        }
 
-      // Step 2: Show analysis of the request
-      const analysisMsg = {
-        id: Date.now() + 2,
-        text: '🔍 **Analyzing Request...**\n\nI understand you want to: ' + userMessage + '\n\nLet me process this and check if I need to access any hospital data or perform specific actions.',
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString(),
-        isThinking: true
-      };
-      setMessages(prev => [...prev, analysisMsg]);
+        const thinkingMessage = {
+          id: thinkingMessageId,
+          text: thinkingText,
+          sender: 'ai',
+          timestamp: new Date().toLocaleTimeString(),
+          isThinking: true,
+          startTime: thinkingStartTime
+        };
+        setMessages(prev => [...prev, thinkingMessage]);
+      }
 
-      await new Promise(resolve => setTimeout(resolve, 600));
-
-      // Step 3: Process the actual request
+      // Process the request
       const response = await aiMcpServiceRef.current.processRequest(userMessage);
       
-      if (response.success) {
-        // Step 4: Show what tools will be called (if any)
-        if (response.functionCalls && response.functionCalls.length > 0) {
-          const toolsMsg = {
-            id: Date.now() + 3,
-            text: `🛠️ **Tools Required:**\n\nI need to use the following tools to answer your question:\n${response.functionCalls.map(call => `• ${call.function}`).join('\n')}\n\nExecuting now...`,
-            sender: 'ai',
-            timestamp: new Date().toLocaleTimeString(),
-            isThinking: true
-          };
-          setMessages(prev => [...prev, toolsMsg]);
-
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-
-        // Step 5: Final response with results
-        let responseText = response.message || 'I\'ve processed your request successfully.';
+      // Remove thinking message if present
+      if (thinkingMessageId) {
+        setMessages(prev => prev.filter(msg => msg.id !== thinkingMessageId));
         
-        // Add function call results if any
+        // Add a brief pause to show the thinking completed
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+      
+      if (response.success) {
+        // Show tool execution if tools were called
         if (response.functionCalls && response.functionCalls.length > 0) {
-          responseText += '\n\n**📊 Results:**\n\n';
-          
-          response.functionCalls.forEach((call) => {
-            console.log('🔍 Function call result:', call);
-            
-            if (call.success) {
-              const functionIcon = getFunctionIcon(call.function);
-              responseText += `${functionIcon} **${call.function.toUpperCase()}**\n`;
-              
-              if (call.result && call.result.content) {
-                const content = call.result.content;
-                if (Array.isArray(content)) {
-                  responseText += formatMCPData(content);
-                } else if (typeof content === 'object') {
-                  responseText += formatMCPData(content);
-                } else {
-                  responseText += `${content}\n`;
-                }
-              } else if (call.result) {
-                let result = call.result;
-                
-                if (Array.isArray(result)) {
-                  if (result.length > 0 && result[0].type === 'text' && result[0].text) {
-                    try {
-                      const parsedData = JSON.parse(result[0].text);
-                      responseText += formatMCPData(parsedData);
-                    } catch {
-                      responseText += `${result[0].text}\n`;
-                    }
-                  } else {
-                    responseText += formatMCPData(result);
-                  }
-                } else if (result.type === 'text' && result.text) {
-                  try {
-                    const parsedData = JSON.parse(result.text);
-                    responseText += formatMCPData(parsedData);
-                  } catch {
-                    responseText += `${result.text}\n`;
-                  }
-                } else if (result.text && typeof result.text === 'string') {
-                  try {
-                    const parsedData = JSON.parse(result.text);
-                    responseText += formatMCPData(parsedData);
-                  } catch {
-                    responseText += `${result.text}\n`;
-                  }
-                } else if (result.content) {
-                  if (Array.isArray(result.content)) {
-                    responseText += formatMCPData(result.content);
-                  } else if (typeof result.content === 'object') {
-                    responseText += formatMCPData(result.content);
-                  } else {
-                    responseText += `${result.content}\n`;
-                  }
-                } else if (typeof result === 'object') {
-                  responseText += formatMCPData(result);
-                } else {
-                  responseText += `ℹ️ ${result}\n`;
-                }
-              } else {
-                responseText += '✅ **COMPLETED SUCCESSFULLY**\n';
+          // Add tool execution messages
+          response.functionCalls.forEach((call, index) => {
+            setTimeout(() => {
+              // Create contextual thinking message for each tool
+              let thinkingText = '';
+              switch (call.function) {
+                case 'search_patients':
+                  thinkingText = `Great! I found a patient named ${call.arguments?.first_name || 'the patient'}.`;
+                  break;
+                case 'list_patients':
+                  thinkingText = 'I can see the patient registry with all available patients.';
+                  break;
+                case 'list_appointments':
+                  thinkingText = `I can see ${call.arguments?.patient_id ? call.arguments.patient_id + ' has' : 'there are'} appointment${call.result && Array.isArray(call.result) && call.result.length !== 1 ? 's' : ''} scheduled.`;
+                  break;
+                case 'list_beds':
+                  thinkingText = "Identified patient's bed assignment and prepared overview.";
+                  break;
+                case 'list_departments':
+                  thinkingText = 'I can see all hospital departments and their information.';
+                  break;
+                case 'list_staff':
+                  thinkingText = 'I can see the hospital staff directory.';
+                  break;
+                case 'get_patient_by_id':
+                  thinkingText = `Found detailed information for patient ${call.arguments?.patient_id || 'ID'}.`;
+                  break;
+                case 'get_staff_by_id':
+                  thinkingText = `Located staff member ${call.arguments?.staff_id || 'information'}.`;
+                  break;
+                case 'create_patient':
+                  thinkingText = 'Successfully created new patient record.';
+                  break;
+                case 'create_appointment':
+                  thinkingText = 'Successfully scheduled new appointment.';
+                  break;
+                default:
+                  thinkingText = `Executed ${call.function.replace(/_/g, ' ')} successfully.`;
               }
-            } else {
-              responseText += `❌ **${call.function.toUpperCase()} FAILED**: ${call.error}\n`;
-            }
-            responseText += '\n';
+
+              const toolMessage = {
+                id: Date.now() + index + 100,
+                text: thinkingText,
+                sender: 'ai',
+                timestamp: new Date().toLocaleTimeString(),
+                isThinking: true,
+                toolFunction: call.function,
+                startTime: Date.now() - (index * 300) // Fake start time for display
+              };
+              setMessages(prev => [...prev, toolMessage]);
+            }, index * 300);
           });
+
+          // Wait for tool messages to appear
+          await new Promise(resolve => setTimeout(resolve, response.functionCalls.length * 300 + 100));
         }
 
-        const aiMsg = {
-          id: Date.now() + 4,
-          text: responseText,
+        // Final response with the processed data
+        const finalResponse = {
+          id: Date.now() + 1000,
+          text: response.message || 'Here\'s what I found based on your request.',
           sender: 'ai',
           timestamp: new Date().toLocaleTimeString(),
-          functionCalls: response.functionCalls,
           isFinalAnswer: true
         };
-        setMessages(prev => [...prev, aiMsg]);
+        setMessages(prev => [...prev, finalResponse]);
         
       } else {
-        const errorMsg = {
-          id: Date.now() + 4,
-          text: `❌ **Error Encountered**\n\nI apologize, but I encountered an error: ${response.error || 'Unknown error occurred'}\n\nPlease try rephrasing your request or let me know if you need help with something specific.`,
+        // Direct error response without thinking for simple errors
+        const errorResponse = {
+          id: Date.now() + 1000,
+          text: `I apologize, but I encountered an error: ${response.error || 'Unknown error occurred'}\n\nPlease try rephrasing your request or let me know if you need help with something specific.`,
           sender: 'ai',
           timestamp: new Date().toLocaleTimeString(),
           isError: true
         };
-        setMessages(prev => [...prev, errorMsg]);
+        setMessages(prev => [...prev, errorResponse]);
       }
       
     } catch (error) {
       console.error('❌ Send message failed:', error);
+      
+      // Remove thinking message if present
+      if (thinkingMessageId) {
+        setMessages(prev => prev.filter(msg => msg.id !== thinkingMessageId));
+      }
+
+      // Direct error message
       const errorMsg = {
-        id: Date.now() + 4,
-        text: `💥 **Processing Error**\n\nI'm sorry, but I'm having trouble processing your request right now: ${error.message}\n\nThis might be a temporary issue. Could you please try again?`,
+        id: Date.now() + 1000,
+        text: `I'm having trouble processing your request: ${error.message}\n\nThis might be a temporary connection issue. Please try again in a moment.`,
         sender: 'ai',
         timestamp: new Date().toLocaleTimeString(),
         isError: true
@@ -260,213 +325,6 @@ const DirectMCPChatbot = () => {
       setMessages(prev => [...prev, errorMsg]);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  /**
-   * Enhanced message sending with multi-step thinking flow
-   */
-  const sendMessageWithAdvancedThinking = async (customQuery = null) => {
-    const queryToProcess = customQuery || inputMessage.trim();
-    if (!queryToProcess || !isConnected || isLoading) return;
-
-    if (!customQuery) {
-      setInputMessage('');
-    }
-    setIsLoading(true);
-
-    // Add user message only if it's not a follow-up
-    if (!customQuery) {
-      const userMsg = {
-        id: Date.now(),
-        text: queryToProcess,
-        sender: 'user',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, userMsg]);
-    }
-
-    try {
-      // Determine if this is a complex query that might need multiple steps
-      const isComplexQuery = queryToProcess.toLowerCase().includes('and') || 
-                            queryToProcess.toLowerCase().includes('then') ||
-                            queryToProcess.toLowerCase().includes('also') ||
-                            queryToProcess.split(' ').length > 10;
-
-      if (isComplexQuery) {
-        const complexThinkingMsg = {
-          id: Date.now() + 1,
-          text: '🧠 **Complex Query Detected**\n\nThis appears to be a multi-part request. Let me break it down and process each part systematically.',
-          sender: 'ai',
-          timestamp: new Date().toLocaleTimeString(),
-          isThinking: true
-        };
-        setMessages(prev => [...prev, complexThinkingMsg]);
-        await new Promise(resolve => setTimeout(resolve, 700));
-      }
-
-      // Initial thinking
-      const thinkingMsg = {
-        id: Date.now() + 2,
-        text: '🤔 **Analyzing Request...**\n\nLet me understand what you need and determine the best approach.',
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString(),
-        isThinking: true
-      };
-      setMessages(prev => [...prev, thinkingMsg]);
-      await new Promise(resolve => setTimeout(resolve, 800));
-
-      // Analysis of the request
-      const analysisMsg = {
-        id: Date.now() + 3,
-        text: `🔍 **Request Analysis**\n\nYou want: "${queryToProcess}"\n\nLet me check what information I need to gather and which tools to use.`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString(),
-        isThinking: true
-      };
-      setMessages(prev => [...prev, analysisMsg]);
-      await new Promise(resolve => setTimeout(resolve, 600));
-
-      // Process the actual request
-      const response = await aiMcpServiceRef.current.processRequest(queryToProcess);
-      
-      if (response.success) {
-        // Show what tools will be called
-        if (response.functionCalls && response.functionCalls.length > 0) {
-          const toolsMsg = {
-            id: Date.now() + 4,
-            text: `🛠️ **Executing Tools:**\n\n${response.functionCalls.map((call, index) => `${index + 1}. ${getFunctionIcon(call.function)} ${call.function}`).join('\n')}\n\nProcessing...`,
-            sender: 'ai',
-            timestamp: new Date().toLocaleTimeString(),
-            isThinking: true
-          };
-          setMessages(prev => [...prev, toolsMsg]);
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-
-        // Final response
-        let responseText = response.message || 'I\'ve processed your request successfully.';
-        
-        if (response.functionCalls && response.functionCalls.length > 0) {
-          responseText += '\n\n**📊 Results:**\n\n';
-          
-          response.functionCalls.forEach((call) => {
-            if (call.success) {
-              const functionIcon = getFunctionIcon(call.function);
-              responseText += `${functionIcon} **${call.function.toUpperCase()}**\n`;
-              
-              // Handle different result formats (same as original sendMessage)
-              if (call.result && call.result.content) {
-                const content = call.result.content;
-                if (Array.isArray(content)) {
-                  responseText += formatMCPData(content);
-                } else if (typeof content === 'object') {
-                  responseText += formatMCPData(content);
-                } else {
-                  responseText += `${content}\n`;
-                }
-              } else if (call.result) {
-                let result = call.result;
-                
-                if (Array.isArray(result)) {
-                  if (result.length > 0 && result[0].type === 'text' && result[0].text) {
-                    try {
-                      const parsedData = JSON.parse(result[0].text);
-                      responseText += formatMCPData(parsedData);
-                    } catch {
-                      responseText += `${result[0].text}\n`;
-                    }
-                  } else {
-                    responseText += formatMCPData(result);
-                  }
-                } else if (result.type === 'text' && result.text) {
-                  try {
-                    const parsedData = JSON.parse(result.text);
-                    responseText += formatMCPData(parsedData);
-                  } catch {
-                    responseText += `${result.text}\n`;
-                  }
-                } else if (result.text && typeof result.text === 'string') {
-                  try {
-                    const parsedData = JSON.parse(result.text);
-                    responseText += formatMCPData(parsedData);
-                  } catch {
-                    responseText += `${result.text}\n`;
-                  }
-                } else if (result.content) {
-                  if (Array.isArray(result.content)) {
-                    responseText += formatMCPData(result.content);
-                  } else if (typeof result.content === 'object') {
-                    responseText += formatMCPData(result.content);
-                  } else {
-                    responseText += `${result.content}\n`;
-                  }
-                } else if (typeof result === 'object') {
-                  responseText += formatMCPData(result);
-                } else {
-                  responseText += `ℹ️ ${result}\n`;
-                }
-              } else {
-                responseText += '✅ **COMPLETED SUCCESSFULLY**\n';
-              }
-            } else {
-              responseText += `❌ **${call.function.toUpperCase()} FAILED**: ${call.error}\n`;
-            }
-            responseText += '\n';
-          });
-
-          // Add follow-up suggestions
-          responseText += '\n**💡 What would you like to do next?**\n';
-          responseText += '• Ask for more details about any item\n';
-          responseText += '• Perform additional operations\n';
-          responseText += '• Create new records\n';
-          responseText += '• Generate reports';
-        }
-
-        const aiMsg = {
-          id: Date.now() + 5,
-          text: responseText,
-          sender: 'ai',
-          timestamp: new Date().toLocaleTimeString(),
-          functionCalls: response.functionCalls,
-          isFinalAnswer: true
-        };
-        setMessages(prev => [...prev, aiMsg]);
-        
-      } else {
-        const errorMsg = {
-          id: Date.now() + 5,
-          text: `❌ **Error Encountered**\n\nI apologize, but I encountered an error: ${response.error || 'Unknown error occurred'}\n\nPlease try rephrasing your request or let me know if you need help with something specific.`,
-          sender: 'ai',
-          timestamp: new Date().toLocaleTimeString(),
-          isError: true
-        };
-        setMessages(prev => [...prev, errorMsg]);
-      }
-      
-    } catch (error) {
-      console.error('❌ Send message failed:', error);
-      const errorMsg = {
-        id: Date.now() + 5,
-        text: `💥 **Processing Error**\n\nI'm sorry, but I'm having trouble processing your request right now: ${error.message}\n\nThis might be a temporary issue. Could you please try again?`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString(),
-        isError: true
-      };
-      setMessages(prev => [...prev, errorMsg]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  /**
-   * Choose between normal and advanced thinking modes
-   */
-  const handleSendMessage = () => {
-    if (thinkingMode) {
-      sendMessageWithAdvancedThinking();
-    } else {
-      sendMessage();
     }
   };
 
@@ -490,65 +348,16 @@ const DirectMCPChatbot = () => {
   };
 
   /**
-   * Get appropriate icon for function calls
+   * Handle sending messages with Claude-style conversation flow
    */
-  const getFunctionIcon = (functionName) => {
-    const iconMap = {
-      // Patient functions
-      'list_patients': '👥',
-      'create_patient': '🆕',
-      'get_patient_by_id': '🔍',
-      
-      // Department functions
-      'list_departments': '🏢',
-      'create_department': '🏗️',
-      'get_department_by_id': '🔍',
-      
-      // Staff functions
-      'list_staff': '👨‍⚕️',
-      'create_staff': '👤',
-      
-      // Bed functions
-      'list_beds': '🛏️',
-      'create_bed': '🆕',
-      'assign_bed_to_patient': '📍',
-      'discharge_bed': '🚪',
-      
-      // Appointment functions
-      'list_appointments': '📅',
-      'create_appointment': '🕐',
-      
-      // Equipment functions
-      'list_equipment': '⚕️',
-      'create_equipment': '🔧',
-      'update_equipment_status': '🔄',
-      
-      // Supply functions
-      'list_supplies': '📦',
-      'create_supply': '📥',
-      'update_supply_stock': '📊',
-      
-      // User functions
-      'list_users': '👤',
-      'create_user': '🆕',
-      'update_user': '✏️',
-      'delete_user': '🗑️',
-      
-      // Legacy functions
-      'list_legacy_users': '👤',
-      'create_legacy_user': '🆕',
-      
-      // Room functions
-      'list_rooms': '🏠',
-      'create_room': '🏗️'
-    };
-    
-    return iconMap[functionName] || '⚡';
+  const handleSendMessage = () => {
+    sendMessageClaudeStyle();
   };
 
   /**
    * Format MCP data responses for clean display
    */
+  // eslint-disable-next-line no-unused-vars
   const formatMCPData = (data) => {
     if (!data) return '❌ No data available\n';
     
@@ -1156,7 +965,7 @@ const DirectMCPChatbot = () => {
       </div>
 
       {/* Messages Container - Claude Style */}
-      <div className="flex-1 overflow-y-auto bg-[#1a1a1a]">
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto bg-[#1a1a1a]">
         <div className="max-w-4xl mx-auto">
           {messages.length === 0 && (
             <div className="flex items-center justify-center h-full text-center px-6">
@@ -1186,12 +995,20 @@ const DirectMCPChatbot = () => {
               message.isFinalAnswer ? 'bg-[#1a1a1a]' : 
               message.isError ? 'bg-[#1a1a1a]' : 'bg-[#1a1a1a]'
             }`}>
-              <div className="flex space-x-3">
-                {message.sender === 'user' ? (
-                  <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-medium text-white">
-                    U
+              {message.sender === 'user' ? (
+                // User message - aligned to the right
+                <div className="flex justify-end">
+                  <div className="max-w-[80%]">
+                    <div className="prose prose-sm max-w-none">
+                      <div className="whitespace-pre-wrap leading-relaxed text-sm text-white bg-slate-700 rounded-2xl px-4 py-2">
+                        <div dangerouslySetInnerHTML={{ __html: formatMessageText(message.text) }} />
+                      </div>
+                    </div>
                   </div>
-                ) : (
+                </div>
+              ) : (
+                // AI message - aligned to the left (existing layout)
+                <div className="flex space-x-3">
                   <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-medium text-white shadow-lg">
                     {message.isThinking ? (
                       <div className="w-3 h-3 border border-gray-400 border-t-white rounded-full animate-spin"></div>
@@ -1199,7 +1016,6 @@ const DirectMCPChatbot = () => {
                       'H'
                     )}
                   </div>
-                )}
                 
                 <div className="flex-1 min-w-0">
                   {message.isThinking && (
@@ -1209,11 +1025,14 @@ const DirectMCPChatbot = () => {
                           ...prev,
                           [message.id]: !prev[message.id]
                         }))}
-                        className="flex items-center space-x-2 text-xs text-gray-500 italic hover:text-gray-400 transition-colors"
+                        className="flex items-center space-x-2 text-xs text-gray-500 italic hover:text-gray-400 transition-colors w-full justify-between"
                       >
-                        <span>Thinking about greeting and potential conversation initiation</span>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-gray-400">🔧</span>
+                          <span className="font-mono text-blue-400">{message.toolFunction || 'thinking'}</span>
+                        </div>
                         <span className="ml-auto flex items-center space-x-1">
-                          <span>0s</span>
+                          <ThinkingDuration startTime={message.startTime} />
                           <svg 
                             className={`w-3 h-3 transform transition-transform ${expandedThinking[message.id] ? 'rotate-180' : ''}`} 
                             fill="none" 
@@ -1224,22 +1043,33 @@ const DirectMCPChatbot = () => {
                           </svg>
                         </span>
                       </button>
+                      {expandedThinking[message.id] && (
+                        <div className="mt-2 text-sm text-gray-300 pl-6">
+                          {message.text}
+                        </div>
+                      )}
                     </div>
                   )}
-                  <div className="prose prose-sm max-w-none">
-                    {message.isThinking && (
-                      <div className="flex items-center space-x-2 mb-2">
-                        <span className="text-orange-400 text-xs">🤔</span>
-                        <span className="text-xs text-gray-400">Analyzing Request...</span>
+                  
+                  {/* Tool Call Display */}
+                  {message.isToolCall && (
+                    <div className="mb-2">
+                      <div className="flex items-center space-x-2 text-xs text-gray-400 mb-1">
+                        <span className="text-blue-400">🔧</span>
+                        <span>Tool Execution</span>
                       </div>
-                    )}
+                    </div>
+                  )}
+                  
+                  <div className="prose prose-sm max-w-none">
                     {(!message.isThinking || expandedThinking[message.id]) && (
                       <div 
                         className={`whitespace-pre-wrap leading-relaxed text-sm ${
                           message.isThinking ? 'text-gray-300' :
                           message.isFinalAnswer ? 'text-white' :
                           message.isError ? 'text-red-400' :
-                          message.sender === 'user' ? 'text-white' : 'text-white'
+                          message.isToolCall ? 'text-blue-200 bg-gray-800 p-3 rounded-lg border-l-2 border-blue-500' :
+                          'text-white'
                         }`}
                         dangerouslySetInnerHTML={{
                           __html: formatMessageText(message.text)
@@ -1249,6 +1079,7 @@ const DirectMCPChatbot = () => {
                   </div>
                 </div>
               </div>
+              )}
             </div>
           ))}
           
@@ -1299,41 +1130,95 @@ const DirectMCPChatbot = () => {
         </div>
       </div>
 
-      {/* Claude-style Input */}
-      <div className="border-t border-gray-700 bg-[#1a1a1a] px-4 py-4">
+      {/* Modern Chat Input - Two Row Layout */}
+      <div className="bg-[#1a1a1a] px-4 py-4">
         <div className="max-w-4xl mx-auto">
           <div className="relative">
-            <textarea
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              onKeyPress={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSendMessage();
-                }
-              }}
-              placeholder="Reply to Hospital Assistant..."
-              disabled={!isConnected || isLoading}
-              rows={1}
-              className="w-full px-4 py-3 bg-[#2a2a2a] border border-gray-600 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-none disabled:bg-gray-800 disabled:text-gray-500 text-white placeholder-gray-400 text-sm"
-              style={{
-                minHeight: '44px',
-                maxHeight: '120px'
-              }}
-              onInput={(e) => {
-                e.target.style.height = 'auto';
-                e.target.style.height = e.target.scrollHeight + 'px';
-              }}
-            />
-            <button
-              onClick={handleSendMessage}
-              disabled={!isConnected || isLoading || !inputMessage.trim()}
-              className="absolute right-2 top-2 p-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded-md transition-colors duration-200"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-              </svg>
-            </button>
+            {/* Main Input Container - Rounded Rectangle */}
+            <div className="bg-[#2a2a2a] rounded-3xl border border-gray-600 px-4 py-4">
+              
+              {/* First Row - Text Input (Full Width) */}
+              <div className="mb-3">
+                <textarea
+                  value={inputMessage}
+                  onChange={(e) => setInputMessage(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
+                  placeholder="Ask anything"
+                  disabled={!isConnected || isLoading}
+                  rows={1}
+                  className="w-full bg-transparent border-none outline-none resize-none text-white placeholder-gray-400 text-base"
+                  style={{
+                    minHeight: '24px',
+                    maxHeight: '120px'
+                  }}
+                  onInput={(e) => {
+                    e.target.style.height = 'auto';
+                    e.target.style.height = e.target.scrollHeight + 'px';
+                  }}
+                />
+              </div>
+              
+              {/* Second Row - Icons */}
+              <div className="flex items-center justify-between">
+                {/* Left Side - Plus and Tools Icons */}
+                <div className="flex items-center space-x-3">
+                  {/* Plus Button */}
+                  <button
+                    className="text-gray-400 hover:text-white transition-colors p-1"
+                    title="Add attachment"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                  </button>
+                  
+                  {/* Tools Button */}
+                  <button
+                    className="text-gray-400 hover:text-white transition-colors p-1 flex items-center space-x-2"
+                    title="Tools"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
+                    </svg>
+                    <span className="text-sm">MCP</span>
+                  </button>
+                </div>
+                
+                {/* Right Side - Microphone and Send Icons */}
+                <div className="flex items-center space-x-3">
+                  {/* Microphone Button */}
+                  <button
+                    className="text-gray-400 hover:text-white transition-colors p-1"
+                    title="Voice input"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                    </svg>
+                  </button>
+                  
+                  {/* Send Button - Circular */}
+                  <button
+                    onClick={handleSendMessage}
+                    disabled={!isConnected || isLoading || !inputMessage.trim()}
+                    className="w-8 h-8 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 text-white rounded-full flex items-center justify-center transition-colors duration-200"
+                    title="Send message"
+                  >
+                    {isLoading ? (
+                      <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
+                    ) : (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

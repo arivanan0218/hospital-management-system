@@ -108,7 +108,8 @@ This hospital management system is a **3-tier containerized application** with t
 #### Patient Management
 - `create_patient` - Register new patients
 - `list_patients` - List all patients
-- `get_patient_by_id` - Get patient details
+- `get_patient_by_id` - Get patient details by UUID or patient number (case-insensitive)
+- `search_patients` - Search patients by name, phone, email, or patient number (all case-insensitive)
 
 #### Department Management
 - `create_department` - Create hospital departments
@@ -707,13 +708,43 @@ class Room(Base):
 - **Lazy Loading**: Related objects loaded on-demand for performance
 - **Cascade Operations**: Deleting a room can cascade to beds if configured
 
-#### **UUID Generation Strategy**
+#### **Case-Insensitive Patient Search Implementation**
 ```python
-id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+@mcp.tool()
+def get_patient_by_id(patient_id: str) -> Dict[str, Any]:
+    """Get a patient by ID or patient number (case-insensitive)."""
+    try:
+        # First try UUID format
+        patient_uuid = uuid.UUID(patient_id)
+        patient = db.query(Patient).filter(Patient.id == patient_uuid).first()
+    except ValueError:
+        # If not UUID, search by patient_number using case-insensitive ILIKE
+        patient = db.query(Patient).filter(
+            Patient.patient_number.ilike(patient_id)  # Case-insensitive search
+        ).first()
 ```
-- **Security**: UUIDs prevent ID enumeration attacks
-- **Distribution**: Works across multiple database instances
-- **Performance**: Indexed UUIDs provide fast lookups
+
+**How it Works**:
+- **ILIKE Operator**: PostgreSQL's case-insensitive LIKE operator
+- **Flexible Matching**: `pat-em-9925` matches `PAT-EM-9925`
+- **UUID Handling**: Still supports exact UUID matches
+- **Backward Compatible**: All existing queries continue to work
+
+#### **Enhanced Search Capabilities**
+```python
+@mcp.tool()
+def search_patients(patient_number: str = None, first_name: str = None, ...):
+    """All search parameters support case-insensitive partial matching."""
+    # Uses ILIKE with wildcards for flexible searching
+    if patient_number:
+        query = query.filter(Patient.patient_number.ilike(f"%{patient_number}%"))
+    if first_name:
+        query = query.filter(Patient.first_name.ilike(f"%{first_name}%"))
+```
+
+**Search Examples**:
+- `search_patients(first_name="john")` finds "John", "JOHN", "Johnny"
+- `search_patients(patient_number="em-99")` finds "PAT-EM-9925", "DOC-EM-9901"
 
 ### 2. **MCP Tool Registration System**
 
@@ -1118,6 +1149,45 @@ wait
    
    # Verify environment variables
    docker exec -it hospital-frontend env | grep VITE_
+   ```
+
+4. **Patient ID Format Issues**:
+   ```
+   Error: "badly formed hexadecimal UUID string"
+   
+   Solution: Use the correct ID format:
+   - UUID format: 550e8400-e29b-41d4-a716-446655440000
+   - Patient number: PAT-EM-9925, pat-em-9925, Pat-Em-9925 (case-insensitive)
+   - Or use search_patients tool to find by name/phone/email
+   ```
+
+### Common User Query Issues
+
+1. **Finding Patients (Case-Insensitive)**:
+   ```
+   ✅ All of these work now:
+   - "Get patient PAT-EM-9925"
+   - "Get patient pat-em-9925" 
+   - "Get patient Pat-Em-9925"
+   - "Search for patient with number pat-em-9925"
+   - "Find patient named john doe"
+   - "Search for patient with phone 555-1234"
+   ```
+
+2. **Using Correct Tools**:
+   ```
+   # For human-readable IDs (case-insensitive), use either tool:
+   User: "Find patient pat-em-9925"
+   AI: Uses get_patient_by_id(patient_id="pat-em-9925") ✅
+   AI: Or uses search_patients(patient_number="pat-em-9925") ✅
+   
+   # For UUID lookups:
+   User: "Get details for patient 550e8400-e29b-41d4-a716-446655440000"
+   AI: Uses get_patient_by_id(patient_id="550e8400-e29b-41d4-a716-446655440000")
+   
+   # For flexible searches (all case-insensitive):
+   User: "Find patient named JOHN DOE"
+   AI: Uses search_patients(first_name="JOHN", last_name="DOE") ✅
    ```
 
 ### Port Conflicts

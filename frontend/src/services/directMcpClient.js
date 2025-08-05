@@ -118,7 +118,7 @@ class DirectMCPClient {
   }
 
   /**
-   * Call MCP tool
+   * Call MCP tool with enhanced error handling
    */
   async callTool(toolName, args) {
     if (!this.isConnected) {
@@ -142,7 +142,20 @@ class DirectMCPClient {
       const result = await response.json();
       
       if (!result.success) {
-        throw new Error(result.error || 'Tool call failed');
+        // Enhanced error handling for common issues
+        let errorMessage = result.error || 'Tool call failed';
+        
+        // Handle UUID format errors specifically
+        if (errorMessage.includes('badly formed hexadecimal UUID')) {
+          errorMessage = `Invalid ID format. Please use either a UUID (e.g., 550e8400-e29b-41d4-a716-446655440000) or patient number (e.g., PAT-EM-9925 or pat-em-9925 - case doesn't matter). Try using the search_patients tool to find the correct patient.`;
+        }
+        
+        // Handle patient not found errors
+        if (errorMessage.includes('Patient not found')) {
+          errorMessage = `${errorMessage}. Note: Patient searches are case-insensitive, so 'pat-em-9925' will find 'PAT-EM-9925'. Try using search_patients for flexible searching by name, phone, or email.`;
+        }
+        
+        throw new Error(errorMessage);
       }
 
       console.log(`✅ Tool result:`, result.result);

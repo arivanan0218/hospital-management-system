@@ -301,22 +301,78 @@ def list_patients() -> Dict[str, Any]:
 
 @mcp.tool()
 def get_patient_by_id(patient_id: str) -> Dict[str, Any]:
-    """Get a patient by ID."""
+    """Get a patient by ID or patient number (case-insensitive)."""
     if not DATABASE_AVAILABLE:
         return {"error": "Database not available"}
     
     try:
         db = get_db_session()
-        patient = db.query(Patient).filter(Patient.id == uuid.UUID(patient_id)).first()
+        patient = None
+        
+        # First try to find by UUID (if it looks like a UUID)
+        try:
+            patient_uuid = uuid.UUID(patient_id)
+            patient = db.query(Patient).filter(Patient.id == patient_uuid).first()
+        except ValueError:
+            # If not a valid UUID, search by patient_number (case-insensitive)
+            patient = db.query(Patient).filter(
+                Patient.patient_number.ilike(patient_id)
+            ).first()
+        
         result = serialize_model(patient) if patient else None
         db.close()
         
         if result:
-            return {"data": result}
+            return {
+                "success": True, 
+                "patient": result,
+                "message": f"Patient found: {result['first_name']} {result['last_name']} ({result['patient_number']})"
+            }
         else:
-            return {"error": "Patient not found"}
+            return {"error": f"Patient not found with ID/Number: {patient_id} (search is case-insensitive)"}
     except Exception as e:
         return {"error": f"Failed to get patient: {str(e)}"}
+
+@mcp.tool()
+def search_patients(patient_number: str = None, first_name: str = None, 
+                   last_name: str = None, phone: str = None, email: str = None) -> Dict[str, Any]:
+    """Search patients by various criteria (patient number, name, phone, email)."""
+    if not DATABASE_AVAILABLE:
+        return {"error": "Database not available"}
+    
+    try:
+        db = get_db_session()
+        query = db.query(Patient)
+        
+        # Apply filters based on provided criteria
+        if patient_number:
+            query = query.filter(Patient.patient_number.ilike(f"%{patient_number}%"))
+        if first_name:
+            query = query.filter(Patient.first_name.ilike(f"%{first_name}%"))
+        if last_name:
+            query = query.filter(Patient.last_name.ilike(f"%{last_name}%"))
+        if phone:
+            query = query.filter(Patient.phone.ilike(f"%{phone}%"))
+        if email:
+            query = query.filter(Patient.email.ilike(f"%{email}%"))
+        
+        patients = query.limit(50).all()  # Limit results to prevent overload
+        
+        results = []
+        for patient in patients:
+            results.append(serialize_model(patient))
+        
+        db.close()
+        
+        return {
+            "success": True,
+            "patients": results,
+            "count": len(results),
+            "message": f"Found {len(results)} patient(s) matching criteria"
+        }
+        
+    except Exception as e:
+        return {"error": f"Failed to search patients: {str(e)}", "patients": [], "count": 0}
 
 # ================================
 # ROOM CRUD OPERATIONS
@@ -526,6 +582,34 @@ def list_staff(department_id: str = None, status: str = None) -> Dict[str, Any]:
     except Exception as e:
         return {"error": f"Failed to list staff: {str(e)}", "staff": [], "count": 0}
 
+@mcp.tool()
+def get_staff_by_id(staff_id: str) -> Dict[str, Any]:
+    """Get a staff member by employee ID (case-insensitive)."""
+    if not DATABASE_AVAILABLE:
+        return {"error": "Database not available", "staff": None}
+    
+    try:
+        db = get_db_session()
+        # Try to find by employee_id (human-readable ID) - case insensitive
+        staff_member = db.query(Staff).filter(Staff.employee_id.ilike(f"%{staff_id}%")).first()
+        
+        if not staff_member:
+            # If not found by employee_id, try by UUID
+            try:
+                staff_member = db.query(Staff).filter(Staff.id == uuid.UUID(staff_id)).first()
+            except ValueError:
+                pass
+        
+        db.close()
+        
+        if staff_member:
+            result = serialize_model(staff_member)
+            return {"success": True, "staff": result}
+        else:
+            return {"success": False, "message": f"Staff member with ID '{staff_id}' not found", "staff": None}
+    except Exception as e:
+        return {"success": False, "error": f"Failed to get staff: {str(e)}", "staff": None}
+
 # ================================
 # EQUIPMENT CRUD OPERATIONS (for Equipment Tracker Agent)
 # ================================
@@ -603,6 +687,33 @@ def list_equipment(status: str = None, department_id: str = None) -> Dict[str, A
         return {"equipment": result, "count": len(result)}
     except Exception as e:
         return {"error": f"Failed to list equipment: {str(e)}", "equipment": [], "count": 0}
+
+@mcp.tool()
+def get_equipment_by_id(equipment_id: str) -> Dict[str, Any]:
+    """Get equipment by equipment ID (case-insensitive)."""
+    if not DATABASE_AVAILABLE:
+        return {"error": "Database not available"}
+    
+    try:
+        db = get_db_session()
+        # Search by equipment_id (case-insensitive)
+        equipment = db.query(Equipment).filter(
+            Equipment.equipment_id.ilike(equipment_id)
+        ).first()
+        
+        result = serialize_model(equipment) if equipment else None
+        db.close()
+        
+        if result:
+            return {
+                "success": True,
+                "equipment": result,
+                "message": f"Equipment found: {result['name']} ({result['equipment_id']})"
+            }
+        else:
+            return {"error": f"Equipment not found with ID: {equipment_id} (search is case-insensitive)"}
+    except Exception as e:
+        return {"error": f"Failed to get equipment: {str(e)}"}
 
 @mcp.tool()
 def update_equipment_status(equipment_id: str, status: str, notes: str = None) -> Dict[str, Any]:
