@@ -14,7 +14,7 @@
 		// },
 		"hospital-management-python": {
 			"type": "stdio",
-			"command": "python",
+			"command": "${workspaceFolder}/.venv-py312/Scripts/python.exe",
 			"args": ["comprehensive_server.py"],
 			"cwd": "${workspaceFolder}/backend-python",
 			"dev": {

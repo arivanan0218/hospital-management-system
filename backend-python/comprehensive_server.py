@@ -10,6 +10,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import Date
 from mcp.server.fastmcp import FastMCP
 
+from meeting_scheduler import MeetingSchedulerAgent
+from meeting_management import MeetingManager, Meeting, MeetingParticipant
+
 # Import database modules
 try:
     from database import (
@@ -17,6 +20,7 @@ try:
         Supply, SupplyCategory, InventoryTransaction, AgentInteraction, Appointment,
         LegacyUser, SessionLocal
     )
+    from staff_meetings import StaffMeeting, staff_meeting_participants
     DATABASE_AVAILABLE = True
 except ImportError:
     DATABASE_AVAILABLE = False
@@ -24,6 +28,9 @@ except ImportError:
 
 # Initialize FastMCP server
 mcp = FastMCP("hospital-management-system")
+
+# Initialize Meeting Scheduler Agent
+scheduler_agent = MeetingSchedulerAgent()
 
 # Database helper functions
 def get_db_session() -> Session:
@@ -885,6 +892,585 @@ def list_legacy_users() -> Dict[str, Any]:
         return {"users": result, "count": len(result)}
     except Exception as e:
         return {"error": f"Failed to list legacy users: {str(e)}", "users": [], "count": 0}
+
+# ================================
+# STAFF MEETINGS OPERATIONS
+# ================================
+
+@mcp.tool()
+def list_staff_meetings(staff_id: str = None, from_date: str = None, to_date: str = None) -> Dict[str, Any]:
+    """List staff meetings with optional filters."""
+    if not DATABASE_AVAILABLE:
+        return {"error": "Database not available", "meetings": [], "count": 0}
+    
+    try:
+        db = get_db_session()
+        query = db.query(StaffMeeting)
+        
+        if staff_id:
+            query = query.join(staff_meeting_participants).filter(
+                staff_meeting_participants.c.staff_id == uuid.UUID(staff_id)
+            )
+        
+        if from_date:
+            query = query.filter(StaffMeeting.meeting_time >= datetime.fromisoformat(from_date))
+        if to_date:
+            query = query.filter(StaffMeeting.meeting_time <= datetime.fromisoformat(to_date))
+        
+        meetings = query.order_by(StaffMeeting.meeting_time.desc()).all()
+        result = [serialize_model(meeting) for meeting in meetings]
+        db.close()
+        
+        return {"meetings": result, "count": len(result)}
+    except Exception as e:
+        return {"error": f"Failed to list meetings: {str(e)}", "meetings": [], "count": 0}
+
+# ================================
+# MEETING SCHEDULER AGENT
+# ================================
+
+@mcp.tool()
+def schedule_meeting_with_staff(query: str) -> Dict[str, Any]:
+    """Schedule a meeting with available staff members.
+    
+    This tool will:
+    1. Parse the meeting request
+    2. Find available staff members
+    3. Schedule the meeting at the next available time slot
+    4. Send email notifications to all participants
+    """
+    if not DATABASE_AVAILABLE:
+        return {"success": False, "message": "Database not available"}
+    
+    try:
+        # Use the scheduler agent to handle the request
+        result = scheduler_agent.schedule_meeting(query)
+        
+        # Create a clean, encoding-safe response
+        if result.get("success"):
+            # Extract key information safely
+            meeting_data = result.get("data", {})
+            meeting_id = meeting_data.get("meeting_id", "N/A")
+            google_meet_link = meeting_data.get("google_meet_link", "")
+            participants = meeting_data.get("participants", 0)
+            emails_sent = meeting_data.get("emails_sent", 0)
+            
+            # Create safe response without emojis or special characters
+            safe_response = {
+                "success": True,
+                "message": "Meeting scheduled successfully with Google Meet link",
+                "meeting_id": meeting_id,
+                "google_meet_link": google_meet_link,
+                "participants_invited": participants,
+                "emails_sent": emails_sent,
+                "status": "scheduled"
+            }
+            
+            # Log the successful interaction
+            log_agent_interaction(
+                agent_type="meeting_scheduler",
+                query=query,
+                response="Meeting scheduled successfully",
+                action_taken="schedule_meeting",
+                confidence_score=0.95
+            )
+            
+            return safe_response
+        else:
+            # Return clean error response
+            error_message = result.get("message", "Unknown error occurred")
+            return {
+                "success": False,
+                "message": error_message,
+                "status": "failed"
+            }
+    except Exception as e:
+        error_msg = f"Failed to schedule meeting: {str(e)}"
+        log_agent_interaction(
+            agent_type="meeting_scheduler",
+            query=query,
+            response=error_msg,
+            action_taken="schedule_meeting_failed",
+            confidence_score=0.0
+        )
+        return {"success": False, "message": error_msg}
+
+# ================================
+# MEETING RETRIEVAL FUNCTIONS
+# ================================
+
+@mcp.tool()
+def get_meetings_by_date(meeting_date: str) -> Dict[str, Any]:
+    """Get all meetings for a specific date.
+    
+    Args:
+        meeting_date: Date in YYYY-MM-DD format (e.g., '2025-08-07')
+    
+    Returns:
+        Dictionary with meeting details for the specified date
+    """
+    if not DATABASE_AVAILABLE:
+        return {"success": False, "message": "Database not available"}
+    
+    try:
+        from datetime import datetime, date
+        
+        # Parse the date
+        target_date = datetime.strptime(meeting_date, '%Y-%m-%d').date()
+        
+        meeting_manager = MeetingManager()
+        meetings = meeting_manager.get_meetings_by_date(target_date)
+        
+        meeting_list = []
+        for meeting in meetings:
+            # Get participants for this meeting
+            participants = meeting_manager.get_meeting_participants(str(meeting.id))
+            
+            meeting_data = {
+                'meeting_id': str(meeting.id),
+                'title': meeting.title,
+                'description': meeting.description,
+                'meeting_datetime': meeting.meeting_datetime.isoformat(),
+                'duration_minutes': meeting.duration_minutes,
+                'location': meeting.location,
+                'google_meet_link': meeting.google_meet_link,
+                'google_event_id': meeting.google_event_id,
+                'meeting_type': meeting.meeting_type,
+                'status': meeting.status,
+                'priority': meeting.priority,
+                'agenda': meeting.agenda,
+                'participants': participants,
+                'participant_count': len(participants),
+                'organizer_name': f"{meeting.organizer.user.first_name} {meeting.organizer.user.last_name}" if meeting.organizer else "Unknown",
+                'department': meeting.department.name if meeting.department else "General",
+                'created_at': meeting.created_at.isoformat()
+            }
+            meeting_list.append(meeting_data)
+        
+        meeting_manager.close()
+        
+        return {
+            "success": True,
+            "date": meeting_date,
+            "total_meetings": len(meeting_list),
+            "meetings": meeting_list
+        }
+        
+    except ValueError as e:
+        return {"success": False, "message": f"Invalid date format. Use YYYY-MM-DD: {str(e)}"}
+    except Exception as e:
+        return {"success": False, "message": f"Error retrieving meetings: {str(e)}"}
+
+@mcp.tool()
+def get_meetings_by_time_range(start_datetime: str, end_datetime: str) -> Dict[str, Any]:
+    """Get all meetings within a specific time range.
+    
+    Args:
+        start_datetime: Start datetime in YYYY-MM-DD HH:MM format (e.g., '2025-08-07 09:00')
+        end_datetime: End datetime in YYYY-MM-DD HH:MM format (e.g., '2025-08-07 17:00')
+    
+    Returns:
+        Dictionary with meeting details for the specified time range
+    """
+    if not DATABASE_AVAILABLE:
+        return {"success": False, "message": "Database not available"}
+    
+    try:
+        from datetime import datetime
+        
+        # Parse the datetime strings
+        start_dt = datetime.strptime(start_datetime, '%Y-%m-%d %H:%M')
+        end_dt = datetime.strptime(end_datetime, '%Y-%m-%d %H:%M')
+        
+        meeting_manager = MeetingManager()
+        meetings = meeting_manager.get_meetings_by_time_range(start_dt, end_dt)
+        
+        meeting_list = []
+        for meeting in meetings:
+            # Get participants for this meeting
+            participants = meeting_manager.get_meeting_participants(str(meeting.id))
+            
+            meeting_data = {
+                'meeting_id': str(meeting.id),
+                'title': meeting.title,
+                'description': meeting.description,
+                'meeting_datetime': meeting.meeting_datetime.isoformat(),
+                'duration_minutes': meeting.duration_minutes,
+                'location': meeting.location,
+                'google_meet_link': meeting.google_meet_link,
+                'google_event_id': meeting.google_event_id,
+                'meeting_type': meeting.meeting_type,
+                'status': meeting.status,
+                'priority': meeting.priority,
+                'agenda': meeting.agenda,
+                'participants': participants,
+                'participant_count': len(participants),
+                'organizer_name': f"{meeting.organizer.user.first_name} {meeting.organizer.user.last_name}" if meeting.organizer else "Unknown",
+                'department': meeting.department.name if meeting.department else "General",
+                'created_at': meeting.created_at.isoformat()
+            }
+            meeting_list.append(meeting_data)
+        
+        meeting_manager.close()
+        
+        return {
+            "success": True,
+            "start_datetime": start_datetime,
+            "end_datetime": end_datetime,
+            "total_meetings": len(meeting_list),
+            "meetings": meeting_list
+        }
+        
+    except ValueError as e:
+        return {"success": False, "message": f"Invalid datetime format. Use YYYY-MM-DD HH:MM: {str(e)}"}
+    except Exception as e:
+        return {"success": False, "message": f"Error retrieving meetings: {str(e)}"}
+
+@mcp.tool()
+def get_meeting_details(meeting_id: str) -> Dict[str, Any]:
+    """Get detailed information about a specific meeting.
+    
+    Args:
+        meeting_id: The UUID of the meeting
+    
+    Returns:
+        Dictionary with complete meeting details
+    """
+    if not DATABASE_AVAILABLE:
+        return {"success": False, "message": "Database not available"}
+    
+    try:
+        meeting_manager = MeetingManager()
+        meeting = meeting_manager.get_meeting_by_id(meeting_id)
+        
+        if not meeting:
+            meeting_manager.close()
+            return {"success": False, "message": "Meeting not found"}
+        
+        # Get participants for this meeting
+        participants = meeting_manager.get_meeting_participants(meeting_id)
+        
+        meeting_data = {
+            'meeting_id': str(meeting.id),
+            'title': meeting.title,
+            'description': meeting.description,
+            'meeting_datetime': meeting.meeting_datetime.isoformat(),
+            'duration_minutes': meeting.duration_minutes,
+            'location': meeting.location,
+            'google_meet_link': meeting.google_meet_link,
+            'google_event_id': meeting.google_event_id,
+            'google_meet_room_code': meeting.google_meet_room_code,
+            'meeting_type': meeting.meeting_type,
+            'status': meeting.status,
+            'priority': meeting.priority,
+            'agenda': meeting.agenda,
+            'meeting_notes': meeting.meeting_notes,
+            'action_items': meeting.action_items,
+            'participants': participants,
+            'participant_count': len(participants),
+            'organizer_id': str(meeting.organizer_id) if meeting.organizer_id else None,
+            'organizer_name': f"{meeting.organizer.user.first_name} {meeting.organizer.user.last_name}" if meeting.organizer else "Unknown",
+            'department_id': str(meeting.department_id) if meeting.department_id else None,
+            'department': meeting.department.name if meeting.department else "General",
+            'email_sent': meeting.email_sent,
+            'calendar_invites_sent': meeting.calendar_invites_sent,
+            'reminder_sent': meeting.reminder_sent,
+            'created_at': meeting.created_at.isoformat(),
+            'updated_at': meeting.updated_at.isoformat(),
+            'cancelled_at': meeting.cancelled_at.isoformat() if meeting.cancelled_at else None
+        }
+        
+        meeting_manager.close()
+        
+        return {
+            "success": True,
+            "meeting": meeting_data
+        }
+        
+    except Exception as e:
+        return {"success": False, "message": f"Error retrieving meeting details: {str(e)}"}
+
+@mcp.tool()
+def get_upcoming_meetings(days_ahead: int = 7) -> Dict[str, Any]:
+    """Get all upcoming meetings within specified days.
+    
+    Args:
+        days_ahead: Number of days to look ahead (default: 7)
+    
+    Returns:
+        Dictionary with upcoming meeting details
+    """
+    if not DATABASE_AVAILABLE:
+        return {"success": False, "message": "Database not available"}
+    
+    try:
+        meeting_manager = MeetingManager()
+        meetings = meeting_manager.get_upcoming_meetings(days_ahead)
+        
+        meeting_list = []
+        for meeting in meetings:
+            # Get participants for this meeting
+            participants = meeting_manager.get_meeting_participants(str(meeting.id))
+            
+            meeting_data = {
+                'meeting_id': str(meeting.id),
+                'title': meeting.title,
+                'description': meeting.description,
+                'meeting_datetime': meeting.meeting_datetime.isoformat(),
+                'duration_minutes': meeting.duration_minutes,
+                'location': meeting.location,
+                'google_meet_link': meeting.google_meet_link,
+                'meeting_type': meeting.meeting_type,
+                'status': meeting.status,
+                'priority': meeting.priority,
+                'participants': participants,
+                'participant_count': len(participants),
+                'organizer_name': f"{meeting.organizer.user.first_name} {meeting.organizer.user.last_name}" if meeting.organizer else "Unknown",
+                'department': meeting.department.name if meeting.department else "General"
+            }
+            meeting_list.append(meeting_data)
+        
+        meeting_manager.close()
+        
+        return {
+            "success": True,
+            "days_ahead": days_ahead,
+            "total_meetings": len(meeting_list),
+            "meetings": meeting_list
+        }
+        
+    except Exception as e:
+        return {"success": False, "message": f"Error retrieving upcoming meetings: {str(e)}"}
+
+@mcp.tool()
+def update_meeting_status(meeting_id: str, status: str) -> Dict[str, Any]:
+    """Update the status of a meeting.
+    
+    Args:
+        meeting_id: The UUID of the meeting
+        status: New status (scheduled, in_progress, completed, cancelled)
+    
+    Returns:
+        Dictionary with update result
+    """
+    if not DATABASE_AVAILABLE:
+        return {"success": False, "message": "Database not available"}
+    
+    try:
+        valid_statuses = ['scheduled', 'in_progress', 'completed', 'cancelled']
+        if status not in valid_statuses:
+            return {"success": False, "message": f"Invalid status. Must be one of: {', '.join(valid_statuses)}"}
+        
+        meeting_manager = MeetingManager()
+        success = meeting_manager.update_meeting_status(meeting_id, status)
+        meeting_manager.close()
+        
+        if success:
+            return {
+                "success": True,
+                "message": f"Meeting status updated to '{status}'",
+                "meeting_id": meeting_id,
+                "new_status": status
+            }
+        else:
+            return {"success": False, "message": "Meeting not found or update failed"}
+            
+    except Exception as e:
+        return {"success": False, "message": f"Error updating meeting status: {str(e)}"}
+
+@mcp.tool()
+def add_meeting_notes(meeting_id: str, notes: str, action_items: str = None) -> Dict[str, Any]:
+    """Add notes and action items to a completed meeting.
+    
+    Args:
+        meeting_id: The UUID of the meeting
+        notes: Meeting notes or summary
+        action_items: Action items from the meeting (optional)
+    
+    Returns:
+        Dictionary with update result
+    """
+    if not DATABASE_AVAILABLE:
+        return {"success": False, "message": "Database not available"}
+    
+    try:
+        meeting_manager = MeetingManager()
+        success = meeting_manager.add_meeting_notes(meeting_id, notes, action_items)
+        meeting_manager.close()
+        
+        if success:
+            return {
+                "success": True,
+                "message": "Meeting notes added successfully",
+                "meeting_id": meeting_id
+            }
+        else:
+            return {"success": False, "message": "Meeting not found or update failed"}
+            
+    except Exception as e:
+        return {"success": False, "message": f"Error adding meeting notes: {str(e)}"}
+
+@mcp.tool()
+def search_meetings_by_title(title_query: str) -> Dict[str, Any]:
+    """Search meetings by title using partial text matching.
+    
+    Args:
+        title_query: Text to search for in meeting titles (case-insensitive)
+    
+    Returns:
+        Dictionary with matching meetings
+    """
+    if not DATABASE_AVAILABLE:
+        return {"success": False, "message": "Database not available"}
+    
+    try:
+        meeting_manager = MeetingManager()
+        meetings = meeting_manager.search_meetings_by_title(title_query)
+        
+        meeting_list = []
+        for meeting in meetings:
+            participants = meeting_manager.get_meeting_participants(str(meeting.id))
+            
+            meeting_data = {
+                'meeting_id': str(meeting.id),
+                'title': meeting.title,
+                'description': meeting.description,
+                'meeting_datetime': meeting.meeting_datetime.isoformat(),
+                'duration_minutes': meeting.duration_minutes,
+                'location': meeting.location,
+                'google_meet_link': meeting.google_meet_link,
+                'google_event_id': meeting.google_event_id,
+                'meeting_type': meeting.meeting_type,
+                'status': meeting.status,
+                'priority': meeting.priority,
+                'agenda': meeting.agenda,
+                'participants': participants,
+                'participant_count': len(participants),
+                'organizer_name': f"{meeting.organizer.user.first_name} {meeting.organizer.user.last_name}" if meeting.organizer else "Unknown",
+                'department': meeting.department.name if meeting.department else "General",
+                'created_at': meeting.created_at.isoformat() if meeting.created_at else None
+            }
+            meeting_list.append(meeting_data)
+        
+        meeting_manager.close()
+        
+        return {
+            "success": True,
+            "search_query": title_query,
+            "total_matches": len(meeting_list),
+            "meetings": meeting_list
+        }
+        
+    except Exception as e:
+        return {"success": False, "message": f"Error searching meetings by title: {str(e)}"}
+
+@mcp.tool()
+def search_meetings_by_description(description_query: str) -> Dict[str, Any]:
+    """Search meetings by description using partial text matching.
+    
+    Args:
+        description_query: Text to search for in meeting descriptions (case-insensitive)
+    
+    Returns:
+        Dictionary with matching meetings
+    """
+    if not DATABASE_AVAILABLE:
+        return {"success": False, "message": "Database not available"}
+    
+    try:
+        meeting_manager = MeetingManager()
+        meetings = meeting_manager.search_meetings_by_description(description_query)
+        
+        meeting_list = []
+        for meeting in meetings:
+            participants = meeting_manager.get_meeting_participants(str(meeting.id))
+            
+            meeting_data = {
+                'meeting_id': str(meeting.id),
+                'title': meeting.title,
+                'description': meeting.description,
+                'meeting_datetime': meeting.meeting_datetime.isoformat(),
+                'duration_minutes': meeting.duration_minutes,
+                'location': meeting.location,
+                'google_meet_link': meeting.google_meet_link,
+                'google_event_id': meeting.google_event_id,
+                'meeting_type': meeting.meeting_type,
+                'status': meeting.status,
+                'priority': meeting.priority,
+                'agenda': meeting.agenda,
+                'participants': participants,
+                'participant_count': len(participants),
+                'organizer_name': f"{meeting.organizer.user.first_name} {meeting.organizer.user.last_name}" if meeting.organizer else "Unknown",
+                'department': meeting.department.name if meeting.department else "General",
+                'created_at': meeting.created_at.isoformat() if meeting.created_at else None
+            }
+            meeting_list.append(meeting_data)
+        
+        meeting_manager.close()
+        
+        return {
+            "success": True,
+            "search_query": description_query,
+            "total_matches": len(meeting_list),
+            "meetings": meeting_list
+        }
+        
+    except Exception as e:
+        return {"success": False, "message": f"Error searching meetings by description: {str(e)}"}
+
+@mcp.tool()
+def search_meetings(search_query: str) -> Dict[str, Any]:
+    """Search meetings by title OR description using partial text matching.
+    
+    Args:
+        search_query: Text to search for in meeting titles or descriptions (case-insensitive)
+    
+    Returns:
+        Dictionary with matching meetings
+    """
+    if not DATABASE_AVAILABLE:
+        return {"success": False, "message": "Database not available"}
+    
+    try:
+        meeting_manager = MeetingManager()
+        meetings = meeting_manager.search_meetings(search_query)
+        
+        meeting_list = []
+        for meeting in meetings:
+            participants = meeting_manager.get_meeting_participants(str(meeting.id))
+            
+            meeting_data = {
+                'meeting_id': str(meeting.id),
+                'title': meeting.title,
+                'description': meeting.description,
+                'meeting_datetime': meeting.meeting_datetime.isoformat(),
+                'duration_minutes': meeting.duration_minutes,
+                'location': meeting.location,
+                'google_meet_link': meeting.google_meet_link,
+                'google_event_id': meeting.google_event_id,
+                'meeting_type': meeting.meeting_type,
+                'status': meeting.status,
+                'priority': meeting.priority,
+                'agenda': meeting.agenda,
+                'participants': participants,
+                'participant_count': len(participants),
+                'organizer_name': f"{meeting.organizer.user.first_name} {meeting.organizer.user.last_name}" if meeting.organizer else "Unknown",
+                'department': meeting.department.name if meeting.department else "General",
+                'created_at': meeting.created_at.isoformat() if meeting.created_at else None
+            }
+            meeting_list.append(meeting_data)
+        
+        meeting_manager.close()
+        
+        return {
+            "success": True,
+            "search_query": search_query,
+            "total_matches": len(meeting_list),
+            "meetings": meeting_list
+        }
+        
+    except Exception as e:
+        return {"success": False, "message": f"Error searching meetings: {str(e)}"}
 
 if __name__ == "__main__":
     try:

@@ -14,9 +14,9 @@ const DirectMCPChatbot = () => {
     command: 'python',
     args: ['comprehensive_server.py'],
     env: {
-      'PYTHONPATH': 'c:\\Users\\Arivanan\\hospital-management-system\\backend-python'
+      'PYTHONPATH': 'C:\\Users\\Lap.lk\\OneDrive\\Desktop\\New folder (2)\\hospital-management-system\\backend-python'
     },
-    cwd: 'c:\\Users\\Arivanan\\hospital-management-system\\backend-python'
+    cwd: 'C:\\Users\\Lap.lk\\OneDrive\\Desktop\\New folder (2)\\hospital-management-system\\backend-python'
   });
   
   const [serverInfo, setServerInfo] = useState(null);
