@@ -1,79 +1,136 @@
-import React, { useState, useEffect, useRef } from 'react';
-import DirectAIMCPService from '../services/directAiMcpService.js';
+import React, { useState, useEffect, useRef } from "react";
+import DirectAIMCPService from "../services/directAiMcpService.js";
 
 const DirectMCPChatbot = () => {
   const [messages, setMessages] = useState([]);
-  const [inputMessage, setInputMessage] = useState('');
+  const [inputMessage, setInputMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [showSetup, setShowSetup] = useState(true);
-  
+
   // Configuration state
-  const [openaiApiKey, setOpenaiApiKey] = useState(import.meta.env.VITE_OPENAI_API_KEY || '');
+  const [openaiApiKey, setOpenaiApiKey] = useState(
+    import.meta.env.VITE_OPENAI_API_KEY || ""
+  );
   const [mcpServerConfig, setMcpServerConfig] = useState({
-    command: 'python',
-    args: ['comprehensive_server.py'],
+    command:
+      "d:\\Codegen Task\\Hospital Agent\\hospital-management-system\\venv-py312\\Scripts\\python.exe",
+    args: ["comprehensive_server.py"],
     env: {
-      'PYTHONPATH': 'c:\\Users\\Arivanan\\hospital-management-system\\backend-python'
+      PYTHONPATH:
+        "d:\\Codegen Task\\Hospital Agent\\hospital-management-system\\backend-python",
     },
-    cwd: 'c:\\Users\\Arivanan\\hospital-management-system\\backend-python'
+    cwd: "d:\\Codegen Task\\Hospital Agent\\hospital-management-system\\backend-python",
   });
-  
+
   const [serverInfo, setServerInfo] = useState(null);
-  const [connectionError, setConnectionError] = useState('');
+  const [connectionError, setConnectionError] = useState("");
   const [thinkingMode] = useState(true); // Always use Direct MCP with thinking
   const [expandedThinking, setExpandedThinking] = useState({}); // Track which thinking messages are expanded
-  
-  const aiMcpServiceRef = useRef(null);
-  const messagesEndRef = useRef(null);
+  const [isListening, setIsListening] = useState(false); // Track voice recording state
+  const [recognition, setRecognition] = useState(null); // Speech recognition instance
 
-  // Auto-scroll to bottom
+  const aiMcpServiceRef = useRef(null);
+  const messagesEndRef = useRef(null); // Auto-scroll to bottom
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Initialize speech recognition
+  useEffect(() => {
+    if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
+      const SpeechRecognition =
+        window.SpeechRecognition || window.webkitSpeechRecognition;
+      const recognitionInstance = new SpeechRecognition();
+
+      recognitionInstance.continuous = false;
+      recognitionInstance.interimResults = false;
+      recognitionInstance.lang = "en-US";
+
+      recognitionInstance.onstart = () => {
+        setIsListening(true);
+      };
+
+      recognitionInstance.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        setInputMessage(transcript);
+        setIsListening(false);
+      };
+
+      recognitionInstance.onerror = (event) => {
+        console.error("Speech recognition error:", event.error);
+        setIsListening(false);
+      };
+
+      recognitionInstance.onend = () => {
+        setIsListening(false);
+      };
+
+      setRecognition(recognitionInstance);
+    }
+  }, []);
+
+  /**
+   * Handle voice input
+   */
+  const handleVoiceInput = () => {
+    if (!recognition) {
+      alert(
+        "Speech recognition is not supported in your browser. Please use Chrome, Edge, or Safari."
+      );
+      return;
+    }
+
+    if (isListening) {
+      recognition.stop();
+      setIsListening(false);
+    } else {
+      recognition.start();
+    }
+  };
 
   /**
    * Initialize the AI-MCP service
    */
   const initializeService = async () => {
     if (!openaiApiKey.trim()) {
-      setConnectionError('Please enter your OpenAI API key');
+      setConnectionError("Please enter your OpenAI API key");
       return;
     }
 
     setIsLoading(true);
-    setConnectionError('');
-    
+    setConnectionError("");
+
     try {
       aiMcpServiceRef.current = new DirectAIMCPService();
-      
-      console.log('🚀 Initializing with config:', mcpServerConfig);
-      
+
+      console.log("🚀 Initializing with config:", mcpServerConfig);
+
       const initialized = await aiMcpServiceRef.current.initialize(
         openaiApiKey,
         mcpServerConfig
       );
-      
+
       if (initialized) {
         setIsConnected(true);
         setShowSetup(false);
-        
+
         const info = aiMcpServiceRef.current.getServerInfo();
         setServerInfo(info);
-        
-        setMessages([{
-          id: Date.now(),
-          text: `👋 Welcome to Hospital Agent! How can I help you today? 🏥`,
-          sender: 'ai',
-          timestamp: new Date().toLocaleTimeString()
-        }]);
-        
+
+        setMessages([
+          {
+            id: Date.now(),
+            text: `👋 Welcome to Hospital Agent! How can I help you today? 🏥`,
+            sender: "ai",
+            timestamp: new Date().toLocaleTimeString(),
+          },
+        ]);
       } else {
-        throw new Error('Failed to initialize service');
+        throw new Error("Failed to initialize service");
       }
-      
     } catch (error) {
-      console.error('❌ Initialization failed:', error);
+      console.error("❌ Initialization failed:", error);
       setConnectionError(`Connection failed: ${error.message}`);
     } finally {
       setIsLoading(false);
@@ -87,90 +144,102 @@ const DirectMCPChatbot = () => {
     if (!inputMessage.trim() || !isConnected || isLoading) return;
 
     const userMessage = inputMessage.trim();
-    setInputMessage('');
+    setInputMessage("");
     setIsLoading(true);
 
     // Add user message
     const userMsg = {
       id: Date.now(),
       text: userMessage,
-      sender: 'user',
-      timestamp: new Date().toLocaleTimeString()
+      sender: "user",
+      timestamp: new Date().toLocaleTimeString(),
     };
-    setMessages(prev => [...prev, userMsg]);
+    setMessages((prev) => [...prev, userMsg]);
 
     try {
       // Step 1: Show initial thinking
       const thinkingMsg = {
         id: Date.now() + 1,
-        text: '🤔 **Thinking...**\n\nLet me analyze your request and determine the best approach.',
-        sender: 'ai',
+        text: "🤔 **Thinking...**\n\nLet me analyze your request and determine the best approach.",
+        sender: "ai",
         timestamp: new Date().toLocaleTimeString(),
-        isThinking: true
+        isThinking: true,
       };
-      setMessages(prev => [...prev, thinkingMsg]);
+      setMessages((prev) => [...prev, thinkingMsg]);
 
       // Small delay to show thinking
-      await new Promise(resolve => setTimeout(resolve, 800));
+      await new Promise((resolve) => setTimeout(resolve, 800));
 
       // Step 2: Show analysis of the request
       const analysisMsg = {
         id: Date.now() + 2,
-        text: '🔍 **Analyzing Request...**\n\nI understand you want to: ' + userMessage + '\n\nLet me process this and check if I need to access any hospital data or perform specific actions.',
-        sender: 'ai',
+        text:
+          "🔍 **Analyzing Request...**\n\nI understand you want to: " +
+          userMessage +
+          "\n\nLet me process this and check if I need to access any hospital data or perform specific actions.",
+        sender: "ai",
         timestamp: new Date().toLocaleTimeString(),
-        isThinking: true
+        isThinking: true,
       };
-      setMessages(prev => [...prev, analysisMsg]);
+      setMessages((prev) => [...prev, analysisMsg]);
 
-      await new Promise(resolve => setTimeout(resolve, 600));
+      await new Promise((resolve) => setTimeout(resolve, 600));
 
       // Step 3: Process the actual request
-      const response = await aiMcpServiceRef.current.processRequest(userMessage);
-      
+      const response = await aiMcpServiceRef.current.processRequest(
+        userMessage
+      );
+
       if (response.success) {
         // Step 4: Show what tools will be called (if any)
         if (response.functionCalls && response.functionCalls.length > 0) {
           const toolsMsg = {
             id: Date.now() + 3,
-            text: `🛠️ **Tools Required:**\n\nI need to use the following tools to answer your question:\n${response.functionCalls.map(call => `• ${call.function}`).join('\n')}\n\nExecuting now...`,
-            sender: 'ai',
+            text: `🛠️ **Tools Required:**\n\nI need to use the following tools to answer your question:\n${response.functionCalls
+              .map((call) => `• ${call.function}`)
+              .join("\n")}\n\nExecuting now...`,
+            sender: "ai",
             timestamp: new Date().toLocaleTimeString(),
-            isThinking: true
+            isThinking: true,
           };
-          setMessages(prev => [...prev, toolsMsg]);
+          setMessages((prev) => [...prev, toolsMsg]);
 
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise((resolve) => setTimeout(resolve, 500));
         }
 
         // Step 5: Final response with results
-        let responseText = response.message || 'I\'ve processed your request successfully.';
-        
+        let responseText =
+          response.message || "I've processed your request successfully.";
+
         // Add function call results if any
         if (response.functionCalls && response.functionCalls.length > 0) {
-          responseText += '\n\n**📊 Results:**\n\n';
-          
+          responseText += "\n\n**📊 Results:**\n\n";
+
           response.functionCalls.forEach((call) => {
-            console.log('🔍 Function call result:', call);
-            
+            console.log("🔍 Function call result:", call);
+
             if (call.success) {
               const functionIcon = getFunctionIcon(call.function);
               responseText += `${functionIcon} **${call.function.toUpperCase()}**\n`;
-              
+
               if (call.result && call.result.content) {
                 const content = call.result.content;
                 if (Array.isArray(content)) {
                   responseText += formatMCPData(content);
-                } else if (typeof content === 'object') {
+                } else if (typeof content === "object") {
                   responseText += formatMCPData(content);
                 } else {
                   responseText += `${content}\n`;
                 }
               } else if (call.result) {
                 let result = call.result;
-                
+
                 if (Array.isArray(result)) {
-                  if (result.length > 0 && result[0].type === 'text' && result[0].text) {
+                  if (
+                    result.length > 0 &&
+                    result[0].type === "text" &&
+                    result[0].text
+                  ) {
                     try {
                       const parsedData = JSON.parse(result[0].text);
                       responseText += formatMCPData(parsedData);
@@ -180,14 +249,14 @@ const DirectMCPChatbot = () => {
                   } else {
                     responseText += formatMCPData(result);
                   }
-                } else if (result.type === 'text' && result.text) {
+                } else if (result.type === "text" && result.text) {
                   try {
                     const parsedData = JSON.parse(result.text);
                     responseText += formatMCPData(parsedData);
                   } catch {
                     responseText += `${result.text}\n`;
                   }
-                } else if (result.text && typeof result.text === 'string') {
+                } else if (result.text && typeof result.text === "string") {
                   try {
                     const parsedData = JSON.parse(result.text);
                     responseText += formatMCPData(parsedData);
@@ -197,57 +266,59 @@ const DirectMCPChatbot = () => {
                 } else if (result.content) {
                   if (Array.isArray(result.content)) {
                     responseText += formatMCPData(result.content);
-                  } else if (typeof result.content === 'object') {
+                  } else if (typeof result.content === "object") {
                     responseText += formatMCPData(result.content);
                   } else {
                     responseText += `${result.content}\n`;
                   }
-                } else if (typeof result === 'object') {
+                } else if (typeof result === "object") {
                   responseText += formatMCPData(result);
                 } else {
                   responseText += `ℹ️ ${result}\n`;
                 }
               } else {
-                responseText += '✅ **COMPLETED SUCCESSFULLY**\n';
+                responseText += "✅ **COMPLETED SUCCESSFULLY**\n";
               }
             } else {
-              responseText += `❌ **${call.function.toUpperCase()} FAILED**: ${call.error}\n`;
+              responseText += `❌ **${call.function.toUpperCase()} FAILED**: ${
+                call.error
+              }\n`;
             }
-            responseText += '\n';
+            responseText += "\n";
           });
         }
 
         const aiMsg = {
           id: Date.now() + 4,
           text: responseText,
-          sender: 'ai',
+          sender: "ai",
           timestamp: new Date().toLocaleTimeString(),
           functionCalls: response.functionCalls,
-          isFinalAnswer: true
+          isFinalAnswer: true,
         };
-        setMessages(prev => [...prev, aiMsg]);
-        
+        setMessages((prev) => [...prev, aiMsg]);
       } else {
         const errorMsg = {
           id: Date.now() + 4,
-          text: `❌ **Error Encountered**\n\nI apologize, but I encountered an error: ${response.error || 'Unknown error occurred'}\n\nPlease try rephrasing your request or let me know if you need help with something specific.`,
-          sender: 'ai',
+          text: `❌ **Error Encountered**\n\nI apologize, but I encountered an error: ${
+            response.error || "Unknown error occurred"
+          }\n\nPlease try rephrasing your request or let me know if you need help with something specific.`,
+          sender: "ai",
           timestamp: new Date().toLocaleTimeString(),
-          isError: true
+          isError: true,
         };
-        setMessages(prev => [...prev, errorMsg]);
+        setMessages((prev) => [...prev, errorMsg]);
       }
-      
     } catch (error) {
-      console.error('❌ Send message failed:', error);
+      console.error("❌ Send message failed:", error);
       const errorMsg = {
         id: Date.now() + 4,
         text: `💥 **Processing Error**\n\nI'm sorry, but I'm having trouble processing your request right now: ${error.message}\n\nThis might be a temporary issue. Could you please try again?`,
-        sender: 'ai',
+        sender: "ai",
         timestamp: new Date().toLocaleTimeString(),
-        isError: true
+        isError: true,
       };
-      setMessages(prev => [...prev, errorMsg]);
+      setMessages((prev) => [...prev, errorMsg]);
     } finally {
       setIsLoading(false);
     }
@@ -261,7 +332,7 @@ const DirectMCPChatbot = () => {
     if (!queryToProcess || !isConnected || isLoading) return;
 
     if (!customQuery) {
-      setInputMessage('');
+      setInputMessage("");
     }
     setIsLoading(true);
 
@@ -270,96 +341,111 @@ const DirectMCPChatbot = () => {
       const userMsg = {
         id: Date.now(),
         text: queryToProcess,
-        sender: 'user',
-        timestamp: new Date().toLocaleTimeString()
+        sender: "user",
+        timestamp: new Date().toLocaleTimeString(),
       };
-      setMessages(prev => [...prev, userMsg]);
+      setMessages((prev) => [...prev, userMsg]);
     }
 
     try {
       // Determine if this is a complex query that might need multiple steps
-      const isComplexQuery = queryToProcess.toLowerCase().includes('and') || 
-                            queryToProcess.toLowerCase().includes('then') ||
-                            queryToProcess.toLowerCase().includes('also') ||
-                            queryToProcess.split(' ').length > 10;
+      const isComplexQuery =
+        queryToProcess.toLowerCase().includes("and") ||
+        queryToProcess.toLowerCase().includes("then") ||
+        queryToProcess.toLowerCase().includes("also") ||
+        queryToProcess.split(" ").length > 10;
 
       if (isComplexQuery) {
         const complexThinkingMsg = {
           id: Date.now() + 1,
-          text: '🧠 **Complex Query Detected**\n\nThis appears to be a multi-part request. Let me break it down and process each part systematically.',
-          sender: 'ai',
+          text: "🧠 **Complex Query Detected**\n\nThis appears to be a multi-part request. Let me break it down and process each part systematically.",
+          sender: "ai",
           timestamp: new Date().toLocaleTimeString(),
-          isThinking: true
+          isThinking: true,
         };
-        setMessages(prev => [...prev, complexThinkingMsg]);
-        await new Promise(resolve => setTimeout(resolve, 700));
+        setMessages((prev) => [...prev, complexThinkingMsg]);
+        await new Promise((resolve) => setTimeout(resolve, 700));
       }
 
       // Initial thinking
       const thinkingMsg = {
         id: Date.now() + 2,
-        text: '🤔 **Analyzing Request...**\n\nLet me understand what you need and determine the best approach.',
-        sender: 'ai',
+        text: "🤔 **Analyzing Request...**\n\nLet me understand what you need and determine the best approach.",
+        sender: "ai",
         timestamp: new Date().toLocaleTimeString(),
-        isThinking: true
+        isThinking: true,
       };
-      setMessages(prev => [...prev, thinkingMsg]);
-      await new Promise(resolve => setTimeout(resolve, 800));
+      setMessages((prev) => [...prev, thinkingMsg]);
+      await new Promise((resolve) => setTimeout(resolve, 800));
 
       // Analysis of the request
       const analysisMsg = {
         id: Date.now() + 3,
         text: `🔍 **Request Analysis**\n\nYou want: "${queryToProcess}"\n\nLet me check what information I need to gather and which tools to use.`,
-        sender: 'ai',
+        sender: "ai",
         timestamp: new Date().toLocaleTimeString(),
-        isThinking: true
+        isThinking: true,
       };
-      setMessages(prev => [...prev, analysisMsg]);
-      await new Promise(resolve => setTimeout(resolve, 600));
+      setMessages((prev) => [...prev, analysisMsg]);
+      await new Promise((resolve) => setTimeout(resolve, 600));
 
       // Process the actual request
-      const response = await aiMcpServiceRef.current.processRequest(queryToProcess);
-      
+      const response = await aiMcpServiceRef.current.processRequest(
+        queryToProcess
+      );
+
       if (response.success) {
         // Show what tools will be called
         if (response.functionCalls && response.functionCalls.length > 0) {
           const toolsMsg = {
             id: Date.now() + 4,
-            text: `🛠️ **Executing Tools:**\n\n${response.functionCalls.map((call, index) => `${index + 1}. ${getFunctionIcon(call.function)} ${call.function}`).join('\n')}\n\nProcessing...`,
-            sender: 'ai',
+            text: `🛠️ **Executing Tools:**\n\n${response.functionCalls
+              .map(
+                (call, index) =>
+                  `${index + 1}. ${getFunctionIcon(call.function)} ${
+                    call.function
+                  }`
+              )
+              .join("\n")}\n\nProcessing...`,
+            sender: "ai",
             timestamp: new Date().toLocaleTimeString(),
-            isThinking: true
+            isThinking: true,
           };
-          setMessages(prev => [...prev, toolsMsg]);
-          await new Promise(resolve => setTimeout(resolve, 500));
+          setMessages((prev) => [...prev, toolsMsg]);
+          await new Promise((resolve) => setTimeout(resolve, 500));
         }
 
         // Final response
-        let responseText = response.message || 'I\'ve processed your request successfully.';
-        
+        let responseText =
+          response.message || "I've processed your request successfully.";
+
         if (response.functionCalls && response.functionCalls.length > 0) {
-          responseText += '\n\n**📊 Results:**\n\n';
-          
+          responseText += "\n\n**📊 Results:**\n\n";
+
           response.functionCalls.forEach((call) => {
             if (call.success) {
               const functionIcon = getFunctionIcon(call.function);
               responseText += `${functionIcon} **${call.function.toUpperCase()}**\n`;
-              
+
               // Handle different result formats (same as original sendMessage)
               if (call.result && call.result.content) {
                 const content = call.result.content;
                 if (Array.isArray(content)) {
                   responseText += formatMCPData(content);
-                } else if (typeof content === 'object') {
+                } else if (typeof content === "object") {
                   responseText += formatMCPData(content);
                 } else {
                   responseText += `${content}\n`;
                 }
               } else if (call.result) {
                 let result = call.result;
-                
+
                 if (Array.isArray(result)) {
-                  if (result.length > 0 && result[0].type === 'text' && result[0].text) {
+                  if (
+                    result.length > 0 &&
+                    result[0].type === "text" &&
+                    result[0].text
+                  ) {
                     try {
                       const parsedData = JSON.parse(result[0].text);
                       responseText += formatMCPData(parsedData);
@@ -369,14 +455,14 @@ const DirectMCPChatbot = () => {
                   } else {
                     responseText += formatMCPData(result);
                   }
-                } else if (result.type === 'text' && result.text) {
+                } else if (result.type === "text" && result.text) {
                   try {
                     const parsedData = JSON.parse(result.text);
                     responseText += formatMCPData(parsedData);
                   } catch {
                     responseText += `${result.text}\n`;
                   }
-                } else if (result.text && typeof result.text === 'string') {
+                } else if (result.text && typeof result.text === "string") {
                   try {
                     const parsedData = JSON.parse(result.text);
                     responseText += formatMCPData(parsedData);
@@ -386,64 +472,66 @@ const DirectMCPChatbot = () => {
                 } else if (result.content) {
                   if (Array.isArray(result.content)) {
                     responseText += formatMCPData(result.content);
-                  } else if (typeof result.content === 'object') {
+                  } else if (typeof result.content === "object") {
                     responseText += formatMCPData(result.content);
                   } else {
                     responseText += `${result.content}\n`;
                   }
-                } else if (typeof result === 'object') {
+                } else if (typeof result === "object") {
                   responseText += formatMCPData(result);
                 } else {
                   responseText += `ℹ️ ${result}\n`;
                 }
               } else {
-                responseText += '✅ **COMPLETED SUCCESSFULLY**\n';
+                responseText += "✅ **COMPLETED SUCCESSFULLY**\n";
               }
             } else {
-              responseText += `❌ **${call.function.toUpperCase()} FAILED**: ${call.error}\n`;
+              responseText += `❌ **${call.function.toUpperCase()} FAILED**: ${
+                call.error
+              }\n`;
             }
-            responseText += '\n';
+            responseText += "\n";
           });
 
           // Add follow-up suggestions
-          responseText += '\n**💡 What would you like to do next?**\n';
-          responseText += '• Ask for more details about any item\n';
-          responseText += '• Perform additional operations\n';
-          responseText += '• Create new records\n';
-          responseText += '• Generate reports';
+          responseText += "\n**💡 What would you like to do next?**\n";
+          responseText += "• Ask for more details about any item\n";
+          responseText += "• Perform additional operations\n";
+          responseText += "• Create new records\n";
+          responseText += "• Generate reports";
         }
 
         const aiMsg = {
           id: Date.now() + 5,
           text: responseText,
-          sender: 'ai',
+          sender: "ai",
           timestamp: new Date().toLocaleTimeString(),
           functionCalls: response.functionCalls,
-          isFinalAnswer: true
+          isFinalAnswer: true,
         };
-        setMessages(prev => [...prev, aiMsg]);
-        
+        setMessages((prev) => [...prev, aiMsg]);
       } else {
         const errorMsg = {
           id: Date.now() + 5,
-          text: `❌ **Error Encountered**\n\nI apologize, but I encountered an error: ${response.error || 'Unknown error occurred'}\n\nPlease try rephrasing your request or let me know if you need help with something specific.`,
-          sender: 'ai',
+          text: `❌ **Error Encountered**\n\nI apologize, but I encountered an error: ${
+            response.error || "Unknown error occurred"
+          }\n\nPlease try rephrasing your request or let me know if you need help with something specific.`,
+          sender: "ai",
           timestamp: new Date().toLocaleTimeString(),
-          isError: true
+          isError: true,
         };
-        setMessages(prev => [...prev, errorMsg]);
+        setMessages((prev) => [...prev, errorMsg]);
       }
-      
     } catch (error) {
-      console.error('❌ Send message failed:', error);
+      console.error("❌ Send message failed:", error);
       const errorMsg = {
         id: Date.now() + 5,
         text: `💥 **Processing Error**\n\nI'm sorry, but I'm having trouble processing your request right now: ${error.message}\n\nThis might be a temporary issue. Could you please try again?`,
-        sender: 'ai',
+        sender: "ai",
         timestamp: new Date().toLocaleTimeString(),
-        isError: true
+        isError: true,
       };
-      setMessages(prev => [...prev, errorMsg]);
+      setMessages((prev) => [...prev, errorMsg]);
     } finally {
       setIsLoading(false);
     }
@@ -464,19 +552,21 @@ const DirectMCPChatbot = () => {
    * Format message text to render markdown formatting
    */
   const formatMessageText = (text) => {
-    if (!text) return '';
-    
-    return text
-      // Bold formatting: **text** -> <strong>text</strong>
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      // Italic formatting: *text* -> <em>text</em>
-      .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>')
-      // Convert line breaks to <br> tags
-      .replace(/\n/g, '<br>')
-      // Handle bullet points with proper spacing
-      .replace(/^• (.*$)/gm, '<div class="ml-4">• $1</div>')
-      // Handle double spaces
-      .replace(/\s{2}/g, '&nbsp;&nbsp;');
+    if (!text) return "";
+
+    return (
+      text
+        // Bold formatting: **text** -> <strong>text</strong>
+        .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+        // Italic formatting: *text* -> <em>text</em>
+        .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "<em>$1</em>")
+        // Convert line breaks to <br> tags
+        .replace(/\n/g, "<br>")
+        // Handle bullet points with proper spacing
+        .replace(/^• (.*$)/gm, '<div class="ml-4">• $1</div>')
+        // Handle double spaces
+        .replace(/\s{2}/g, "&nbsp;&nbsp;")
+    );
   };
 
   /**
@@ -485,79 +575,79 @@ const DirectMCPChatbot = () => {
   const getFunctionIcon = (functionName) => {
     const iconMap = {
       // Patient functions
-      'list_patients': '👥',
-      'create_patient': '🆕',
-      'get_patient_by_id': '🔍',
-      
+      list_patients: "👥",
+      create_patient: "🆕",
+      get_patient_by_id: "🔍",
+
       // Department functions
-      'list_departments': '🏢',
-      'create_department': '🏗️',
-      'get_department_by_id': '🔍',
-      
+      list_departments: "🏢",
+      create_department: "🏗️",
+      get_department_by_id: "🔍",
+
       // Staff functions
-      'list_staff': '👨‍⚕️',
-      'create_staff': '👤',
-      
+      list_staff: "👨‍⚕️",
+      create_staff: "👤",
+
       // Bed functions
-      'list_beds': '🛏️',
-      'create_bed': '🆕',
-      'assign_bed_to_patient': '📍',
-      'discharge_bed': '🚪',
-      
+      list_beds: "🛏️",
+      create_bed: "🆕",
+      assign_bed_to_patient: "📍",
+      discharge_bed: "🚪",
+
       // Appointment functions
-      'list_appointments': '📅',
-      'create_appointment': '🕐',
-      
+      list_appointments: "📅",
+      create_appointment: "🕐",
+
       // Equipment functions
-      'list_equipment': '⚕️',
-      'create_equipment': '🔧',
-      'update_equipment_status': '🔄',
-      
+      list_equipment: "⚕️",
+      create_equipment: "🔧",
+      update_equipment_status: "🔄",
+
       // Supply functions
-      'list_supplies': '📦',
-      'create_supply': '📥',
-      'update_supply_stock': '📊',
-      
+      list_supplies: "📦",
+      create_supply: "📥",
+      update_supply_stock: "📊",
+
       // User functions
-      'list_users': '👤',
-      'create_user': '🆕',
-      'update_user': '✏️',
-      'delete_user': '🗑️',
-      
+      list_users: "👤",
+      create_user: "🆕",
+      update_user: "✏️",
+      delete_user: "🗑️",
+
       // Legacy functions
-      'list_legacy_users': '👤',
-      'create_legacy_user': '🆕',
-      
+      list_legacy_users: "👤",
+      create_legacy_user: "🆕",
+
       // Room functions
-      'list_rooms': '🏠',
-      'create_room': '🏗️'
+      list_rooms: "🏠",
+      create_room: "🏗️",
     };
-    
-    return iconMap[functionName] || '⚡';
+
+    return iconMap[functionName] || "⚡";
   };
 
   /**
    * Format MCP data responses for clean display
    */
   const formatMCPData = (data) => {
-    if (!data) return '❌ No data available\n';
-    
-    console.log('🔍 formatMCPData received:', data); // Debug log
-    
+    if (!data) return "❌ No data available\n";
+
+    console.log("🔍 formatMCPData received:", data); // Debug log
+
     // Handle MCP response array format
     if (Array.isArray(data)) {
       // Check if it's an array of MCP response objects with type and text
-      if (data.length > 0 && data[0].type === 'text' && data[0].text) {
+      if (data.length > 0 && data[0].type === "text" && data[0].text) {
         try {
           const parsedData = JSON.parse(data[0].text);
-          console.log('🔍 Parsed JSON from MCP array:', parsedData); // Debug log
+          console.log("🔍 Parsed JSON from MCP array:", parsedData); // Debug log
           return formatMCPData(parsedData); // Recursive call with parsed data
         } catch (e) {
-          console.log('🔍 Failed to parse JSON from MCP array:', e); // Debug log
+          console.log("🔍 Failed to parse JSON from MCP array:", e); // Debug log
           return `${data[0].text}\n`;
         }
       }
-      
+
       // Handle regular array
       let result = `📋 **DATA RESULTS**\n📊 **Found ${data.length} Item(s)**\n\n`;
       data.forEach((item, i) => {
@@ -565,113 +655,148 @@ const DirectMCPChatbot = () => {
       });
       return result;
     }
-    
+
     // Handle nested structure like { "patients": [...], "count": N }
     if (data.patients && Array.isArray(data.patients)) {
       const patients = data.patients;
       let result = `👥 **PATIENT REGISTRY**\n📊 **Found ${patients.length} Patient(s)**\n\n`;
-      
+
       patients.forEach((patient, i) => {
-        result += `🏥 **${i + 1}. ${patient.first_name} ${patient.last_name}**\n`;
+        result += `🏥 **${i + 1}. ${patient.first_name} ${
+          patient.last_name
+        }**\n`;
         result += `   📋 **Patient ID:** ${patient.patient_number}\n`;
-        if (patient.date_of_birth) result += `   📅 **Date of Birth:** ${patient.date_of_birth}\n`;
+        if (patient.date_of_birth)
+          result += `   📅 **Date of Birth:** ${patient.date_of_birth}\n`;
         if (patient.gender) result += `   👤 **Gender:** ${patient.gender}\n`;
         if (patient.phone) result += `   📞 **Phone:** ${patient.phone}\n`;
         if (patient.email) result += `   📧 **Email:** ${patient.email}\n`;
-        if (patient.address) result += `   🏠 **Address:** ${patient.address}\n`;
-        if (patient.blood_type) result += `   🩸 **Blood Type:** ${patient.blood_type}\n`;
-        if (patient.allergies && patient.allergies !== 'null' && patient.allergies !== null) {
+        if (patient.address)
+          result += `   🏠 **Address:** ${patient.address}\n`;
+        if (patient.blood_type)
+          result += `   🩸 **Blood Type:** ${patient.blood_type}\n`;
+        if (
+          patient.allergies &&
+          patient.allergies !== "null" &&
+          patient.allergies !== null
+        ) {
           result += `   ⚠️ **Allergies:** ${patient.allergies}\n`;
         }
-        if (patient.medical_history && patient.medical_history !== 'null' && patient.medical_history !== null) {
+        if (
+          patient.medical_history &&
+          patient.medical_history !== "null" &&
+          patient.medical_history !== null
+        ) {
           result += `   📝 **Medical History:** ${patient.medical_history}\n`;
         }
         if (patient.emergency_contact_name) {
           result += `   🆘 **Emergency Contact:** ${patient.emergency_contact_name}`;
-          if (patient.emergency_contact_phone) result += ` (${patient.emergency_contact_phone})`;
-          result += '\n';
+          if (patient.emergency_contact_phone)
+            result += ` (${patient.emergency_contact_phone})`;
+          result += "\n";
         }
-        result += '\n';
+        result += "\n";
       });
-      
+
       if (data.count && data.count !== patients.length) {
         result += `📈 *Total in database: ${data.count} patients*\n`;
       }
-      
+
       result += `\n💡 **Quick Actions:**\n`;
       result += `• Create new patient: "Add new patient [Name]"\n`;
       result += `• Search patient: "Find patient [Name/ID]"\n`;
       result += `• Update records: "Update patient [ID]"\n`;
-      
+
       return result;
     }
-    
+
     // Handle departments
     if (data.departments && Array.isArray(data.departments)) {
       const departments = data.departments;
       let result = `🏢 **HOSPITAL DEPARTMENTS**\n📊 **Found ${departments.length} Department(s)**\n\n`;
-      
+
       departments.forEach((dept, i) => {
         result += `🏥 **${i + 1}. ${dept.name}**\n`;
         result += `   🆔 **Department ID:** ${dept.department_id}\n`;
-        if (dept.floor_number) result += `   🏗️ **Floor:** ${dept.floor_number}\n`;
+        if (dept.floor_number)
+          result += `   🏗️ **Floor:** ${dept.floor_number}\n`;
         if (dept.phone) result += `   📞 **Phone:** ${dept.phone}\n`;
         if (dept.email) result += `   📧 **Email:** ${dept.email}\n`;
-        if (dept.description) result += `   📝 **Description:** ${dept.description}\n`;
-        if (dept.head_doctor_id) result += `   👨‍⚕️ **Head Doctor ID:** ${dept.head_doctor_id}\n`;
-        result += '\n';
+        if (dept.description)
+          result += `   📝 **Description:** ${dept.description}\n`;
+        if (dept.head_doctor_id)
+          result += `   👨‍⚕️ **Head Doctor ID:** ${dept.head_doctor_id}\n`;
+        result += "\n";
       });
-      
+
       result += `\n💡 **Department Actions:**\n`;
       result += `• Create department: "Add new department [Name]"\n`;
       result += `• Assign staff: "Assign staff to [Department]"\n`;
       result += `• Update info: "Update department [ID]"\n`;
-      
+
       return result;
     }
-    
+
     // Handle staff
     if (data.staff && Array.isArray(data.staff)) {
       const staff = data.staff;
       let result = `👨‍⚕️ **HOSPITAL STAFF**\n📊 **Found ${staff.length} Staff Member(s)**\n\n`;
-      
+
       staff.forEach((member, i) => {
         result += `👤 **${i + 1}. ${member.position}**\n`;
         result += `   🆔 **Employee ID:** ${member.employee_id}\n`;
-        if (member.department_id) result += `   🏢 **Department:** ${member.department_id}\n`;
-        if (member.specialization) result += `   🎯 **Specialization:** ${member.specialization}\n`;
-        if (member.status) result += `   📊 **Status:** ${member.status === 'active' ? '✅ Active' : '⏸️ Inactive'}\n`;
-        if (member.hire_date) result += `   📅 **Hire Date:** ${member.hire_date}\n`;
-        if (member.shift_pattern) result += `   ⏰ **Shift Pattern:** ${member.shift_pattern}\n`;
-        result += '\n';
+        if (member.department_id)
+          result += `   🏢 **Department:** ${member.department_id}\n`;
+        if (member.specialization)
+          result += `   🎯 **Specialization:** ${member.specialization}\n`;
+        if (member.status)
+          result += `   📊 **Status:** ${
+            member.status === "active" ? "✅ Active" : "⏸️ Inactive"
+          }\n`;
+        if (member.hire_date)
+          result += `   📅 **Hire Date:** ${member.hire_date}\n`;
+        if (member.shift_pattern)
+          result += `   ⏰ **Shift Pattern:** ${member.shift_pattern}\n`;
+        result += "\n";
       });
-      
+
       result += `\n💡 **Staff Actions:**\n`;
       result += `• Add staff: "Add new staff member"\n`;
       result += `• Schedule shifts: "Update staff schedule"\n`;
       result += `• Assign department: "Transfer staff to [Department]"\n`;
-      
+
       return result;
     }
-    
+
     // Handle beds
     if (data.beds && Array.isArray(data.beds)) {
       const beds = data.beds;
-      const availableBeds = beds.filter(bed => bed.status === 'available').length;
-      const occupiedBeds = beds.filter(bed => bed.status === 'occupied').length;
-      
+      const availableBeds = beds.filter(
+        (bed) => bed.status === "available"
+      ).length;
+      const occupiedBeds = beds.filter(
+        (bed) => bed.status === "occupied"
+      ).length;
+
       let result = `🛏️ **BED MANAGEMENT**\n📊 **Found ${beds.length} Bed(s)** | ✅ ${availableBeds} Available | 🔴 ${occupiedBeds} Occupied\n\n`;
-      
+
       beds.forEach((bed, i) => {
-        const statusIcon = bed.status === 'available' ? '✅' : bed.status === 'occupied' ? '🔴' : '⚠️';
+        const statusIcon =
+          bed.status === "available"
+            ? "✅"
+            : bed.status === "occupied"
+            ? "🔴"
+            : "⚠️";
         result += `${statusIcon} **${i + 1}. Bed ${bed.bed_number}**\n`;
         if (bed.room_id) result += `   🏠 **Room:** ${bed.room_id}\n`;
-        if (bed.status) result += `   📊 **Status:** ${bed.status.toUpperCase()}\n`;
+        if (bed.status)
+          result += `   📊 **Status:** ${bed.status.toUpperCase()}\n`;
         if (bed.bed_type) result += `   🛏️ **Type:** ${bed.bed_type}\n`;
-        if (bed.patient_id) result += `   👤 **Current Patient:** ${bed.patient_id}\n`;
-        result += '\n';
+        if (bed.patient_id)
+          result += `   👤 **Current Patient:** ${bed.patient_id}\n`;
+        result += "\n";
       });
-      
+
       if (availableBeds === 0) {
         result += `\n🚨 **ALERT: NO AVAILABLE BEDS**\n`;
         result += `⚡ **Emergency Actions:**\n`;
@@ -684,96 +809,116 @@ const DirectMCPChatbot = () => {
         result += `• Discharge patient: "Discharge bed [Number]"\n`;
         result += `• Create emergency bed: "Add emergency bed"\n`;
       }
-      
+
       return result;
     }
-    
+
     // Handle appointments
     if (data.appointments && Array.isArray(data.appointments)) {
       const appointments = data.appointments;
       let result = `📅 **APPOINTMENT SCHEDULE**\n📊 **Found ${appointments.length} Appointment(s)**\n\n`;
-      
+
       appointments.forEach((appt, i) => {
         result += `📋 **${i + 1}. Appointment**\n`;
-        if (appt.appointment_date) result += `   📅 **Date & Time:** ${appt.appointment_date}\n`;
-        if (appt.patient_id) result += `   👤 **Patient ID:** ${appt.patient_id}\n`;
-        if (appt.doctor_id) result += `   👨‍⚕️ **Doctor ID:** ${appt.doctor_id}\n`;
-        if (appt.department_id) result += `   🏢 **Department:** ${appt.department_id}\n`;
+        if (appt.appointment_date)
+          result += `   📅 **Date & Time:** ${appt.appointment_date}\n`;
+        if (appt.patient_id)
+          result += `   👤 **Patient ID:** ${appt.patient_id}\n`;
+        if (appt.doctor_id)
+          result += `   👨‍⚕️ **Doctor ID:** ${appt.doctor_id}\n`;
+        if (appt.department_id)
+          result += `   🏢 **Department:** ${appt.department_id}\n`;
         if (appt.reason) result += `   🎯 **Reason:** ${appt.reason}\n`;
-        if (appt.duration_minutes) result += `   ⏱️ **Duration:** ${appt.duration_minutes} minutes\n`;
+        if (appt.duration_minutes)
+          result += `   ⏱️ **Duration:** ${appt.duration_minutes} minutes\n`;
         if (appt.notes) result += `   📝 **Notes:** ${appt.notes}\n`;
-        result += '\n';
+        result += "\n";
       });
-      
+
       result += `\n💡 **Appointment Actions:**\n`;
       result += `• Schedule new: "Book appointment for [Patient]"\n`;
       result += `• Reschedule: "Change appointment [ID]"\n`;
       result += `• Cancel: "Cancel appointment [ID]"\n`;
-      
+
       return result;
     }
-    
+
     // Handle equipment
     if (data.equipment && Array.isArray(data.equipment)) {
       const equipment = data.equipment;
       let result = `🏥 **MEDICAL EQUIPMENT**\n📊 **Found ${equipment.length} Equipment Item(s)**\n\n`;
-      
+
       equipment.forEach((item, i) => {
         result += `⚕️ **${i + 1}. ${item.name}**\n`;
-        if (item.equipment_id) result += `   🆔 **Equipment ID:** ${item.equipment_id}\n`;
-        if (item.category_id) result += `   📂 **Category:** ${item.category_id}\n`;
-        if (item.manufacturer) result += `   🏭 **Manufacturer:** ${item.manufacturer}\n`;
+        if (item.equipment_id)
+          result += `   🆔 **Equipment ID:** ${item.equipment_id}\n`;
+        if (item.category_id)
+          result += `   📂 **Category:** ${item.category_id}\n`;
+        if (item.manufacturer)
+          result += `   🏭 **Manufacturer:** ${item.manufacturer}\n`;
         if (item.model) result += `   📱 **Model:** ${item.model}\n`;
         if (item.location) result += `   📍 **Location:** ${item.location}\n`;
         if (item.status) {
-          const statusIcon = item.status === 'operational' ? '✅' : item.status === 'maintenance' ? '🔧' : '❌';
+          const statusIcon =
+            item.status === "operational"
+              ? "✅"
+              : item.status === "maintenance"
+              ? "🔧"
+              : "❌";
           result += `   ${statusIcon} **Status:** ${item.status.toUpperCase()}\n`;
         }
-        result += '\n';
+        result += "\n";
       });
-      
+
       result += `\n💡 **Equipment Actions:**\n`;
       result += `• Schedule maintenance: "Maintain equipment [ID]"\n`;
       result += `• Update status: "Update equipment [ID] status"\n`;
       result += `• Add equipment: "Add new equipment"\n`;
-      
+
       return result;
     }
-    
+
     // Handle supplies
     if (data.supplies && Array.isArray(data.supplies)) {
       const supplies = data.supplies;
-      const lowStock = supplies.filter(item => item.current_stock <= item.minimum_stock_level).length;
-      
+      const lowStock = supplies.filter(
+        (item) => item.current_stock <= item.minimum_stock_level
+      ).length;
+
       let result = `📦 **MEDICAL SUPPLIES**\n📊 **Found ${supplies.length} Supply Item(s)**`;
       if (lowStock > 0) result += ` | ⚠️ ${lowStock} Low Stock`;
       result += `\n\n`;
-      
+
       supplies.forEach((item, i) => {
-        const stockIcon = item.current_stock <= item.minimum_stock_level ? '⚠️' : '✅';
+        const stockIcon =
+          item.current_stock <= item.minimum_stock_level ? "⚠️" : "✅";
         result += `${stockIcon} **${i + 1}. ${item.name}**\n`;
-        if (item.item_code) result += `   🆔 **Item Code:** ${item.item_code}\n`;
-        if (item.current_stock !== undefined) result += `   📊 **Current Stock:** ${item.current_stock}\n`;
-        if (item.unit_of_measure) result += `   📏 **Unit:** ${item.unit_of_measure}\n`;
+        if (item.item_code)
+          result += `   🆔 **Item Code:** ${item.item_code}\n`;
+        if (item.current_stock !== undefined)
+          result += `   📊 **Current Stock:** ${item.current_stock}\n`;
+        if (item.unit_of_measure)
+          result += `   📏 **Unit:** ${item.unit_of_measure}\n`;
         if (item.supplier) result += `   🏢 **Supplier:** ${item.supplier}\n`;
         if (item.location) result += `   📍 **Location:** ${item.location}\n`;
-        if (item.expiry_date) result += `   ⏰ **Expiry Date:** ${item.expiry_date}\n`;
-        result += '\n';
+        if (item.expiry_date)
+          result += `   ⏰ **Expiry Date:** ${item.expiry_date}\n`;
+        result += "\n";
       });
-      
+
       result += `\n💡 **Supply Actions:**\n`;
       result += `• Restock: "Update stock for [Item Code]"\n`;
       result += `• Add supply: "Add new supply item"\n`;
       result += `• Check expiry: "Show expiring supplies"\n`;
-      
+
       return result;
     }
-    
+
     // Handle single objects
-    if (typeof data === 'object') {
+    if (typeof data === "object") {
       return `✅ **RESULT:**\n${formatResultItem(data)}\n`;
     }
-    
+
     // Handle simple values
     return `ℹ️ **INFO:** ${String(data)}\n`;
   };
@@ -782,13 +927,13 @@ const DirectMCPChatbot = () => {
    * Format individual result items for display
    */
   const formatResultItem = (item) => {
-    if (!item) return 'No data';
-    
-    if (typeof item === 'string') {
+    if (!item) return "No data";
+
+    if (typeof item === "string") {
       return item;
     }
-    
-    if (typeof item === 'object') {
+
+    if (typeof item === "object") {
       // For patient objects
       if (item.first_name && item.last_name) {
         let patientInfo = `${item.first_name} ${item.last_name}`;
@@ -832,9 +977,13 @@ const DirectMCPChatbot = () => {
       const keys = Object.keys(item);
       if (keys.length > 0) {
         // Try to find a meaningful display field
-        const nameField = keys.find(k => k.includes('name') || k.includes('title'));
-        const idField = keys.find(k => k.includes('id') || k.includes('number'));
-        
+        const nameField = keys.find(
+          (k) => k.includes("name") || k.includes("title")
+        );
+        const idField = keys.find(
+          (k) => k.includes("id") || k.includes("number")
+        );
+
         if (nameField) {
           let result = `${item[nameField]}`;
           if (idField && item[idField]) result += ` (${item[idField]})`;
@@ -843,11 +992,14 @@ const DirectMCPChatbot = () => {
           return `ID: ${item[idField]}`;
         } else {
           // Show first few key-value pairs
-          return keys.slice(0, 2).map(k => `${k}: ${item[k]}`).join(', ');
+          return keys
+            .slice(0, 2)
+            .map((k) => `${k}: ${item[k]}`)
+            .join(", ");
         }
       }
     }
-    
+
     return String(item);
   };
 
@@ -872,18 +1024,21 @@ const DirectMCPChatbot = () => {
       try {
         const status = await aiMcpServiceRef.current.checkStatus();
         setServerInfo(status);
-        
+
         if (status && !status.isConnected) {
           setIsConnected(false);
-          setMessages(prev => [...prev, {
-            id: Date.now(),
-            text: '🔌 MCP server connection lost. Please reconnect.',
-            sender: 'ai',
-            timestamp: new Date().toLocaleTimeString()
-          }]);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: Date.now(),
+              text: "🔌 MCP server connection lost. Please reconnect.",
+              sender: "ai",
+              timestamp: new Date().toLocaleTimeString(),
+            },
+          ]);
         }
       } catch (error) {
-        console.error('Status check failed:', error);
+        console.error("Status check failed:", error);
       }
     }
   };
@@ -895,11 +1050,13 @@ const DirectMCPChatbot = () => {
         {/* Header */}
         <div className="border-b border-gray-700 px-4 py-3 bg-[#1a1a1a]">
           <div className="flex items-center space-x-3">
-            <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-medium shadow-lg">
+            <div className="flex items-center justify-center text-sm font-medium text-white bg-blue-600 rounded-full shadow-lg w-7 h-7">
               H
             </div>
             <div>
-              <h1 className="text-sm font-medium text-white">Hospital Assistant</h1>
+              <h1 className="text-sm font-medium text-white">
+                Hospital Assistant
+              </h1>
               <p className="text-xs text-gray-400">Setup & Configuration</p>
             </div>
           </div>
@@ -907,17 +1064,18 @@ const DirectMCPChatbot = () => {
 
         {/* Main Setup Content */}
         <div className="flex-1 overflow-y-auto bg-[#1a1a1a] flex items-center justify-center">
-          <div className="max-w-lg w-full mx-4">
+          <div className="w-full max-w-lg mx-4">
             {/* Welcome Section */}
-            <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <div className="mb-8 text-center">
+              <div className="flex items-center justify-center w-16 h-16 mx-auto mb-6 bg-blue-600 rounded-full shadow-lg">
                 <span className="text-2xl font-medium text-white">H</span>
               </div>
-              <h1 className="text-2xl font-medium text-white mb-3">
+              <h1 className="mb-3 text-2xl font-medium text-white">
                 Welcome to Hospital Assistant
               </h1>
-              <p className="text-gray-400 mb-6 text-sm">
-                Connect to your hospital management system to get started with AI-powered healthcare administration.
+              <p className="mb-6 text-sm text-gray-400">
+                Connect to your hospital management system to get started with
+                AI-powered healthcare administration.
               </p>
             </div>
 
@@ -925,15 +1083,27 @@ const DirectMCPChatbot = () => {
             <div className="space-y-6">
               {/* API Key Section */}
               <div className="bg-[#2a2a2a] rounded-lg p-6 border border-gray-700">
-                <div className="flex items-center space-x-3 mb-4">
-                  <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                <div className="flex items-center mb-4 space-x-3">
+                  <div className="flex items-center justify-center w-8 h-8 bg-blue-600 rounded-lg">
+                    <svg
+                      className="w-4 h-4 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
+                      />
                     </svg>
                   </div>
                   <div>
-                    <h3 className="text-white font-medium">OpenAI API Key</h3>
-                    <p className="text-xs text-gray-400">Required for AI conversation processing</p>
+                    <h3 className="font-medium text-white">OpenAI API Key</h3>
+                    <p className="text-xs text-gray-400">
+                      Required for AI conversation processing
+                    </p>
                   </div>
                 </div>
                 <input
@@ -950,58 +1120,105 @@ const DirectMCPChatbot = () => {
                 <details className="group">
                   <summary className="flex items-center justify-between cursor-pointer p-6 hover:bg-[#333] rounded-lg transition-colors">
                     <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 bg-gray-600 rounded-lg flex items-center justify-center">
-                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <div className="flex items-center justify-center w-8 h-8 bg-gray-600 rounded-lg">
+                        <svg
+                          className="w-4 h-4 text-white"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                          />
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                          />
                         </svg>
                       </div>
                       <div>
-                        <h3 className="text-white font-medium">Advanced Configuration</h3>
-                        <p className="text-xs text-gray-400">MCP server settings (optional)</p>
+                        <h3 className="font-medium text-white">
+                          Advanced Configuration
+                        </h3>
+                        <p className="text-xs text-gray-400">
+                          MCP server settings (optional)
+                        </p>
                       </div>
                     </div>
-                    <svg className="w-4 h-4 text-gray-400 transform group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    <svg
+                      className="w-4 h-4 text-gray-400 transition-transform transform group-open:rotate-180"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 9l-7 7-7-7"
+                      />
                     </svg>
                   </summary>
-                  
+
                   <div className="px-6 pb-6 space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">Command</label>
+                      <label className="block mb-2 text-sm font-medium text-gray-300">
+                        Command
+                      </label>
                       <input
                         type="text"
                         value={mcpServerConfig.command}
-                        onChange={(e) => setMcpServerConfig(prev => ({
-                          ...prev,
-                          command: e.target.value
-                        }))}
+                        onChange={(e) =>
+                          setMcpServerConfig((prev) => ({
+                            ...prev,
+                            command: e.target.value,
+                          }))
+                        }
                         className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-white text-sm"
                       />
                     </div>
-                    
+
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">Arguments</label>
+                      <label className="block mb-2 text-sm font-medium text-gray-300">
+                        Arguments
+                      </label>
                       <textarea
-                        value={mcpServerConfig.args ? mcpServerConfig.args.join('\n') : ''}
-                        onChange={(e) => setMcpServerConfig(prev => ({
-                          ...prev,
-                          args: e.target.value.split('\n').filter(arg => arg.trim())
-                        }))}
+                        value={
+                          mcpServerConfig.args
+                            ? mcpServerConfig.args.join("\n")
+                            : ""
+                        }
+                        onChange={(e) =>
+                          setMcpServerConfig((prev) => ({
+                            ...prev,
+                            args: e.target.value
+                              .split("\n")
+                              .filter((arg) => arg.trim()),
+                          }))
+                        }
                         rows={2}
                         className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-white text-sm resize-none"
                       />
                     </div>
-                    
+
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">Working Directory</label>
+                      <label className="block mb-2 text-sm font-medium text-gray-300">
+                        Working Directory
+                      </label>
                       <input
                         type="text"
-                        value={mcpServerConfig.cwd || ''}
-                        onChange={(e) => setMcpServerConfig(prev => ({
-                          ...prev,
-                          cwd: e.target.value
-                        }))}
+                        value={mcpServerConfig.cwd || ""}
+                        onChange={(e) =>
+                          setMcpServerConfig((prev) => ({
+                            ...prev,
+                            cwd: e.target.value,
+                          }))
+                        }
                         className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-white text-sm"
                       />
                     </div>
@@ -1011,11 +1228,13 @@ const DirectMCPChatbot = () => {
 
               {/* Connection Status */}
               {connectionError && (
-                <div className={`p-4 rounded-lg text-sm border ${
-                  connectionError.includes('✅') 
-                    ? 'bg-green-900/20 text-green-400 border-green-800' 
-                    : 'bg-red-900/20 text-red-400 border-red-800'
-                }`}>
+                <div
+                  className={`p-4 rounded-lg text-sm border ${
+                    connectionError.includes("✅")
+                      ? "bg-green-900/20 text-green-400 border-green-800"
+                      : "bg-red-900/20 text-red-400 border-red-800"
+                  }`}
+                >
                   {connectionError}
                 </div>
               )}
@@ -1024,42 +1243,70 @@ const DirectMCPChatbot = () => {
               <div className="space-y-3">
                 <button
                   onClick={async () => {
-                    setConnectionError('');
+                    setConnectionError("");
                     try {
-                      const response = await fetch('http://localhost:3001/mcp/status');
+                      const response = await fetch(
+                        "http://localhost:3001/mcp/status"
+                      );
                       if (response.ok) {
-                        setConnectionError('✅ MCP Process Manager is running and ready');
+                        setConnectionError(
+                          "✅ MCP Process Manager is running and ready"
+                        );
                       } else {
-                        setConnectionError(`❌ Process Manager error: ${response.status}`);
+                        setConnectionError(
+                          `❌ Process Manager error: ${response.status}`
+                        );
                       }
                     } catch (error) {
-                      setConnectionError(`❌ Cannot reach Process Manager: ${error.message}`);
+                      setConnectionError(
+                        `❌ Cannot reach Process Manager: ${error.message}`
+                      );
                     }
                   }}
                   className="w-full py-3 px-4 bg-[#333] hover:bg-[#404040] text-white rounded-lg transition-colors text-sm font-medium border border-gray-600"
                 >
                   <div className="flex items-center justify-center space-x-2">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
                     </svg>
                     <span>Test Connection</span>
                   </div>
                 </button>
-                
+
                 <button
                   onClick={initializeService}
                   disabled={isLoading || !openaiApiKey.trim()}
-                  className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-all duration-200 font-medium"
+                  className="w-full px-4 py-3 font-medium text-white transition-all duration-200 bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed"
                 >
                   {isLoading ? (
                     <div className="flex items-center justify-center space-x-2">
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <div className="w-4 h-4 border-2 border-white rounded-full border-t-transparent animate-spin"></div>
                       <span>Connecting to Hospital System...</span>
                     </div>
                   ) : (
                     <div className="flex items-center justify-center space-x-2">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M13 10V3L4 14h7v7l9-11h-7z"
+                        />
                       </svg>
                       <span>Connect to Hospital System</span>
                     </div>
@@ -1069,10 +1316,16 @@ const DirectMCPChatbot = () => {
 
               {/* Quick Tips */}
               <div className="bg-[#2a2a2a] rounded-lg p-4 border border-gray-700">
-                <h4 className="text-white font-medium mb-2 text-sm">Quick Tips:</h4>
-                <ul className="text-xs text-gray-400 space-y-1">
-                  <li>• Make sure the MCP Process Manager is running on port 3001</li>
-                  <li>• Your OpenAI API key needs GPT-4 access for best results</li>
+                <h4 className="mb-2 text-sm font-medium text-white">
+                  Quick Tips:
+                </h4>
+                <ul className="space-y-1 text-xs text-gray-400">
+                  <li>
+                    • Make sure the MCP Process Manager is running on port 3001
+                  </li>
+                  <li>
+                    • Your OpenAI API key needs GPT-4 access for best results
+                  </li>
                   <li>• Advanced configuration is optional for most users</li>
                 </ul>
               </div>
@@ -1090,14 +1343,19 @@ const DirectMCPChatbot = () => {
       <div className="border-b border-gray-700 px-4 py-3 bg-[#1a1a1a]">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-medium shadow-lg">
+            <div className="flex items-center justify-center text-sm font-medium text-white bg-blue-600 rounded-full shadow-lg w-7 h-7">
               H
             </div>
             <div>
-              <h1 className="text-sm font-medium text-white">Hospital Assistant</h1>
+              <h1 className="text-sm font-medium text-white">
+                Hospital Assistant
+              </h1>
               {serverInfo && (
                 <p className="text-xs text-gray-400">
-                  Connected • {serverInfo.toolCount} tools • {aiMcpServiceRef.current?.getConversationSummary?.()?.messageCount || 0} messages in memory
+                  Connected • {serverInfo.toolCount} tools •{" "}
+                  {aiMcpServiceRef.current?.getConversationSummary?.()
+                    ?.messageCount || 0}{" "}
+                  messages in memory
                 </p>
               )}
             </div>
@@ -1108,19 +1366,32 @@ const DirectMCPChatbot = () => {
               onClick={() => {
                 if (aiMcpServiceRef.current) {
                   aiMcpServiceRef.current.resetConversation();
-                  setMessages(prev => [...prev, {
-                    id: Date.now(),
-                    text: '🔄 **Conversation Reset** - Memory cleared. Starting fresh!',
-                    sender: 'ai',
-                    timestamp: new Date().toLocaleTimeString()
-                  }]);
+                  setMessages((prev) => [
+                    ...prev,
+                    {
+                      id: Date.now(),
+                      text: "🔄 **Conversation Reset** - Memory cleared. Starting fresh!",
+                      sender: "ai",
+                      timestamp: new Date().toLocaleTimeString(),
+                    },
+                  ]);
                 }
               }}
               className="p-1.5 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors"
               title="Reset Conversation Memory"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
               </svg>
             </button>
             <button
@@ -1128,8 +1399,18 @@ const DirectMCPChatbot = () => {
               className="p-1.5 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors"
               title="Check Status"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                />
               </svg>
             </button>
             <button
@@ -1137,8 +1418,18 @@ const DirectMCPChatbot = () => {
               className="p-1.5 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors"
               title="Disconnect"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </button>
           </div>
@@ -1149,90 +1440,122 @@ const DirectMCPChatbot = () => {
       <div className="flex-1 overflow-y-auto bg-[#1a1a1a]">
         <div className="max-w-4xl mx-auto">
           {messages.length === 0 && (
-            <div className="flex items-center justify-center h-full text-center px-6">
+            <div className="flex items-center justify-center h-full px-6 text-center">
               <div className="max-w-md">
-                <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+                <div className="flex items-center justify-center w-16 h-16 mx-auto mb-6 bg-blue-600 rounded-full shadow-lg">
                   <span className="text-2xl font-medium text-white">H</span>
                 </div>
-                <h2 className="text-xl font-medium text-white mb-3">
+                <h2 className="mb-3 text-xl font-medium text-white">
                   Hospital Management Assistant
                 </h2>
-                <p className="text-gray-400 mb-6 text-sm">
-                  I'm your AI assistant for hospital management tasks. I can help you manage patients, staff, departments, equipment, and more through natural conversation.
+                <p className="mb-6 text-sm text-gray-400">
+                  I'm your AI assistant for hospital management tasks. I can
+                  help you manage patients, staff, departments, equipment, and
+                  more through natural conversation.
                 </p>
                 <div className="grid grid-cols-1 gap-3 text-sm">
                   <div className="bg-[#2a2a2a] rounded-lg p-3 text-left">
-                    <div className="font-medium text-white mb-1">Try asking:</div>
-                    <div className="text-gray-400">"List all patients" or "Create a new department"</div>
+                    <div className="mb-1 font-medium text-white">
+                      Try asking:
+                    </div>
+                    <div className="text-gray-400">
+                      "List all patients" or "Create a new department"
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           )}
-          
+
           {messages.map((message) => (
-            <div key={message.id} className={`px-4 py-2 ${
-              message.isThinking ? 'bg-[#1a1a1a]' : 
-              message.isFinalAnswer ? 'bg-[#1a1a1a]' : 
-              message.isError ? 'bg-[#1a1a1a]' : 'bg-[#1a1a1a]'
-            }`}>
+            <div
+              key={message.id}
+              className={`px-4 py-2 ${
+                message.isThinking
+                  ? "bg-[#1a1a1a]"
+                  : message.isFinalAnswer
+                  ? "bg-[#1a1a1a]"
+                  : message.isError
+                  ? "bg-[#1a1a1a]"
+                  : "bg-[#1a1a1a]"
+              }`}
+            >
               <div className="flex space-x-3">
-                {message.sender === 'user' ? (
-                  <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-medium text-white">
+                {message.sender === "user" ? (
+                  <div className="flex items-center justify-center flex-shrink-0 text-sm font-medium text-white bg-blue-600 rounded-full w-7 h-7">
                     U
                   </div>
                 ) : (
-                  <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-medium text-white shadow-lg">
+                  <div className="flex items-center justify-center flex-shrink-0 text-sm font-medium text-white bg-blue-600 rounded-full shadow-lg w-7 h-7">
                     {message.isThinking ? (
-                      <div className="w-3 h-3 border border-gray-400 border-t-white rounded-full animate-spin"></div>
+                      <div className="w-3 h-3 border border-gray-400 rounded-full border-t-white animate-spin"></div>
                     ) : (
-                      'H'
+                      "H"
                     )}
                   </div>
                 )}
-                
+
                 <div className="flex-1 min-w-0">
                   {message.isThinking && (
                     <div className="mb-1">
                       <button
-                        onClick={() => setExpandedThinking(prev => ({
-                          ...prev,
-                          [message.id]: !prev[message.id]
-                        }))}
-                        className="flex items-center space-x-2 text-xs text-gray-500 italic hover:text-gray-400 transition-colors"
+                        onClick={() =>
+                          setExpandedThinking((prev) => ({
+                            ...prev,
+                            [message.id]: !prev[message.id],
+                          }))
+                        }
+                        className="flex items-center space-x-2 text-xs italic text-gray-500 transition-colors hover:text-gray-400"
                       >
-                        <span>Thinking about greeting and potential conversation initiation</span>
-                        <span className="ml-auto flex items-center space-x-1">
+                        <span>
+                          Thinking about greeting and potential conversation
+                          initiation
+                        </span>
+                        <span className="flex items-center ml-auto space-x-1">
                           <span>0s</span>
-                          <svg 
-                            className={`w-3 h-3 transform transition-transform ${expandedThinking[message.id] ? 'rotate-180' : ''}`} 
-                            fill="none" 
-                            stroke="currentColor" 
+                          <svg
+                            className={`w-3 h-3 transform transition-transform ${
+                              expandedThinking[message.id] ? "rotate-180" : ""
+                            }`}
+                            fill="none"
+                            stroke="currentColor"
                             viewBox="0 0 24 24"
                           >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M19 9l-7 7-7-7"
+                            />
                           </svg>
                         </span>
                       </button>
                     </div>
                   )}
-                  <div className="prose prose-sm max-w-none">
+                  <div className="prose-sm prose max-w-none">
                     {message.isThinking && (
-                      <div className="flex items-center space-x-2 mb-2">
-                        <span className="text-orange-400 text-xs">🤔</span>
-                        <span className="text-xs text-gray-400">Analyzing Request...</span>
+                      <div className="flex items-center mb-2 space-x-2">
+                        <span className="text-xs text-orange-400">🤔</span>
+                        <span className="text-xs text-gray-400">
+                          Analyzing Request...
+                        </span>
                       </div>
                     )}
                     {(!message.isThinking || expandedThinking[message.id]) && (
-                      <div 
+                      <div
                         className={`whitespace-pre-wrap leading-relaxed text-sm ${
-                          message.isThinking ? 'text-gray-300' :
-                          message.isFinalAnswer ? 'text-white' :
-                          message.isError ? 'text-red-400' :
-                          message.sender === 'user' ? 'text-white' : 'text-white'
+                          message.isThinking
+                            ? "text-gray-300"
+                            : message.isFinalAnswer
+                            ? "text-white"
+                            : message.isError
+                            ? "text-red-400"
+                            : message.sender === "user"
+                            ? "text-white"
+                            : "text-white"
                         }`}
                         dangerouslySetInnerHTML={{
-                          __html: formatMessageText(message.text)
+                          __html: formatMessageText(message.text),
                         }}
                       />
                     )}
@@ -1241,50 +1564,62 @@ const DirectMCPChatbot = () => {
               </div>
             </div>
           ))}
-          
+
           {isLoading && (
             <div className="px-4 py-2 bg-[#1a1a1a]">
               <div className="flex space-x-3">
-                <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg">
-                  <div className="w-3 h-3 border border-gray-400 border-t-white rounded-full animate-spin"></div>
+                <div className="flex items-center justify-center flex-shrink-0 bg-blue-600 rounded-full shadow-lg w-7 h-7">
+                  <div className="w-3 h-3 border border-gray-400 rounded-full border-t-white animate-spin"></div>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="mb-1">
                     <button
-                      onClick={() => setExpandedThinking(prev => ({
-                        ...prev,
-                        ['loading']: !prev['loading']
-                      }))}
-                      className="flex items-center space-x-2 text-xs text-gray-500 italic hover:text-gray-400 transition-colors"
+                      onClick={() =>
+                        setExpandedThinking((prev) => ({
+                          ...prev,
+                          ["loading"]: !prev["loading"],
+                        }))
+                      }
+                      className="flex items-center space-x-2 text-xs italic text-gray-500 transition-colors hover:text-gray-400"
                     >
                       <span>Processing your request...</span>
-                      <span className="ml-auto flex items-center space-x-1">
+                      <span className="flex items-center ml-auto space-x-1">
                         <span>0s</span>
-                        <svg 
-                          className={`w-3 h-3 transform transition-transform ${expandedThinking['loading'] ? 'rotate-180' : ''}`} 
-                          fill="none" 
-                          stroke="currentColor" 
+                        <svg
+                          className={`w-3 h-3 transform transition-transform ${
+                            expandedThinking["loading"] ? "rotate-180" : ""
+                          }`}
+                          fill="none"
+                          stroke="currentColor"
                           viewBox="0 0 24 24"
                         >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 9l-7 7-7-7"
+                          />
                         </svg>
                       </span>
                     </button>
                   </div>
-                  <div className="flex items-center space-x-2 text-gray-300 mb-1">
+                  <div className="flex items-center mb-1 space-x-2 text-gray-300">
                     <span className="text-blue-400">🔍</span>
-                    <span className="text-xs text-gray-400">Request Analysis</span>
+                    <span className="text-xs text-gray-400">
+                      Request Analysis
+                    </span>
                   </div>
-                  {expandedThinking['loading'] && (
+                  {expandedThinking["loading"] && (
                     <div className="text-sm text-gray-300">
-                      Analyzing your request and determining the best approach...
+                      Analyzing your request and determining the best
+                      approach...
                     </div>
                   )}
                 </div>
               </div>
             </div>
           )}
-          
+
           <div ref={messagesEndRef} />
         </div>
       </div>
@@ -1297,7 +1632,7 @@ const DirectMCPChatbot = () => {
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
               onKeyPress={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
+                if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   handleSendMessage();
                 }
@@ -1305,23 +1640,63 @@ const DirectMCPChatbot = () => {
               placeholder="Reply to Hospital Assistant..."
               disabled={!isConnected || isLoading}
               rows={1}
-              className="w-full px-4 py-3 bg-[#2a2a2a] border border-gray-600 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-none disabled:bg-gray-800 disabled:text-gray-500 text-white placeholder-gray-400 text-sm"
+              className="w-full px-4 py-3 pr-20 bg-[#2a2a2a] border border-gray-600 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-none disabled:bg-gray-800 disabled:text-gray-500 text-white placeholder-gray-400 text-sm"
               style={{
-                minHeight: '44px',
-                maxHeight: '120px'
+                minHeight: "44px",
+                maxHeight: "120px",
               }}
               onInput={(e) => {
-                e.target.style.height = 'auto';
-                e.target.style.height = e.target.scrollHeight + 'px';
+                e.target.style.height = "auto";
+                e.target.style.height = e.target.scrollHeight + "px";
               }}
             />
+            {/* Voice Input Button */}
+            <button
+              onClick={handleVoiceInput}
+              disabled={!isConnected || isLoading}
+              className={`absolute right-12 top-2 p-1.5 rounded-md transition-colors duration-200 ${
+                isListening
+                  ? "bg-red-600 hover:bg-red-700 animate-pulse"
+                  : "bg-gray-600 hover:bg-gray-700 disabled:bg-gray-700"
+              } text-white`}
+              title={isListening ? "Stop recording" : "Start voice input"}
+            >
+              {isListening ? (
+                <svg
+                  className="w-4 h-4"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M6 6h12v12H6z" />
+                </svg>
+              ) : (
+                <svg
+                  className="w-4 h-4"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M12 2c1.1 0 2 .9 2 2v6c0 1.1-.9 2-2 2s-2-.9-2-2V4c0-1.1.9-2 2-2zm5.3 6c0 3-2.5 5.1-5.3 5.1S6.7 11 6.7 8H5c0 3.4 2.7 6.2 6 6.7v3.3h2v-3.3c3.3-.5 6-3.3 6-6.7h-1.7z" />
+                </svg>
+              )}
+            </button>
+            {/* Send Button */}
             <button
               onClick={handleSendMessage}
               disabled={!isConnected || isLoading || !inputMessage.trim()}
               className="absolute right-2 top-2 p-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded-md transition-colors duration-200"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+                />
               </svg>
             </button>
           </div>
