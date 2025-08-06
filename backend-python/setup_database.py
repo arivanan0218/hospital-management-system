@@ -394,8 +394,7 @@ def main():
         return
     
     # Create sample data
-    print("3. Creating sample data...")
-    create_sample_data()
+    print("3. Sample data creation is disabled. Only tables are created.")
     
     print("\n🎉 Database setup completed successfully!")
     print("\nYou can now:")

@@ -278,6 +278,8 @@ You have access to a complete hospital management system with tools for:
 - list_rooms - Find rooms
 - list_appointments - Find appointments (can filter by doctor/patient/date)
 
+**When user search with the ids (not uuid) Agent should search with list_tools and should give the response**
+
 **CRITICAL: When user asks for ANY entity by ID:**
 - Equipment ID (EQ001, EQ-MRI-01): Use get_equipment_by_id
 - Patient ID (PAT-EM-9925): Use get_patient_by_id
