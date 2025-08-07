@@ -28,6 +28,7 @@ const DirectMCPChatbot = () => {
   const [thinkingMode] = useState(true); // Always use Direct MCP with thinking
   const [expandedThinking, setExpandedThinking] = useState({}); // Track which thinking messages are expanded
   const [isListening, setIsListening] = useState(false); // Track voice recording state
+  const [isProcessingVoice, setIsProcessingVoice] = useState(false); // Track voice processing state
   const [recognition, setRecognition] = useState(null); // Speech recognition instance
 
   const aiMcpServiceRef = useRef(null);
@@ -55,6 +56,84 @@ const DirectMCPChatbot = () => {
         const transcript = event.results[0][0].transcript;
         setInputMessage(transcript);
         setIsListening(false);
+        setIsProcessingVoice(true);
+
+        // First, immediately show the user's voice input message in chat
+        const userMessage = transcript.trim();
+        if (userMessage && isConnected) {
+          const userMsg = {
+            id: Date.now(),
+            text: userMessage,
+            sender: "user",
+            timestamp: new Date().toLocaleTimeString(),
+            isVoiceInput: true, // Optional flag to distinguish voice inputs
+          };
+          setMessages((prev) => [...prev, userMsg]);
+        }
+
+        // Auto-send the voice input after a short delay
+        setTimeout(() => {
+          if (userMessage && isConnected && !isLoading) {
+            // Clear input and process the message
+            setInputMessage("");
+
+            // Trigger the send message function directly with the transcript
+            if (thinkingMode) {
+              sendMessageWithAdvancedThinking(userMessage);
+              setIsProcessingVoice(false);
+            } else {
+              // For simple mode, manually trigger the send process
+              setIsLoading(true);
+              setIsProcessingVoice(false);
+
+              // Process the message (simplified version) - user message already added above
+              setTimeout(async () => {
+                try {
+                  const response = await aiMcpServiceRef.current.processRequest(
+                    userMessage
+                  );
+                  if (response.success) {
+                    const aiMsg = {
+                      id: Date.now() + 1,
+                      text:
+                        response.message ||
+                        "I've processed your voice request successfully.",
+                      sender: "ai",
+                      timestamp: new Date().toLocaleTimeString(),
+                      functionCalls: response.functionCalls,
+                    };
+                    setMessages((prev) => [...prev, aiMsg]);
+                  } else {
+                    const errorMsg = {
+                      id: Date.now() + 1,
+                      text: `❌ **Error:** ${
+                        response.error || "Unknown error occurred"
+                      }`,
+                      sender: "ai",
+                      timestamp: new Date().toLocaleTimeString(),
+                      isError: true,
+                    };
+                    setMessages((prev) => [...prev, errorMsg]);
+                  }
+                } catch (error) {
+                  console.error("Voice message processing failed:", error);
+                  const errorMsg = {
+                    id: Date.now() + 1,
+                    text: `💥 **Processing Error:** ${error.message}`,
+                    sender: "ai",
+                    timestamp: new Date().toLocaleTimeString(),
+                    isError: true,
+                  };
+                  setMessages((prev) => [...prev, errorMsg]);
+                } finally {
+                  setIsLoading(false);
+                }
+              }, 100);
+            }
+          } else {
+            setIsProcessingVoice(false);
+          }
+        }, 800); // Increased delay to 800ms to show the transcribed text a bit longer
       };
 
       recognitionInstance.onerror = (event) => {
@@ -68,7 +147,16 @@ const DirectMCPChatbot = () => {
 
       setRecognition(recognitionInstance);
     }
-  }, []);
+  }, [
+    isConnected,
+    isLoading,
+    thinkingMode,
+    aiMcpServiceRef,
+    setMessages,
+    setInputMessage,
+    setIsLoading,
+    setIsProcessingVoice,
+  ]);
 
   /**
    * Handle voice input
@@ -336,7 +424,8 @@ const DirectMCPChatbot = () => {
     }
     setIsLoading(true);
 
-    // Add user message only if it's not a follow-up
+    // Add user message only if it's not a follow-up and not from voice input
+    // (voice input already adds the user message immediately)
     if (!customQuery) {
       const userMsg = {
         id: Date.now(),
@@ -1653,13 +1742,21 @@ const DirectMCPChatbot = () => {
             {/* Voice Input Button */}
             <button
               onClick={handleVoiceInput}
-              disabled={!isConnected || isLoading}
+              disabled={!isConnected || isLoading || isProcessingVoice}
               className={`absolute right-12 top-2 p-1.5 rounded-md transition-colors duration-200 ${
                 isListening
                   ? "bg-red-600 hover:bg-red-700 animate-pulse"
+                  : isProcessingVoice
+                  ? "bg-yellow-600 hover:bg-yellow-700 animate-pulse"
                   : "bg-gray-600 hover:bg-gray-700 disabled:bg-gray-700"
               } text-white`}
-              title={isListening ? "Stop recording" : "Start voice input"}
+              title={
+                isListening
+                  ? "Recording... (will auto-send)"
+                  : isProcessingVoice
+                  ? "Processing voice input..."
+                  : "Start voice input (auto-sends)"
+              }
             >
               {isListening ? (
                 <svg
@@ -1668,6 +1765,20 @@ const DirectMCPChatbot = () => {
                   viewBox="0 0 24 24"
                 >
                   <path d="M6 6h12v12H6z" />
+                </svg>
+              ) : isProcessingVoice ? (
+                <svg
+                  className="w-4 h-4 animate-spin"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
                 </svg>
               ) : (
                 <svg
