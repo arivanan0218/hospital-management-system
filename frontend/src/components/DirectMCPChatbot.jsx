@@ -251,61 +251,55 @@ const DirectMCPChatbot = () => {
       if (response.success) {
         // Show tool execution if tools were called
         if (response.functionCalls && response.functionCalls.length > 0) {
-          // Add tool execution messages
           response.functionCalls.forEach((call, index) => {
-            setTimeout(() => {
-              // Create contextual thinking message for each tool
-              let thinkingText = '';
-              switch (call.function) {
-                case 'search_patients':
-                  thinkingText = `Great! I found a patient named ${call.arguments?.first_name || 'the patient'}.`;
-                  break;
-                case 'list_patients':
-                  thinkingText = 'I can see the patient registry with all available patients.';
-                  break;
-                case 'list_appointments':
-                  thinkingText = `I can see ${call.arguments?.patient_id ? call.arguments.patient_id + ' has' : 'there are'} appointment${call.result && Array.isArray(call.result) && call.result.length !== 1 ? 's' : ''} scheduled.`;
-                  break;
-                case 'list_beds':
-                  thinkingText = "Identified patient's bed assignment and prepared overview.";
-                  break;
-                case 'list_departments':
-                  thinkingText = 'I can see all hospital departments and their information.';
-                  break;
-                case 'list_staff':
-                  thinkingText = 'I can see the hospital staff directory.';
-                  break;
-                case 'get_patient_by_id':
-                  thinkingText = `Found detailed information for patient ${call.arguments?.patient_id || 'ID'}.`;
-                  break;
-                case 'get_staff_by_id':
-                  thinkingText = `Located staff member ${call.arguments?.staff_id || 'information'}.`;
-                  break;
-                case 'create_patient':
-                  thinkingText = 'Successfully created new patient record.';
-                  break;
-                case 'create_appointment':
-                  thinkingText = 'Successfully scheduled new appointment.';
-                  break;
-                default:
-                  thinkingText = `Executed ${call.function.replace(/_/g, ' ')} successfully.`;
-              }
+            // Create contextual thinking message for each tool
+            let thinkingText = '';
+            switch (call.function) {
+              case 'search_patients':
+                thinkingText = `Great! I found a patient named ${call.arguments?.first_name || 'the patient'}.`;
+                break;
+              case 'list_patients':
+                thinkingText = 'I can see the patient registry with all available patients.';
+                break;
+              case 'list_appointments':
+                thinkingText = `I can see ${call.arguments?.patient_id ? call.arguments.patient_id + ' has' : 'there are'} appointment${call.result && Array.isArray(call.result) && call.result.length !== 1 ? 's' : ''} scheduled.`;
+                break;
+              case 'list_beds':
+                thinkingText = "Identified patient's bed assignment and prepared overview.";
+                break;
+              case 'list_departments':
+                thinkingText = 'I can see all hospital departments and their information.';
+                break;
+              case 'list_staff':
+                thinkingText = 'I can see the hospital staff directory.';
+                break;
+              case 'get_patient_by_id':
+                thinkingText = `Found detailed information for patient ${call.arguments?.patient_id || 'ID'}.`;
+                break;
+              case 'get_staff_by_id':
+                thinkingText = `Located staff member ${call.arguments?.staff_id || 'information'}.`;
+                break;
+              case 'create_patient':
+                thinkingText = 'Successfully created new patient record.';
+                break;
+              case 'create_appointment':
+                thinkingText = 'Successfully scheduled new appointment.';
+                break;
+              default:
+                thinkingText = `Executed ${call.function.replace(/_/g, ' ')} successfully.`;
+            }
 
-              const toolMessage = {
-                id: Date.now() + index + 100,
-                text: thinkingText,
-                sender: 'ai',
-                timestamp: new Date().toLocaleTimeString(),
-                isThinking: true,
-                toolFunction: call.function,
-                startTime: Date.now() - (index * 300) // Fake start time for display
-              };
-              setMessages(prev => [...prev, toolMessage]);
-            }, index * 300);
+            const toolMessage = {
+              id: Date.now() + index + 100,
+              text: thinkingText,
+              sender: 'ai',
+              timestamp: new Date().toLocaleTimeString(),
+              isThinking: true,
+              toolFunction: call.function,
+              startTime: Date.now() // No artificial delay
+            };
+            setMessages(prev => [...prev, toolMessage]);
           });
-
-          // Wait for tool messages to appear
-          await new Promise(resolve => setTimeout(resolve, response.functionCalls.length * 300 + 100));
         }
 
         // Final response with the processed data

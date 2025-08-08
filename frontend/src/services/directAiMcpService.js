@@ -6,12 +6,20 @@
 import DirectMCPClient from './directMcpClient.js';
 
 class DirectAIMCPService {
+  /**
+   * Return the agent's 'today' as the actual current date (localized, readable)
+   */
+  getTodayDate() {
+    const now = new Date();
+    // Format: October 11, 2022
+    return now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  }
   constructor() {
     this.mcpClient = new DirectMCPClient();
     this.openaiApiKey = null;
     this.isConnected = false;
     this.conversationHistory = []; // Add conversation memory
-    this.maxHistoryLength = 20; // Keep last 20 messages to manage token usage
+    this.maxHistoryLength = 5; // Keep last 20 messages to manage token usage
     this.verboseMode = true; // Toggle for response style
     this.previousQuestions = []; // Track user's previous questions for duplicate detection
   }
@@ -52,7 +60,9 @@ class DirectAIMCPService {
       throw new Error('Service not initialized');
     }
 
-    console.log('🤖 Processing request:', userMessage);
+    const agentStart = Date.now();
+    console.log('🤖 [Agent] Processing request:', userMessage);
+    console.log(`[Agent] Today is: ${this.getTodayDate()}`);
 
     try {
       // Check for duplicate questions
@@ -103,45 +113,64 @@ class DirectAIMCPService {
       console.log(`💭 Conversation history length: ${this.conversationHistory.length}`);
       
       // Call OpenAI with function calling and conversation history
-      let gptResponse = await this.callOpenAI(userMessage, availableTools, serverInfo);
+      let gptResponse;
       let allFunctionResults = [];
       let iterationCount = 0;
       const maxIterations = 5; // Prevent infinite loops
-      
+      let openAITotal = 0;
+      let toolTotal = 0;
+
+      // Initial OpenAI call
+      const openAIStart = Date.now();
+      gptResponse = await this.callOpenAI(userMessage, availableTools, serverInfo);
+      openAITotal += Date.now() - openAIStart;
+
       // Support multiple rounds of function calls
       while (gptResponse.choices[0].message.function_call && iterationCount < maxIterations) {
-        console.log(`🔄 Function call iteration ${iterationCount + 1}`);
-        
+        console.log(`🔄 [Agent] Function call iteration ${iterationCount + 1}`);
+
         // Execute function calls
+        const toolStart = Date.now();
         const results = await this.executeFunctionCalls(gptResponse);
+        toolTotal += Date.now() - toolStart;
         allFunctionResults.push(...results);
-        
+
         // Add function call and results to conversation
         const assistantMessage = gptResponse.choices[0].message;
         this.addToConversationHistory('assistant', assistantMessage.content, assistantMessage.function_call);
-        
+
         // Add function results to conversation
         for (const result of results) {
           this.addToConversationHistory('function', JSON.stringify(result.result), null, result.function);
         }
-        
+
         // Continue conversation with updated context
+        const openAIStart2 = Date.now();
         gptResponse = await this.callOpenAI(null, availableTools, serverInfo);
+        openAITotal += Date.now() - openAIStart2;
         iterationCount++;
       }
-      
+
       // Add final assistant response to history
       if (gptResponse.choices[0].message.content) {
         this.addToConversationHistory('assistant', gptResponse.choices[0].message.content);
       }
-      
+
+      const agentEnd = Date.now();
+      console.log(`[Agent Timing] OpenAI total: ${openAITotal}ms, Tool total: ${toolTotal}ms, Agent total: ${agentEnd - agentStart}ms`);
+
       return {
         success: true,
         message: gptResponse.choices[0].message.content,
         functionCalls: allFunctionResults,
         serverInfo: serverInfo,
         rawResponse: gptResponse,
-        conversationLength: this.conversationHistory.length
+        conversationLength: this.conversationHistory.length,
+        timing: {
+          openAI: openAITotal,
+          tool: toolTotal,
+          agent: agentEnd - agentStart
+        }
       };
 
     } catch (error) {
@@ -245,10 +274,14 @@ class DirectAIMCPService {
   async callOpenAI(userMessage, functions, serverInfo) {
     const systemPrompt = `You are Hospital AI, an advanced AI assistant specialized in comprehensive hospital management. You're connected to a real hospital management system through MCP (Model Context Protocol).
 
+Today is: ${this.getTodayDate()}.
+
 🏥 **Hospital System Context:**
 - Server: ${serverInfo.command} (PID: ${serverInfo.pid})
 - Available Tools: ${serverInfo.toolCount || 0} medical management tools
 - Connection: Direct process communication via MCP protocol
+
+**When user give the greeting message, every time agent need to reply in different ways**
 
 📋 **Your Identity & Capabilities:**
 You are Hospital AI - NOT Claude. Always introduce yourself as "Hospital AI" or "I'm Hospital AI".
@@ -541,7 +574,7 @@ Optional: patient_number (auto-generated if not provided), phone, email, address
     }
 
     const requestBody = {
-      model: 'gpt-4-0125-preview',
+      model: 'gpt-3.5-turbo-0125',
       messages: messages,
       temperature: 1,  // Low temperature for consistent, focused responses in medical context
       max_tokens: 4000   // Increase token limit for complex responses
@@ -583,10 +616,12 @@ Optional: patient_number (auto-generated if not provided), phone, email, address
       const result = await this.executeSingleFunction(message.function_call);
       results.push(result);
     } else if (message.tool_calls) {
-      for (const toolCall of message.tool_calls) {
-        const result = await this.executeSingleFunction(toolCall.function);
-        results.push(result);
-      }
+      // Parallelize tool calls using Promise.all
+      const toolCallPromises = message.tool_calls.map(toolCall =>
+        this.executeSingleFunction(toolCall.function)
+      );
+      const toolResults = await Promise.all(toolCallPromises);
+      results.push(...toolResults);
     }
 
     return results;
