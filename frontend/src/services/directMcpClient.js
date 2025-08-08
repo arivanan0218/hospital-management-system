@@ -5,7 +5,7 @@
 
 class DirectMCPClient {
   constructor() {
-    this.processManagerUrl = 'http://localhost:3001';
+    this.processManagerUrl = import.meta.env.VITE_MCP_BRIDGE_URL || 'http://localhost:3001';
     this.isConnected = false;
     this.serverInfo = {};
     this.tools = [];
@@ -92,7 +92,8 @@ class DirectMCPClient {
    */
   setupWebSocket() {
     try {
-      this.websocket = new WebSocket('ws://localhost:3001');
+      const wsUrl = (import.meta.env.VITE_MCP_BRIDGE_URL || 'http://localhost:3001').replace('http://', 'ws://').replace('https://', 'wss://');
+      this.websocket = new WebSocket(wsUrl);
       
       this.websocket.onopen = () => {
         console.log('📱 WebSocket connected');
