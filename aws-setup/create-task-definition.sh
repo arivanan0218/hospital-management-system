@@ -8,10 +8,10 @@ AWS_REGION="us-east-1"
 CLUSTER_NAME="hospital-cluster"
 SERVICE_NAME="hospital-management-service"
 TASK_DEFINITION_NAME="hospital-task-definition"
-TARGET_GROUP_ARN="YOUR_TARGET_GROUP_ARN"  # Replace with actual ARN from setup-infrastructure.sh output
-SUBNET_1_ID="YOUR_SUBNET_1_ID"  # Replace with actual subnet ID
-SUBNET_2_ID="YOUR_SUBNET_2_ID"  # Replace with actual subnet ID
-SG_ID="YOUR_SECURITY_GROUP_ID"  # Replace with actual security group ID
+TARGET_GROUP_ARN="arn:aws:elasticloadbalancing:us-east-1:324037286635:targetgroup/hospital-targets/6297cfcbdce60c66"
+SUBNET_1_ID="subnet-0a03f0b465b06b5ff"
+SUBNET_2_ID="subnet-07c708f6f5f6e4b8b"
+SG_ID="sg-044d457d3d4587709"
 
 echo "🔧 Creating ECS Task Definition and Service..."
 
