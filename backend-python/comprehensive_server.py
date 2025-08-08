@@ -1,5 +1,6 @@
 """Hospital Management System MCP Server - Complete CRUD Operations for All Tables."""
 
+import os
 import random
 import uuid
 from datetime import datetime, date
@@ -27,8 +28,41 @@ mcp = FastMCP("hospital-management-system")
 
 # Database helper functions
 def get_db_session() -> Session:
-    """Get database session."""
-    return SessionLocal()
+    """Get database session with connection validation."""
+    try:
+        session = SessionLocal()
+        # Test the connection
+        session.execute("SELECT 1")
+        return session
+    except Exception as e:
+        print(f"❌ Database connection failed: {e}")
+        print(f"🔍 DATABASE_URL: {os.getenv('DATABASE_URL', 'Not set')}")
+        print(f"🔍 AWS_EXECUTION_ENV: {os.getenv('AWS_EXECUTION_ENV', 'Not set')}")
+        raise
+
+def validate_database_connection():
+    """Validate database connection on startup."""
+    try:
+        print("🔍 Validating database connection...")
+        session = get_db_session()
+        result = session.execute("SELECT COUNT(*) FROM users").fetchone()
+        session.close()
+        print(f"✅ Database connection successful. Found {result[0]} users.")
+        return True
+    except Exception as e:
+        print(f"❌ Database validation failed: {e}")
+        return False
+
+# Validate database connection on startup
+if DATABASE_AVAILABLE:
+    print("🚀 Starting Hospital Management MCP Server...")
+    print(f"🔗 Database URL: {os.getenv('DATABASE_URL', 'Using default')}")
+    print(f"🌍 Environment: {'AWS' if os.getenv('AWS_EXECUTION_ENV') else 'Local'}")
+    
+    if not validate_database_connection():
+        print("⚠️ Database connection failed, but continuing with limited functionality...")
+else:
+    print("⚠️ Database modules not available. Running in limited mode.")
 
 def serialize_model(obj):
     """Convert SQLAlchemy model to dictionary."""
