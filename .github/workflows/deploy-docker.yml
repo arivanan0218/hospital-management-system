@@ -175,6 +175,6 @@ jobs:
     - name: Get Application URL
       run: |
         ALB_DNS=$(aws elbv2 describe-load-balancers --names hospital-alb --query 'LoadBalancers[0].DNSName' --output text 2>/dev/null || echo "ALB not found")
-        echo "🎉 Deployment completed!"
+        echo "🎉 Deployment completed successfully!"
         echo "📱 Application URL: http://$ALB_DNS"
         echo "🔍 Check ECS service: aws ecs describe-services --cluster ${{ env.ECS_CLUSTER }} --services ${{ env.ECS_SERVICE }}"
