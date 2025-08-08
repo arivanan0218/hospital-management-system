@@ -16,12 +16,15 @@ try:
     from database import (
         User, Department, Patient, Room, Bed, Staff, Equipment, EquipmentCategory,
         Supply, SupplyCategory, InventoryTransaction, AgentInteraction, Appointment,
-        LegacyUser, SessionLocal
+        LegacyUser, SessionLocal, DATABASE_CONNECTION_OK
     )
     DATABASE_AVAILABLE = True
-except ImportError:
+    print(f"✅ Database modules imported. Connection status: {DATABASE_CONNECTION_OK}")
+except ImportError as e:
     DATABASE_AVAILABLE = False
-    print("WARNING: Database modules not available. Install dependencies: pip install sqlalchemy psycopg2-binary")
+    DATABASE_CONNECTION_OK = False
+    print(f"❌ Database modules not available: {e}")
+    print("⚠️ Install dependencies: pip install sqlalchemy psycopg2-binary")
 
 # Initialize FastMCP server
 mcp = FastMCP("hospital-management-system")
@@ -42,6 +45,14 @@ def get_db_session() -> Session:
 
 def validate_database_connection():
     """Validate database connection on startup."""
+    if not DATABASE_AVAILABLE:
+        print("❌ Database modules not available")
+        return False
+    
+    if not DATABASE_CONNECTION_OK:
+        print("❌ Database connection was not established during import")
+        return False
+    
     try:
         print("🔍 Validating database connection...")
         print(f"🔍 Environment variables:")
@@ -79,20 +90,38 @@ def validate_database_connection():
         return False
 
 # Validate database connection on startup
-if DATABASE_AVAILABLE:
-    print("🚀 Starting Hospital Management MCP Server...")
-    print(f"🔗 Database URL: {os.getenv('DATABASE_URL', 'Using default')}")
-    print(f"🌍 Environment: {'AWS' if os.getenv('AWS_EXECUTION_ENV') else 'Local'}")
-    
+print("🚀 Starting Hospital Management MCP Server...")
+print(f"🔗 Database URL: {os.getenv('DATABASE_URL', 'Using default')}")
+print(f"🌍 Environment: {'AWS' if os.getenv('AWS_EXECUTION_ENV') else 'Local'}")
+
+if DATABASE_AVAILABLE and DATABASE_CONNECTION_OK:
+    print("✅ Database modules available and connected")
     db_connected = validate_database_connection()
     if not db_connected:
-        print("⚠️ Database connection failed, but continuing with limited functionality...")
+        print("⚠️ Database connection validation failed, but continuing with limited functionality...")
         print("🔧 MCP server will start without database features")
+elif DATABASE_AVAILABLE and not DATABASE_CONNECTION_OK:
+    print("⚠️ Database modules available but connection failed during import")
+    print("🔧 MCP server will start without database features") 
+    db_connected = False
 else:
     print("⚠️ Database modules not available. Running in limited mode.")
     db_connected = False
 
 print("📡 MCP Server initialization complete")
+print(f"🗄️ Database status: {'Connected' if db_connected else 'Disconnected'}")
+
+# Add some basic tools that don't require database
+@mcp.tool()
+def server_status() -> Dict[str, Any]:
+    """Get MCP server status information."""
+    return {
+        "status": "running",
+        "database_available": DATABASE_AVAILABLE,
+        "database_connected": db_connected if 'db_connected' in locals() else False,
+        "environment": "AWS" if os.getenv('AWS_EXECUTION_ENV') else "Local",
+        "timestamp": datetime.now().isoformat()
+    }
 
 def serialize_model(obj):
     """Convert SQLAlchemy model to dictionary."""
