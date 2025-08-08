@@ -44,13 +44,38 @@ def validate_database_connection():
     """Validate database connection on startup."""
     try:
         print("🔍 Validating database connection...")
+        print(f"🔍 Environment variables:")
+        print(f"   - DATABASE_URL: {os.getenv('DATABASE_URL', 'Not set')}")
+        print(f"   - AWS_EXECUTION_ENV: {os.getenv('AWS_EXECUTION_ENV', 'Not set')}")
+        print(f"   - POSTGRES_DB: {os.getenv('POSTGRES_DB', 'Not set')}")
+        print(f"   - POSTGRES_USER: {os.getenv('POSTGRES_USER', 'Not set')}")
+        print(f"   - POSTGRES_PASSWORD: {'Set' if os.getenv('POSTGRES_PASSWORD') else 'Not set'}")
+        
         session = get_db_session()
+        
+        # Test basic connection
+        print("🔍 Testing basic database connection...")
+        session.execute("SELECT 1")
+        print("✅ Basic connection test passed")
+        
+        # Test users table
+        print("🔍 Testing users table access...")
         result = session.execute("SELECT COUNT(*) FROM users").fetchone()
         session.close()
         print(f"✅ Database connection successful. Found {result[0]} users.")
         return True
     except Exception as e:
         print(f"❌ Database validation failed: {e}")
+        print(f"❌ Error type: {type(e).__name__}")
+        
+        # Try to get more detailed error information
+        try:
+            import traceback
+            print(f"❌ Full traceback:")
+            traceback.print_exc()
+        except:
+            pass
+            
         return False
 
 # Validate database connection on startup
@@ -59,10 +84,15 @@ if DATABASE_AVAILABLE:
     print(f"🔗 Database URL: {os.getenv('DATABASE_URL', 'Using default')}")
     print(f"🌍 Environment: {'AWS' if os.getenv('AWS_EXECUTION_ENV') else 'Local'}")
     
-    if not validate_database_connection():
+    db_connected = validate_database_connection()
+    if not db_connected:
         print("⚠️ Database connection failed, but continuing with limited functionality...")
+        print("🔧 MCP server will start without database features")
 else:
     print("⚠️ Database modules not available. Running in limited mode.")
+    db_connected = False
+
+print("📡 MCP Server initialization complete")
 
 def serialize_model(obj):
     """Convert SQLAlchemy model to dictionary."""
@@ -94,7 +124,9 @@ def create_user(username: str, email: str, password_hash: str, role: str,
         return {"success": False, "message": "Database not available"}
     
     try:
+        # Test database connection before proceeding
         db = get_db_session()
+        
         user = User(
             username=username,
             email=email,
@@ -104,15 +136,21 @@ def create_user(username: str, email: str, password_hash: str, role: str,
             last_name=last_name,
             phone=phone
         )
+        
         db.add(user)
         db.commit()
         db.refresh(user)
+        
         result = serialize_model(user)
         db.close()
         
-        return {"success": True, "message": "User created successfully", "data": result}
+        return {"success": True, "user": result}
     except Exception as e:
-        return {"success": False, "message": f"Failed to create user: {str(e)}"}
+        print(f"❌ Error creating user: {e}")
+        if 'db' in locals():
+            db.rollback()
+            db.close()
+        return {"success": False, "message": str(e)}
 
 @mcp.tool()
 def get_user_by_id(user_id: str) -> Dict[str, Any]:
