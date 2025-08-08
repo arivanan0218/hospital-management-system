@@ -48,7 +48,7 @@
       }
     },
     {
-      "name": "backend-python",
+      "name": "hospital-backend-python",
       "image": "324037286635.dkr.ecr.us-east-1.amazonaws.com/hospital-backend:latest",
       "essential": true,
       "portMappings": [
@@ -79,7 +79,7 @@
       }
     },
     {
-      "name": "frontend",
+      "name": "hospital-frontend",
       "image": "324037286635.dkr.ecr.us-east-1.amazonaws.com/hospital-frontend:latest",
       "essential": true,
       "portMappings": [
@@ -98,7 +98,7 @@
       }
     },
     {
-      "name": "mcp-manager",
+      "name": "hospital-mcp-manager",
       "image": "324037286635.dkr.ecr.us-east-1.amazonaws.com/hospital-mcp:latest",
       "essential": true,
       "portMappings": [
