@@ -2,7 +2,7 @@
 FROM node:18-alpine
 
 # Install Python and required dependencies
-RUN apk add --no-cache python3 py3-pip python3-dev gcc musl-dev
+RUN apk add --no-cache python3 py3-pip python3-dev gcc musl-dev postgresql-dev libffi-dev
 
 # Install UV package manager (with system packages override for Alpine)
 RUN pip3 install uv --break-system-packages
@@ -24,6 +24,11 @@ COPY mcp-process-manager/ .
 
 # Copy backend-python files for MCP server access
 COPY backend-python/ ./backend-python
+
+# Install Python dependencies using UV (as root)
+WORKDIR /app/backend-python
+RUN uv sync
+WORKDIR /app
 
 # Create non-root user and change ownership
 RUN addgroup -g 1001 appgroup && adduser -u 1001 -G appgroup -s /bin/sh -D appuser
