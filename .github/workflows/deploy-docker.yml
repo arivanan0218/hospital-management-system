@@ -112,6 +112,9 @@ jobs:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         IMAGE_TAG: docker-${{ github.sha }}
       run: |
+        pwd
+        ls -la
+        echo "Building MCP manager Docker image..."
         docker build -f mcp-process-manager/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY_MCP:$IMAGE_TAG .
         docker tag $ECR_REGISTRY/$ECR_REPOSITORY_MCP:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY_MCP:latest
         docker push $ECR_REGISTRY/$ECR_REPOSITORY_MCP:$IMAGE_TAG
