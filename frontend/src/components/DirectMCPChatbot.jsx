@@ -29,7 +29,13 @@ const DirectMCPChatbot = () => {
   const [expandedThinking, setExpandedThinking] = useState({}); // Track which thinking messages are expanded
   const [isListening, setIsListening] = useState(false); // Track voice recording state
   const [isProcessingVoice, setIsProcessingVoice] = useState(false); // Track voice processing state
-  const [recognition, setRecognition] = useState(null); // Speech recognition instance
+  const [recognition, setRecognition] = useState(null); // Speech recognition instance (deprecated - will use OpenAI)
+  const [isSpeaking, setIsSpeaking] = useState(false); // Track if AI is currently speaking
+  const [lastVoiceInputId, setLastVoiceInputId] = useState(null); // Track the last voice input message ID
+  const [isRecording, setIsRecording] = useState(false); // Track audio recording state
+  const [mediaRecorder, setMediaRecorder] = useState(null); // Audio recorder instance
+  const [audioChunks, setAudioChunks] = useState([]); // Recorded audio chunks
+  const [currentAudio, setCurrentAudio] = useState(null); // Current playing audio
 
   const aiMcpServiceRef = useRef(null);
   const messagesEndRef = useRef(null); // Auto-scroll to bottom
@@ -37,145 +43,375 @@ const DirectMCPChatbot = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Initialize speech recognition
-  useEffect(() => {
-    if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
-      const SpeechRecognition =
-        window.SpeechRecognition || window.webkitSpeechRecognition;
-      const recognitionInstance = new SpeechRecognition();
-
-      recognitionInstance.continuous = false;
-      recognitionInstance.interimResults = false;
-      recognitionInstance.lang = "en-US";
-
-      recognitionInstance.onstart = () => {
-        setIsListening(true);
-      };
-
-      recognitionInstance.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        setInputMessage(transcript);
-        setIsListening(false);
-        setIsProcessingVoice(true);
-
-        // First, immediately show the user's voice input message in chat
-        const userMessage = transcript.trim();
-        if (userMessage && isConnected) {
-          const userMsg = {
-            id: Date.now(),
-            text: userMessage,
-            sender: "user",
-            timestamp: new Date().toLocaleTimeString(),
-            isVoiceInput: true, // Optional flag to distinguish voice inputs
-          };
-          setMessages((prev) => [...prev, userMsg]);
-        }
-
-        // Auto-send the voice input after a short delay
-        setTimeout(() => {
-          if (userMessage && isConnected && !isLoading) {
-            // Clear input and process the message
-            setInputMessage("");
-
-            // Trigger the send message function directly with the transcript
-            if (thinkingMode) {
-              sendMessageWithAdvancedThinking(userMessage);
-              setIsProcessingVoice(false);
-            } else {
-              // For simple mode, manually trigger the send process
-              setIsLoading(true);
-              setIsProcessingVoice(false);
-
-              // Process the message (simplified version) - user message already added above
-              setTimeout(async () => {
-                try {
-                  const response = await aiMcpServiceRef.current.processRequest(
-                    userMessage
-                  );
-                  if (response.success) {
-                    const aiMsg = {
-                      id: Date.now() + 1,
-                      text:
-                        response.message ||
-                        "I've processed your voice request successfully.",
-                      sender: "ai",
-                      timestamp: new Date().toLocaleTimeString(),
-                      functionCalls: response.functionCalls,
-                    };
-                    setMessages((prev) => [...prev, aiMsg]);
-                  } else {
-                    const errorMsg = {
-                      id: Date.now() + 1,
-                      text: `❌ **Error:** ${
-                        response.error || "Unknown error occurred"
-                      }`,
-                      sender: "ai",
-                      timestamp: new Date().toLocaleTimeString(),
-                      isError: true,
-                    };
-                    setMessages((prev) => [...prev, errorMsg]);
-                  }
-                } catch (error) {
-                  console.error("Voice message processing failed:", error);
-                  const errorMsg = {
-                    id: Date.now() + 1,
-                    text: `💥 **Processing Error:** ${error.message}`,
-                    sender: "ai",
-                    timestamp: new Date().toLocaleTimeString(),
-                    isError: true,
-                  };
-                  setMessages((prev) => [...prev, errorMsg]);
-                } finally {
-                  setIsLoading(false);
-                }
-              }, 100);
-            }
-          } else {
-            setIsProcessingVoice(false);
-          }
-        }, 800); // Increased delay to 800ms to show the transcribed text a bit longer
-      };
-
-      recognitionInstance.onerror = (event) => {
-        console.error("Speech recognition error:", event.error);
-        setIsListening(false);
-      };
-
-      recognitionInstance.onend = () => {
-        setIsListening(false);
-      };
-
-      setRecognition(recognitionInstance);
-    }
-  }, [
-    isConnected,
-    isLoading,
-    thinkingMode,
-    aiMcpServiceRef,
-    setMessages,
-    setInputMessage,
-    setIsLoading,
-    setIsProcessingVoice,
-  ]);
-
-  /**
-   * Handle voice input
-   */
-  const handleVoiceInput = () => {
-    if (!recognition) {
-      alert(
-        "Speech recognition is not supported in your browser. Please use Chrome, Edge, or Safari."
-      );
+  // OpenAI Text-to-Speech function for voice output
+  const speakTextWithOpenAI = async (text, isResponseToVoiceInput = false) => {
+    // Only speak if this is a response to voice input and we have an API key
+    if (!isResponseToVoiceInput || !openaiApiKey.trim()) {
       return;
     }
 
-    if (isListening) {
-      recognition.stop();
-      setIsListening(false);
-    } else {
-      recognition.start();
+    // Stop any current audio
+    stopCurrentAudio();
+
+    // Clean up text for speech (remove markdown and formatting)
+    let cleanText = text
+      .replace(/\*\*([^*]+)\*\*/g, "$1") // Remove bold markdown
+      .replace(/\*([^*]+)\*/g, "$1") // Remove italic markdown
+      .replace(/`([^`]+)`/g, "$1") // Remove code backticks
+      .replace(/#{1,6}\s?/g, "") // Remove heading hashtags
+      .replace(/---/g, "") // Remove horizontal rules
+      .replace(/\n{2,}/g, "\n") // Reduce multiple newlines
+      .replace(/🧠|🤔|🔍|🛠️|📊|💡|ℹ️|✅|❌|💥/g, "") // Remove emojis
+      .replace(/\[(.*?)\]\(.*?\)/g, "$1") // Convert links to just text
+      .replace(/\*\*([^*]+)\*\*/g, "$1") // Additional cleanup
+      .replace(/\n/g, " ") // Replace newlines with spaces
+      .replace(/\s+/g, " ") // Replace multiple spaces with single space
+      .trim();
+
+    // Skip speaking if text is too short or just symbols
+    if (cleanText.length < 3 || /^[^\w\s]*$/.test(cleanText)) {
+      return;
+    }
+
+    // Limit text length for TTS (OpenAI has a 4096 character limit)
+    if (cleanText.length > 4000) {
+      cleanText = cleanText.substring(0, 4000) + "...";
+    }
+
+    try {
+      setIsSpeaking(true);
+
+      const response = await fetch("https://api.openai.com/v1/audio/speech", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${openaiApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "tts-1", // Use tts-1 for faster generation, tts-1-hd for higher quality
+          input: cleanText,
+          voice: "alloy", // Options: alloy, echo, fable, onyx, nova, shimmer
+          response_format: "mp3",
+          speed: 1.0,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`TTS API error: ${response.status}`);
+      }
+
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+
+      audio.onloadeddata = () => {
+        setCurrentAudio(audio);
+        audio.play().catch((error) => {
+          console.error("Audio playback failed:", error);
+          setIsSpeaking(false);
+        });
+      };
+
+      audio.onended = () => {
+        setIsSpeaking(false);
+        setCurrentAudio(null);
+        URL.revokeObjectURL(audioUrl);
+      };
+
+      audio.onerror = (error) => {
+        console.error("Audio playback error:", error);
+        setIsSpeaking(false);
+        setCurrentAudio(null);
+        URL.revokeObjectURL(audioUrl);
+      };
+    } catch (error) {
+      console.error("OpenAI TTS error:", error);
+      setIsSpeaking(false);
+
+      // Fallback to browser speech synthesis if OpenAI fails
+      if ("speechSynthesis" in window) {
+        const utterance = new SpeechSynthesisUtterance(cleanText);
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+        utterance.volume = 0.8;
+
+        utterance.onend = () => setIsSpeaking(false);
+        utterance.onerror = () => setIsSpeaking(false);
+
+        speechSynthesis.speak(utterance);
+      }
     }
   };
+
+  // Function to stop current audio playback
+  const stopCurrentAudio = () => {
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+      setCurrentAudio(null);
+    }
+    if ("speechSynthesis" in window && speechSynthesis.speaking) {
+      speechSynthesis.cancel();
+    }
+    setIsSpeaking(false);
+  };
+
+  // OpenAI Speech-to-Text (Whisper) function
+  const transcribeWithOpenAI = async (audioBlob) => {
+    if (!openaiApiKey.trim()) {
+      throw new Error("OpenAI API key is required for speech recognition");
+    }
+
+    const formData = new FormData();
+    formData.append("file", audioBlob, "audio.webm");
+    formData.append("model", "whisper-1");
+    formData.append("language", "en"); // Optional: specify language
+    formData.append("response_format", "json");
+
+    try {
+      const response = await fetch(
+        "https://api.openai.com/v1/audio/transcriptions",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${openaiApiKey}`,
+          },
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Whisper API error: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.text;
+    } catch (error) {
+      console.error("OpenAI Whisper error:", error);
+      throw error;
+    }
+  };
+
+  // Start recording audio for speech-to-text
+  const startRecording = async () => {
+    try {
+      // Stop any current audio playback
+      stopCurrentAudio();
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+
+      const recorder = new MediaRecorder(stream, {
+        mimeType: "audio/webm;codecs=opus",
+      });
+
+      const chunks = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunks.push(event.data);
+        }
+      };
+
+      recorder.onstop = async () => {
+        const audioBlob = new Blob(chunks, { type: "audio/webm" });
+        setIsProcessingVoice(true);
+
+        try {
+          const transcript = await transcribeWithOpenAI(audioBlob);
+
+          if (transcript && transcript.trim()) {
+            setInputMessage(transcript);
+
+            // Show user's voice input message in chat
+            const voiceInputId = Date.now();
+            const userMsg = {
+              id: voiceInputId,
+              text: transcript.trim(),
+              sender: "user",
+              timestamp: new Date().toLocaleTimeString(),
+              isVoiceInput: true,
+            };
+            setMessages((prev) => [...prev, userMsg]);
+            setLastVoiceInputId(voiceInputId);
+
+            // Auto-send the voice input after a short delay
+            setTimeout(() => {
+              if (transcript.trim() && isConnected && !isLoading) {
+                setInputMessage("");
+
+                if (thinkingMode) {
+                  sendMessageWithAdvancedThinking(transcript.trim(), true);
+                  setIsProcessingVoice(false);
+                } else {
+                  // Simple mode processing with voice output
+                  setIsLoading(true);
+                  setIsProcessingVoice(false);
+
+                  setTimeout(async () => {
+                    try {
+                      const response =
+                        await aiMcpServiceRef.current.processRequest(
+                          transcript.trim()
+                        );
+                      if (response.success) {
+                        const aiMsg = {
+                          id: Date.now() + 1,
+                          text:
+                            response.message ||
+                            "I've processed your voice request successfully.",
+                          sender: "ai",
+                          timestamp: new Date().toLocaleTimeString(),
+                          functionCalls: response.functionCalls,
+                        };
+                        setMessages((prev) => [...prev, aiMsg]);
+
+                        // Speak the response
+                        setTimeout(() => {
+                          speakTextWithOpenAI(
+                            response.message ||
+                              "I've processed your voice request successfully.",
+                            true
+                          );
+                        }, 500);
+                      } else {
+                        const errorMsg = {
+                          id: Date.now() + 1,
+                          text: `❌ **Error:** ${
+                            response.error || "Unknown error occurred"
+                          }`,
+                          sender: "ai",
+                          timestamp: new Date().toLocaleTimeString(),
+                          isError: true,
+                        };
+                        setMessages((prev) => [...prev, errorMsg]);
+
+                        setTimeout(() => {
+                          speakTextWithOpenAI(
+                            `Error: ${
+                              response.error || "Unknown error occurred"
+                            }`,
+                            true
+                          );
+                        }, 500);
+                      }
+                    } catch (error) {
+                      console.error("Voice message processing failed:", error);
+                      const errorMsg = {
+                        id: Date.now() + 1,
+                        text: `💥 **Processing Error:** ${error.message}`,
+                        sender: "ai",
+                        timestamp: new Date().toLocaleTimeString(),
+                        isError: true,
+                      };
+                      setMessages((prev) => [...prev, errorMsg]);
+
+                      setTimeout(() => {
+                        speakTextWithOpenAI(
+                          `Processing Error: ${error.message}`,
+                          true
+                        );
+                      }, 500);
+                    } finally {
+                      setIsLoading(false);
+                    }
+                  }, 100);
+                }
+              } else {
+                setIsProcessingVoice(false);
+              }
+            }, 800);
+          } else {
+            setIsProcessingVoice(false);
+            console.log("No speech detected");
+          }
+        } catch (error) {
+          console.error("Speech transcription failed:", error);
+          setIsProcessingVoice(false);
+
+          // Show error message
+          const errorMsg = {
+            id: Date.now(),
+            text: `🎤 **Speech Recognition Error:** ${error.message}. Please try again.`,
+            sender: "ai",
+            timestamp: new Date().toLocaleTimeString(),
+            isError: true,
+          };
+          setMessages((prev) => [...prev, errorMsg]);
+        }
+
+        // Clean up media stream
+        stream.getTracks().forEach((track) => track.stop());
+        setAudioChunks([]);
+      };
+
+      setMediaRecorder(recorder);
+      setAudioChunks(chunks);
+      setIsRecording(true);
+      setIsListening(true);
+
+      recorder.start();
+    } catch (error) {
+      console.error("Failed to start recording:", error);
+      setIsRecording(false);
+      setIsListening(false);
+
+      // Show error message
+      const errorMsg = {
+        id: Date.now(),
+        text: `🎤 **Microphone Error:** ${error.message}. Please check your microphone permissions.`,
+        sender: "ai",
+        timestamp: new Date().toLocaleTimeString(),
+        isError: true,
+      };
+      setMessages((prev) => [...prev, errorMsg]);
+    }
+  };
+
+  // Stop recording audio
+  const stopRecording = () => {
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+      mediaRecorder.stop();
+    }
+    setIsRecording(false);
+    setIsListening(false);
+  };
+
+  // Voice input toggle function (replaces the old browser speech recognition)
+  const toggleVoiceInput = () => {
+    if (!openaiApiKey.trim()) {
+      const errorMsg = {
+        id: Date.now(),
+        text: "🔑 **API Key Required:** Please configure your OpenAI API key to use voice features.",
+        sender: "ai",
+        timestamp: new Date().toLocaleTimeString(),
+        isError: true,
+      };
+      setMessages((prev) => [...prev, errorMsg]);
+      return;
+    }
+
+    // If AI is speaking, stop the speech
+    if (isSpeaking) {
+      stopCurrentAudio();
+      return;
+    }
+
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  };
+
+  // Note: Old browser speech recognition removed - now using OpenAI Whisper API
+
+  // Note: handleVoiceInput replaced with toggleVoiceInput (using OpenAI Whisper)
 
   /**
    * Initialize the AI-MCP service
@@ -415,7 +651,10 @@ const DirectMCPChatbot = () => {
   /**
    * Enhanced message sending with multi-step thinking flow
    */
-  const sendMessageWithAdvancedThinking = async (customQuery = null) => {
+  const sendMessageWithAdvancedThinking = async (
+    customQuery = null,
+    isFromVoiceInput = false
+  ) => {
     const queryToProcess = customQuery || inputMessage.trim();
     if (!queryToProcess || !isConnected || isLoading) return;
 
@@ -599,6 +838,14 @@ const DirectMCPChatbot = () => {
           isFinalAnswer: true,
         };
         setMessages((prev) => [...prev, aiMsg]);
+
+        // If this is a response to voice input, speak the response
+        if (isFromVoiceInput) {
+          // Wait a bit for the message to render, then speak
+          setTimeout(() => {
+            speakTextWithOpenAI(responseText, true);
+          }, 500);
+        }
       } else {
         const errorMsg = {
           id: Date.now() + 5,
@@ -610,6 +857,18 @@ const DirectMCPChatbot = () => {
           isError: true,
         };
         setMessages((prev) => [...prev, errorMsg]);
+
+        // If this is a response to voice input, speak the error message
+        if (isFromVoiceInput) {
+          setTimeout(() => {
+            speakTextWithOpenAI(
+              `I apologize, but I encountered an error: ${
+                response.error || "Unknown error occurred"
+              }. Please try rephrasing your request.`,
+              true
+            );
+          }, 500);
+        }
       }
     } catch (error) {
       console.error("❌ Send message failed:", error);
@@ -621,6 +880,16 @@ const DirectMCPChatbot = () => {
         isError: true,
       };
       setMessages((prev) => [...prev, errorMsg]);
+
+      // If this is a response to voice input, speak the error message
+      if (isFromVoiceInput) {
+        setTimeout(() => {
+          speakTextWithOpenAI(
+            `I'm sorry, but I'm having trouble processing your request right now. This might be a temporary issue. Could you please try again?`,
+            true
+          );
+        }, 500);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -1716,6 +1985,38 @@ const DirectMCPChatbot = () => {
       {/* Claude-style Input */}
       <div className="border-t border-gray-700 bg-[#1a1a1a] px-4 py-4">
         <div className="max-w-4xl mx-auto">
+          {/* Voice Status Indicator */}
+          {(isRecording || isProcessingVoice || isSpeaking) && (
+            <div className="mb-3 px-3 py-2 bg-[#2a2a2a] border border-gray-600 rounded-lg">
+              <div className="flex items-center space-x-2">
+                {isRecording && (
+                  <>
+                    <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                    <span className="text-sm text-red-400">
+                      🎤 Recording with OpenAI Whisper...
+                    </span>
+                  </>
+                )}
+                {isProcessingVoice && (
+                  <>
+                    <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+                    <span className="text-sm text-yellow-400">
+                      🔄 Processing speech with OpenAI...
+                    </span>
+                  </>
+                )}
+                {isSpeaking && (
+                  <>
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                    <span className="text-sm text-blue-400">
+                      🔊 Speaking with OpenAI TTS...
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="relative">
             <textarea
               value={inputMessage}
@@ -1741,24 +2042,28 @@ const DirectMCPChatbot = () => {
             />
             {/* Voice Input Button */}
             <button
-              onClick={handleVoiceInput}
+              onClick={toggleVoiceInput}
               disabled={!isConnected || isLoading || isProcessingVoice}
               className={`absolute right-12 top-2 p-1.5 rounded-md transition-colors duration-200 ${
-                isListening
+                isListening || isRecording
                   ? "bg-red-600 hover:bg-red-700 animate-pulse"
                   : isProcessingVoice
                   ? "bg-yellow-600 hover:bg-yellow-700 animate-pulse"
+                  : isSpeaking
+                  ? "bg-blue-600 hover:bg-blue-700 animate-pulse"
                   : "bg-gray-600 hover:bg-gray-700 disabled:bg-gray-700"
               } text-white`}
               title={
-                isListening
-                  ? "Recording... (will auto-send)"
+                isListening || isRecording
+                  ? "Recording... (Click to stop)"
                   : isProcessingVoice
                   ? "Processing voice input..."
-                  : "Start voice input (auto-sends)"
+                  : isSpeaking
+                  ? "AI is speaking... (Click to stop)"
+                  : "Start voice input (OpenAI Whisper)"
               }
             >
-              {isListening ? (
+              {isListening || isRecording ? (
                 <svg
                   className="w-4 h-4"
                   fill="currentColor"
@@ -1779,6 +2084,14 @@ const DirectMCPChatbot = () => {
                     strokeWidth={2}
                     d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                   />
+                </svg>
+              ) : isSpeaking ? (
+                <svg
+                  className="w-4 h-4"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
                 </svg>
               ) : (
                 <svg
