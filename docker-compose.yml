@@ -59,7 +59,6 @@ services:
     ports:
       - "3001:3001"
     volumes:
-      - ./mcp-process-manager:/app
       - ./backend-python:/backend-python
     networks:
       - hospital-network

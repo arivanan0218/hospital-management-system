@@ -13,13 +13,16 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install dependencies as root
+RUN npm install --production
+
+# Verify express installation
+RUN node -e "console.log('Express version:', require('express/package.json').version)"
 
 # Copy application code
 COPY . .
 
-# Create non-root user
+# Create non-root user and change ownership
 RUN addgroup -g 1001 appgroup && adduser -u 1001 -G appgroup -s /bin/sh -D appuser
 RUN chown -R appuser:appgroup /app
 USER appuser
