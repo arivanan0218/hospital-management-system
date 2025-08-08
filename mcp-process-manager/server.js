@@ -275,39 +275,35 @@ const app = express();
 const server = require('http').createServer(app);
 const wss = new WebSocket.Server({ server });
 
-app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (mobile apps, curl, etc.)
-    if (!origin) return callback(null, true);
-    
-    const allowedOrigins = [
-      'http://localhost:3000',
-      'http://localhost:5173',
-      'http://hospital-alb-1667599615.us-east-1.elb.amazonaws.com'
-    ];
-    
-    if (allowedOrigins.includes(origin) || origin.endsWith('.amazonaws.com')) {
-      return callback(null, true);
-    }
-    
-    console.log('CORS blocked origin:', origin);
-    callback(new Error('Not allowed by CORS'));
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
-  optionsSuccessStatus: 200
-}));
-app.use(express.json());
-
-// Handle preflight requests explicitly
-app.options('*', (req, res) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.sendStatus(200);
+// More aggressive CORS configuration
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  
+  // Always allow these origins
+  const allowedOrigins = [
+    'http://localhost:3000',
+    'http://localhost:5173', 
+    'http://hospital-alb-1667599615.us-east-1.elb.amazonaws.com'
+  ];
+  
+  if (allowedOrigins.includes(origin) || !origin || origin.endsWith('.amazonaws.com')) {
+    res.setHeader('Access-Control-Allow-Origin', origin || '*');
+  }
+  
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
+  
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    console.log('Handling preflight request from:', origin);
+    return res.status(200).end();
+  }
+  
+  next();
 });
+app.use(express.json());
 
 const mcpManager = new MCPProcessManager();
 
@@ -323,27 +319,49 @@ wss.on('connection', (ws) => {
 
 // API Routes
 app.post('/mcp/start', async (req, res) => {
+  console.log('🚀 Received MCP start request from origin:', req.headers.origin);
+  
   try {
     const config = req.body;
-    const started = await mcpManager.startMCPServer(config);
+    console.log('📋 Starting MCP with config:', config);
     
-    if (started) {
-      res.json({ 
-        success: true, 
-        message: 'MCP server started',
-        serverInfo: mcpManager.getServerInfo()
-      });
-    } else {
-      res.status(500).json({ 
-        success: false, 
-        error: 'Failed to start MCP server' 
-      });
+    // Set a timeout for the response
+    const timeout = setTimeout(() => {
+      if (!res.headersSent) {
+        console.log('⏰ MCP start timeout - sending partial response');
+        res.json({ 
+          success: true, 
+          message: 'MCP server starting (this may take a moment)...',
+          serverInfo: { isConnected: false, toolCount: 0, tools: [] }
+        });
+      }
+    }, 25000); // 25 second timeout
+    
+    const started = await mcpManager.startMCPServer(config);
+    clearTimeout(timeout);
+    
+    if (!res.headersSent) {
+      if (started) {
+        res.json({ 
+          success: true, 
+          message: 'MCP server started successfully',
+          serverInfo: mcpManager.getServerInfo()
+        });
+      } else {
+        res.status(500).json({ 
+          success: false, 
+          error: 'Failed to start MCP server' 
+        });
+      }
     }
   } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
-    });
+    console.error('❌ Error starting MCP server:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ 
+        success: false, 
+        error: error.message 
+      });
+    }
   }
 });
 
