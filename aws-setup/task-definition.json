@@ -1,0 +1,176 @@
+{
+  "family": "hospital-task-definition",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "hospital-postgres",
+      "image": "postgres:15-alpine",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 5432,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "POSTGRES_DB",
+          "value": "hospital_management"
+        },
+        {
+          "name": "POSTGRES_USER",
+          "value": "postgres"
+        },
+        {
+          "name": "POSTGRES_PASSWORD",
+          "value": "postgres"
+        }
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "pg_isready -U postgres"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 0
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/hospital-management",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "postgres"
+        }
+      }
+    },
+    {
+      "name": "hospital-backend-python",
+      "image": "ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/hospital-backend:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "DATABASE_URL",
+          "value": "postgresql://postgres:postgres@localhost:5432/hospital_management"
+        },
+        {
+          "name": "GEMINI_API_KEY",
+          "value": "YOUR_GEMINI_API_KEY"
+        }
+      ],
+      "dependsOn": [
+        {
+          "containerName": "hospital-postgres",
+          "condition": "HEALTHY"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/hospital-management",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "backend"
+        }
+      }
+    },
+    {
+      "name": "hospital-mcp-manager",
+      "image": "ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/hospital-mcp-manager:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 3001,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "PORT",
+          "value": "3001"
+        },
+        {
+          "name": "NODE_ENV",
+          "value": "production"
+        },
+        {
+          "name": "DATABASE_URL",
+          "value": "postgresql://postgres:postgres@localhost:5432/hospital_management"
+        }
+      ],
+      "dependsOn": [
+        {
+          "containerName": "hospital-postgres",
+          "condition": "HEALTHY"
+        },
+        {
+          "containerName": "hospital-backend-python",
+          "condition": "START"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/hospital-management",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "mcp"
+        }
+      }
+    },
+    {
+      "name": "hospital-frontend",
+      "image": "ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/hospital-frontend:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 80,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "VITE_MCP_BRIDGE_URL",
+          "value": "http://localhost:3001"
+        },
+        {
+          "name": "VITE_CLAUDE_API_KEY",
+          "value": "YOUR_CLAUDE_API_KEY"
+        },
+        {
+          "name": "VITE_OPENAI_API_KEY",
+          "value": "YOUR_OPENAI_API_KEY"
+        },
+        {
+          "name": "VITE_GROQ_API_KEY",
+          "value": "YOUR_GROQ_API_KEY"
+        },
+        {
+          "name": "VITE_GOOGLE_API_KEY",
+          "value": "YOUR_GOOGLE_API_KEY"
+        }
+      ],
+      "dependsOn": [
+        {
+          "containerName": "hospital-mcp-manager",
+          "condition": "START"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/hospital-management",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "frontend"
+        }
+      }
+    }
+  ]
+}

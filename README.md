@@ -38,6 +38,9 @@ This hospital management system is a **3-tier containerized application** with t
    ```bash
    git clone https://github.com/arivanan0218/hospital-management-system.git
    cd hospital-management-system
+   
+   # Switch to docker branch for latest deployment features
+   git checkout docker
    ```
 
 2. **Environment Setup**:
