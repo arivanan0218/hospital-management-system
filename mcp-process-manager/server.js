@@ -393,6 +393,17 @@ app.post('/mcp/stop', async (req, res) => {
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`🌐 MCP Process Manager server running on port ${PORT}`);
+  console.log(`📁 Working directory: ${process.cwd()}`);
+  console.log(`🐍 Backend Python path: ${process.cwd()}/backend-python`);
+  
+  // Test if backend-python directory exists
+  const fs = require('fs');
+  const backendPath = `${process.cwd()}/backend-python`;
+  if (fs.existsSync(backendPath)) {
+    console.log('✅ Backend Python directory found');
+  } else {
+    console.log('⚠️ Backend Python directory not found - MCP server may not work');
+  }
 });
 
 module.exports = MCPProcessManager;

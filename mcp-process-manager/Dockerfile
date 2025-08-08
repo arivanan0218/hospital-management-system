@@ -22,6 +22,9 @@ RUN node -e "console.log('Express version:', require('express/package.json').ver
 # Copy application code
 COPY . .
 
+# Copy backend-python files for MCP server access
+COPY ../backend-python ./backend-python
+
 # Create non-root user and change ownership
 RUN addgroup -g 1001 appgroup && adduser -u 1001 -G appgroup -s /bin/sh -D appuser
 RUN chown -R appuser:appgroup /app
