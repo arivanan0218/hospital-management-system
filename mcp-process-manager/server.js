@@ -429,6 +429,74 @@ app.post('/mcp/stop', async (req, res) => {
   }
 });
 
+// Diagnostic endpoint to check environment and auto-start MCP
+app.get('/mcp/diagnose', async (req, res) => {
+  const fs = require('fs');
+  const { execSync } = require('child_process');
+  
+  try {
+    const diagnostics = {
+      timestamp: new Date().toISOString(),
+      workingDirectory: process.cwd(),
+      backendPythonExists: fs.existsSync(`${process.cwd()}/backend-python`),
+      pythonExecutable: null,
+      uvAvailable: false,
+      pythonDependencies: null,
+      mcpServerStatus: mcpManager.getServerInfo(),
+      autoStartAttempted: false
+    };
+
+    // Check if UV is available
+    try {
+      execSync('uv --version', { stdio: 'pipe' });
+      diagnostics.uvAvailable = true;
+    } catch (e) {
+      diagnostics.uvAvailable = false;
+    }
+
+    // Check Python executable
+    try {
+      const pythonVersion = execSync('python3 --version', { stdio: 'pipe' }).toString().trim();
+      diagnostics.pythonExecutable = pythonVersion;
+    } catch (e) {
+      try {
+        const pythonVersion = execSync('python --version', { stdio: 'pipe' }).toString().trim();
+        diagnostics.pythonExecutable = pythonVersion;
+      } catch (e2) {
+        diagnostics.pythonExecutable = 'Not found';
+      }
+    }
+
+    // Auto-start MCP server if not connected
+    if (!mcpManager.isConnected && diagnostics.backendPythonExists && diagnostics.uvAvailable) {
+      try {
+        console.log('🔧 Auto-starting MCP server from diagnostic endpoint...');
+        const config = {
+          command: 'uv',
+          args: ['run', 'python', 'comprehensive_server.py'],
+          env: { PYTHONPATH: '/backend-python' },
+          cwd: '/backend-python'
+        };
+        
+        mcpManager.startMCPServer(config);
+        diagnostics.autoStartAttempted = true;
+      } catch (startError) {
+        diagnostics.autoStartError = startError.message;
+      }
+    }
+
+    res.json({
+      success: true,
+      diagnostics
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`🌐 MCP Process Manager server running on port ${PORT}`);
