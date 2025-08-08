@@ -11,7 +11,7 @@ RUN pip3 install uv --break-system-packages
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
+COPY mcp-process-manager/package*.json ./
 
 # Install dependencies as root
 RUN npm install --production
@@ -20,10 +20,10 @@ RUN npm install --production
 RUN node -e "console.log('Express version:', require('express/package.json').version)"
 
 # Copy application code
-COPY . .
+COPY mcp-process-manager/ .
 
 # Copy backend-python files for MCP server access
-COPY ../backend-python ./backend-python
+COPY backend-python/ ./backend-python
 
 # Create non-root user and change ownership
 RUN addgroup -g 1001 appgroup && adduser -u 1001 -G appgroup -s /bin/sh -D appuser
