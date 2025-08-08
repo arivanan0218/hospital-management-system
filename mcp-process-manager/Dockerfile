@@ -19,10 +19,10 @@ RUN npm install --production
 # Verify express installation
 RUN node -e "console.log('Express version:', require('express/package.json').version)"
 
-# Copy application code
-COPY mcp-process-manager/ .
+# Copy application code from the root context
+COPY mcp-process-manager/ ./
 
-# Copy backend-python files for MCP server access
+# Copy backend-python files for MCP server access  
 COPY backend-python/ ./backend-python
 
 # Install Python dependencies using UV (as root)

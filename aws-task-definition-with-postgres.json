@@ -4,8 +4,8 @@
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "1024",
   "memory": "2048",
-  "executionRoleArn": "arn:aws:iam::577659158979:role/ecsTaskExecutionRole",
-  "taskRoleArn": "arn:aws:iam::577659158979:role/ecsTaskRole",
+  "executionRoleArn": "arn:aws:iam::324037286635:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::324037286635:role/ecsTaskRole",
   "containerDefinitions": [
     {
       "name": "postgres",
@@ -49,7 +49,7 @@
     },
     {
       "name": "backend-python",
-      "image": "577659158979.dkr.ecr.us-east-1.amazonaws.com/hospital-backend:latest",
+      "image": "324037286635.dkr.ecr.us-east-1.amazonaws.com/hospital-backend:latest",
       "essential": true,
       "portMappings": [
         {
@@ -80,7 +80,7 @@
     },
     {
       "name": "frontend",
-      "image": "577659158979.dkr.ecr.us-east-1.amazonaws.com/hospital-frontend:latest",
+      "image": "324037286635.dkr.ecr.us-east-1.amazonaws.com/hospital-frontend:latest",
       "essential": true,
       "portMappings": [
         {
@@ -99,7 +99,7 @@
     },
     {
       "name": "mcp-manager",
-      "image": "577659158979.dkr.ecr.us-east-1.amazonaws.com/hospital-mcp:latest",
+      "image": "324037286635.dkr.ecr.us-east-1.amazonaws.com/hospital-mcp:latest",
       "essential": true,
       "portMappings": [
         {
