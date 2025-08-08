@@ -138,7 +138,7 @@
       "environment": [
         {
           "name": "VITE_MCP_BRIDGE_URL",
-          "value": "http://localhost:3001"
+          "value": "http://hospital-alb-1667599615.us-east-1.elb.amazonaws.com:3001"
         },
         {
           "name": "VITE_CLAUDE_API_KEY",
