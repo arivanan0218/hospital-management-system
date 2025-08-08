@@ -275,7 +275,17 @@ const app = express();
 const server = require('http').createServer(app);
 const wss = new WebSocket.Server({ server });
 
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://hospital-alb-1667599615.us-east-1.elb.amazonaws.com',
+    /\.amazonaws\.com$/
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
 const mcpManager = new MCPProcessManager();
@@ -353,6 +363,15 @@ app.get('/mcp/status', (req, res) => {
   res.json({
     success: true,
     serverInfo: mcpManager.getServerInfo()
+  });
+});
+
+// Health check endpoint for load balancer
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'healthy', 
+    timestamp: new Date().toISOString(),
+    service: 'mcp-process-manager'
   });
 });
 
