@@ -26,7 +26,9 @@ COPY mcp-process-manager/ ./
 COPY backend-python/ ./backend-python
 
 # Make scripts executable
-RUN chmod +x ./backend-python/start_mcp_server.sh# Install Python dependencies using UV (as root)
+RUN chmod +x ./backend-python/start_mcp_server.sh
+
+# Install Python dependencies using UV (as root)
 WORKDIR /app/backend-python
 RUN uv sync
 WORKDIR /app
