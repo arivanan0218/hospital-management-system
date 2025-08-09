@@ -87,9 +87,7 @@ jobs:
         IMAGE_TAG: docker-${{ github.sha }}
       run: |
         cd backend-python
-        # Use BuildKit for faster builds
-        export DOCKER_BUILDKIT=1
-        docker build --cache-from $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:latest -t $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:$IMAGE_TAG .
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:$IMAGE_TAG .
         docker tag $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:latest
         docker push $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:$IMAGE_TAG
         docker push $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:latest
@@ -114,15 +112,7 @@ jobs:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         IMAGE_TAG: docker-${{ github.sha }}
       run: |
-        pwd
-        ls -la
-        echo "Building MCP manager Docker image..."
-        echo "Checking if directories exist:"
-        ls -la mcp-process-manager/ || echo "mcp-process-manager directory not found"
-        ls -la backend-python/ || echo "backend-python directory not found"
-        
-        # Build with minimal Dockerfile that doesn't require backend-python
-        DOCKER_BUILDKIT=1 docker build --file mcp-process-manager/Dockerfile.minimal --tag $ECR_REGISTRY/$ECR_REPOSITORY_MCP:$IMAGE_TAG .
+        docker build -f mcp-process-manager/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY_MCP:$IMAGE_TAG .
         docker tag $ECR_REGISTRY/$ECR_REPOSITORY_MCP:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY_MCP:latest
         docker push $ECR_REGISTRY/$ECR_REPOSITORY_MCP:$IMAGE_TAG
         docker push $ECR_REGISTRY/$ECR_REPOSITORY_MCP:latest
