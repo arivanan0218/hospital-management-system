@@ -1,6 +1,5 @@
 """Hospital Management System MCP Server - Complete CRUD Operations for All Tables."""
 
-import os
 import random
 import uuid
 from datetime import datetime, date
@@ -16,112 +15,20 @@ try:
     from database import (
         User, Department, Patient, Room, Bed, Staff, Equipment, EquipmentCategory,
         Supply, SupplyCategory, InventoryTransaction, AgentInteraction, Appointment,
-        LegacyUser, SessionLocal, DATABASE_CONNECTION_OK
+        LegacyUser, SessionLocal
     )
     DATABASE_AVAILABLE = True
-    print(f"✅ Database modules imported. Connection status: {DATABASE_CONNECTION_OK}")
-except ImportError as e:
+except ImportError:
     DATABASE_AVAILABLE = False
-    DATABASE_CONNECTION_OK = False
-    print(f"❌ Database modules not available: {e}")
-    print("⚠️ Install dependencies: pip install sqlalchemy psycopg2-binary")
+    print("WARNING: Database modules not available. Install dependencies: pip install sqlalchemy psycopg2-binary")
 
 # Initialize FastMCP server
 mcp = FastMCP("hospital-management-system")
 
 # Database helper functions
 def get_db_session() -> Session:
-    """Get database session with connection validation."""
-    try:
-        session = SessionLocal()
-        # Test the connection
-        session.execute("SELECT 1")
-        return session
-    except Exception as e:
-        print(f"❌ Database connection failed: {e}")
-        print(f"🔍 DATABASE_URL: {os.getenv('DATABASE_URL', 'Not set')}")
-        print(f"🔍 AWS_EXECUTION_ENV: {os.getenv('AWS_EXECUTION_ENV', 'Not set')}")
-        raise
-
-def validate_database_connection():
-    """Validate database connection on startup."""
-    if not DATABASE_AVAILABLE:
-        print("❌ Database modules not available")
-        return False
-    
-    if not DATABASE_CONNECTION_OK:
-        print("❌ Database connection was not established during import")
-        return False
-    
-    try:
-        print("🔍 Validating database connection...")
-        print(f"🔍 Environment variables:")
-        print(f"   - DATABASE_URL: {os.getenv('DATABASE_URL', 'Not set')}")
-        print(f"   - AWS_EXECUTION_ENV: {os.getenv('AWS_EXECUTION_ENV', 'Not set')}")
-        print(f"   - POSTGRES_DB: {os.getenv('POSTGRES_DB', 'Not set')}")
-        print(f"   - POSTGRES_USER: {os.getenv('POSTGRES_USER', 'Not set')}")
-        print(f"   - POSTGRES_PASSWORD: {'Set' if os.getenv('POSTGRES_PASSWORD') else 'Not set'}")
-        
-        session = get_db_session()
-        
-        # Test basic connection
-        print("🔍 Testing basic database connection...")
-        session.execute("SELECT 1")
-        print("✅ Basic connection test passed")
-        
-        # Test users table
-        print("🔍 Testing users table access...")
-        result = session.execute("SELECT COUNT(*) FROM users").fetchone()
-        session.close()
-        print(f"✅ Database connection successful. Found {result[0]} users.")
-        return True
-    except Exception as e:
-        print(f"❌ Database validation failed: {e}")
-        print(f"❌ Error type: {type(e).__name__}")
-        
-        # Try to get more detailed error information
-        try:
-            import traceback
-            print(f"❌ Full traceback:")
-            traceback.print_exc()
-        except:
-            pass
-            
-        return False
-
-# Validate database connection on startup
-print("🚀 Starting Hospital Management MCP Server...")
-print(f"🔗 Database URL: {os.getenv('DATABASE_URL', 'Using default')}")
-print(f"🌍 Environment: {'AWS' if os.getenv('AWS_EXECUTION_ENV') else 'Local'}")
-
-if DATABASE_AVAILABLE and DATABASE_CONNECTION_OK:
-    print("✅ Database modules available and connected")
-    db_connected = validate_database_connection()
-    if not db_connected:
-        print("⚠️ Database connection validation failed, but continuing with limited functionality...")
-        print("🔧 MCP server will start without database features")
-elif DATABASE_AVAILABLE and not DATABASE_CONNECTION_OK:
-    print("⚠️ Database modules available but connection failed during import")
-    print("🔧 MCP server will start without database features") 
-    db_connected = False
-else:
-    print("⚠️ Database modules not available. Running in limited mode.")
-    db_connected = False
-
-print("📡 MCP Server initialization complete")
-print(f"🗄️ Database status: {'Connected' if db_connected else 'Disconnected'}")
-
-# Add some basic tools that don't require database
-@mcp.tool()
-def server_status() -> Dict[str, Any]:
-    """Get MCP server status information."""
-    return {
-        "status": "running",
-        "database_available": DATABASE_AVAILABLE,
-        "database_connected": db_connected if 'db_connected' in locals() else False,
-        "environment": "AWS" if os.getenv('AWS_EXECUTION_ENV') else "Local",
-        "timestamp": datetime.now().isoformat()
-    }
+    """Get database session."""
+    return SessionLocal()
 
 def serialize_model(obj):
     """Convert SQLAlchemy model to dictionary."""
@@ -153,9 +60,7 @@ def create_user(username: str, email: str, password_hash: str, role: str,
         return {"success": False, "message": "Database not available"}
     
     try:
-        # Test database connection before proceeding
         db = get_db_session()
-        
         user = User(
             username=username,
             email=email,
@@ -165,21 +70,15 @@ def create_user(username: str, email: str, password_hash: str, role: str,
             last_name=last_name,
             phone=phone
         )
-        
         db.add(user)
         db.commit()
         db.refresh(user)
-        
         result = serialize_model(user)
         db.close()
         
-        return {"success": True, "user": result}
+        return {"success": True, "message": "User created successfully", "data": result}
     except Exception as e:
-        print(f"❌ Error creating user: {e}")
-        if 'db' in locals():
-            db.rollback()
-            db.close()
-        return {"success": False, "message": str(e)}
+        return {"success": False, "message": f"Failed to create user: {str(e)}"}
 
 @mcp.tool()
 def get_user_by_id(user_id: str) -> Dict[str, Any]:
