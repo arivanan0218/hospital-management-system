@@ -1,8 +1,8 @@
 # MCP Process Manager Dockerfile
 FROM node:18-alpine
 
-# Install Python and required dependencies
-RUN apk add --no-cache python3 py3-pip python3-dev gcc musl-dev postgresql-dev libffi-dev
+# Install Python and required dependencies including bash and PostgreSQL client
+RUN apk add --no-cache python3 py3-pip python3-dev gcc musl-dev postgresql-dev libffi-dev bash postgresql-client
 
 # Install UV package manager (with system packages override for Alpine)
 RUN pip3 install uv --break-system-packages
@@ -22,10 +22,11 @@ RUN node -e "console.log('Express version:', require('express/package.json').ver
 # Copy application code from the root context
 COPY mcp-process-manager/ ./
 
-# Copy backend-python files for MCP server access  
+# Copy backend-python files for MCP server access
 COPY backend-python/ ./backend-python
 
-# Install Python dependencies using UV (as root)
+# Make scripts executable
+RUN chmod +x ./backend-python/start_mcp_server.sh# Install Python dependencies using UV (as root)
 WORKDIR /app/backend-python
 RUN uv sync
 WORKDIR /app

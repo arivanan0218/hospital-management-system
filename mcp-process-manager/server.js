@@ -25,6 +25,39 @@ class MCPProcessManager {
     console.log('🚀 Starting MCP server with config:', config);
     
     try {
+      // First, test database connectivity
+      console.log('🔍 Testing database connectivity...');
+      const dbTestProcess = spawn('uv', ['run', 'python', 'test_db_connection.py'], {
+        cwd: config.cwd,
+        env: { ...process.env, ...config.env },
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+      
+      const dbTestResult = await new Promise((resolve) => {
+        let output = '';
+        let errorOutput = '';
+        
+        dbTestProcess.stdout?.on('data', (data) => {
+          output += data.toString();
+          console.log(`DB Test: ${data.toString().trim()}`);
+        });
+        
+        dbTestProcess.stderr?.on('data', (data) => {
+          errorOutput += data.toString();
+          console.error(`DB Test Error: ${data.toString().trim()}`);
+        });
+        
+        dbTestProcess.on('close', (code) => {
+          resolve({ code, output, errorOutput });
+        });
+      });
+      
+      if (dbTestResult.code !== 0) {
+        console.log('⚠️ Database test failed, but continuing with MCP server startup...');
+      } else {
+        console.log('✅ Database test passed!');
+      }
+      
       // Prepare spawn options
       const spawnOptions = {
         env: { ...process.env, ...config.env },
@@ -472,9 +505,12 @@ app.get('/mcp/diagnose', async (req, res) => {
       try {
         console.log('🔧 Auto-starting MCP server from diagnostic endpoint...');
         const config = {
-          command: 'uv',
-          args: ['run', 'python', 'comprehensive_server.py'],
-          env: { PYTHONPATH: '/backend-python' },
+          command: 'bash',
+          args: ['start_mcp_server.sh'],
+          env: { 
+            PYTHONPATH: '/backend-python',
+            DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/hospital_management'
+          },
           cwd: '/backend-python'
         };
         
