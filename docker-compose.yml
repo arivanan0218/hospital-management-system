@@ -44,8 +44,8 @@ services:
   # MCP Process Manager
   mcp-manager:
     build:
-      context: .
-      dockerfile: ./mcp-process-manager/Dockerfile
+      context: ./mcp-process-manager
+      dockerfile: Dockerfile
     container_name: hospital-mcp-manager
     environment:
       - PORT=3001

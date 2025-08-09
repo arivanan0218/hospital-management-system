@@ -14,71 +14,13 @@ import json
 # Load environment variables
 load_dotenv()
 
-# Database configuration with AWS environment handling
-def get_database_url():
-    """Get database URL with proper environment handling."""
-    # Check if we're in AWS environment (ECS containers)
-    if os.getenv("AWS_EXECUTION_ENV"):
-        print("🔍 AWS ECS environment detected")
-        
-        # In AWS ECS, containers in the same task can communicate via localhost
-        # But let's also check if DATABASE_URL is explicitly set
-        explicit_url = os.getenv("DATABASE_URL")
-        if explicit_url:
-            print(f"🔗 Using explicit DATABASE_URL: {explicit_url}")
-            return explicit_url
-        
-        # Try different possible database hosts
-        possible_hosts = ["127.0.0.1", "localhost", "postgres", "hospital-postgres"]
-        db_user = os.getenv("POSTGRES_USER", "postgres")
-        db_password = os.getenv("POSTGRES_PASSWORD", "postgres")
-        db_name = os.getenv("POSTGRES_DB", "hospital_management")
-        db_port = os.getenv("DATABASE_PORT", "5432")
-        
-        # Use localhost for AWS ECS (containers in same task)
-        aws_url = f"postgresql://{db_user}:{db_password}@127.0.0.1:{db_port}/{db_name}"
-        print(f"🔗 Using AWS ECS database URL: {aws_url}")
-        return aws_url
-    else:
-        print("🔍 Local development environment detected")
-        # Local development or custom environment
-        local_url = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/hospital_management")
-        print(f"🔗 Using local database URL: {local_url}")
-        return local_url
+# Database configuration
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/hospital_management")
 
-DATABASE_URL = get_database_url()
-
-# SQLAlchemy setup with better error handling
-try:
-    engine = create_engine(
-        DATABASE_URL,
-        pool_pre_ping=True,  # Verify connections before use
-        pool_recycle=300,    # Recycle connections every 5 minutes
-        connect_args={
-            "connect_timeout": 10,
-            "application_name": "hospital_mcp_server"
-        }
-    )
-    
-    # Test the connection
-    with engine.connect() as conn:
-        conn.execute(text("SELECT 1"))
-    
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    print(f"✅ Database engine created and tested successfully with URL: {DATABASE_URL}")
-    DATABASE_CONNECTION_OK = True
-except Exception as e:
-    print(f"❌ Failed to create or connect to database: {e}")
-    print(f"❌ Database URL was: {DATABASE_URL}")
-    print("⚠️ MCP server will continue without database functionality")
-    
-    # Create a dummy engine and session for graceful fallback
-    engine = None
-    SessionLocal = None
-    DATABASE_CONNECTION_OK = False
-
-# SQLAlchemy base
+# SQLAlchemy setup
 Base = declarative_base()
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Database Models
 
