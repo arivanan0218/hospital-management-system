@@ -22,8 +22,16 @@ RUN node -e "console.log('Express version:', require('express/package.json').ver
 # Copy application code from the root context
 COPY mcp-process-manager/ ./
 
-# Copy backend-python files for MCP server access
+# Copy backend-python files for MCP server access  
 COPY backend-python/ ./backend-python
+
+# Debug: List what we copied
+RUN echo "=== Debugging Docker build ===" && \
+    ls -la && \
+    echo "=== Backend directory ===" && \
+    ls -la backend-python/ && \
+    echo "=== Scripts ===" && \
+    ls -la backend-python/*.sh
 
 # Make scripts executable
 RUN chmod +x ./backend-python/start_mcp_server.sh
