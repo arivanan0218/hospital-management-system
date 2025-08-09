@@ -2,7 +2,7 @@
 FROM node:18-alpine
 
 # Install Python and required dependencies
-RUN apk add --no-cache python3 py3-pip python3-dev gcc musl-dev postgresql-dev libffi-dev
+RUN apk add --no-cache python3 py3-pip python3-dev gcc musl-dev
 
 # Install UV package manager (with system packages override for Alpine)
 RUN pip3 install uv --break-system-packages
@@ -11,7 +11,7 @@ RUN pip3 install uv --break-system-packages
 WORKDIR /app
 
 # Copy package files
-COPY mcp-process-manager/package*.json ./
+COPY package*.json ./
 
 # Install dependencies as root
 RUN npm install --production
@@ -20,15 +20,7 @@ RUN npm install --production
 RUN node -e "console.log('Express version:', require('express/package.json').version)"
 
 # Copy application code
-COPY mcp-process-manager/ .
-
-# Copy backend-python files for MCP server access
-COPY backend-python/ ./backend-python
-
-# Install Python dependencies using UV (as root)
-WORKDIR /app/backend-python
-RUN uv sync
-WORKDIR /app
+COPY . .
 
 # Create non-root user and change ownership
 RUN addgroup -g 1001 appgroup && adduser -u 1001 -G appgroup -s /bin/sh -D appuser

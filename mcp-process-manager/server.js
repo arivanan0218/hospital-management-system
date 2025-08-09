@@ -275,34 +275,7 @@ const app = express();
 const server = require('http').createServer(app);
 const wss = new WebSocket.Server({ server });
 
-// More aggressive CORS configuration
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  
-  // Always allow these origins
-  const allowedOrigins = [
-    'http://localhost:3000',
-    'http://localhost:5173', 
-    'http://hospital-alb-1667599615.us-east-1.elb.amazonaws.com'
-  ];
-  
-  if (allowedOrigins.includes(origin) || !origin || origin.endsWith('.amazonaws.com')) {
-    res.setHeader('Access-Control-Allow-Origin', origin || '*');
-  }
-  
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
-  
-  // Handle preflight
-  if (req.method === 'OPTIONS') {
-    console.log('Handling preflight request from:', origin);
-    return res.status(200).end();
-  }
-  
-  next();
-});
+app.use(cors());
 app.use(express.json());
 
 const mcpManager = new MCPProcessManager();
@@ -319,49 +292,27 @@ wss.on('connection', (ws) => {
 
 // API Routes
 app.post('/mcp/start', async (req, res) => {
-  console.log('🚀 Received MCP start request from origin:', req.headers.origin);
-  
   try {
     const config = req.body;
-    console.log('📋 Starting MCP with config:', config);
-    
-    // Set a timeout for the response
-    const timeout = setTimeout(() => {
-      if (!res.headersSent) {
-        console.log('⏰ MCP start timeout - sending partial response');
-        res.json({ 
-          success: true, 
-          message: 'MCP server starting (this may take a moment)...',
-          serverInfo: { isConnected: false, toolCount: 0, tools: [] }
-        });
-      }
-    }, 25000); // 25 second timeout
-    
     const started = await mcpManager.startMCPServer(config);
-    clearTimeout(timeout);
     
-    if (!res.headersSent) {
-      if (started) {
-        res.json({ 
-          success: true, 
-          message: 'MCP server started successfully',
-          serverInfo: mcpManager.getServerInfo()
-        });
-      } else {
-        res.status(500).json({ 
-          success: false, 
-          error: 'Failed to start MCP server' 
-        });
-      }
-    }
-  } catch (error) {
-    console.error('❌ Error starting MCP server:', error);
-    if (!res.headersSent) {
+    if (started) {
+      res.json({ 
+        success: true, 
+        message: 'MCP server started',
+        serverInfo: mcpManager.getServerInfo()
+      });
+    } else {
       res.status(500).json({ 
         success: false, 
-        error: error.message 
+        error: 'Failed to start MCP server' 
       });
     }
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
   }
 });
 
@@ -405,15 +356,6 @@ app.get('/mcp/status', (req, res) => {
   });
 });
 
-// Health check endpoint for load balancer
-app.get('/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'healthy', 
-    timestamp: new Date().toISOString(),
-    service: 'mcp-process-manager'
-  });
-});
-
 app.post('/mcp/stop', async (req, res) => {
   try {
     await mcpManager.stop();
@@ -432,17 +374,6 @@ app.post('/mcp/stop', async (req, res) => {
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`🌐 MCP Process Manager server running on port ${PORT}`);
-  console.log(`📁 Working directory: ${process.cwd()}`);
-  console.log(`🐍 Backend Python path: ${process.cwd()}/backend-python`);
-  
-  // Test if backend-python directory exists
-  const fs = require('fs');
-  const backendPath = `${process.cwd()}/backend-python`;
-  if (fs.existsSync(backendPath)) {
-    console.log('✅ Backend Python directory found');
-  } else {
-    console.log('⚠️ Backend Python directory not found - MCP server may not work');
-  }
 });
 
 module.exports = MCPProcessManager;

@@ -870,8 +870,7 @@ const DirectMCPChatbot = () => {
                   onClick={async () => {
                     setConnectionError('');
                     try {
-                      const mcpBridgeUrl = import.meta.env.VITE_MCP_BRIDGE_URL || 'http://localhost:3001';
-                      const response = await fetch(`${mcpBridgeUrl}/mcp/status`);
+                      const response = await fetch('http://localhost:3001/mcp/status');
                       if (response.ok) {
                         setConnectionError('✅ MCP Process Manager is running and ready');
                       } else {
