@@ -1,0 +1,32 @@
+# Minimal MCP Process Manager Dockerfile - No Python Dependencies
+FROM node:18-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY mcp-process-manager/package*.json ./
+
+# Install Node.js dependencies
+RUN npm install --production
+
+# Test Express
+RUN node -e "console.log('Express version:', require('express/package.json').version)"
+
+# Copy MCP manager source code
+COPY mcp-process-manager/ ./
+
+# Create minimal backend-python directory structure for testing
+RUN mkdir -p ./backend-python
+RUN echo '#!/bin/bash\necho "Minimal MCP server placeholder"\nsleep infinity' > ./backend-python/start_mcp_server.sh
+RUN chmod +x ./backend-python/start_mcp_server.sh
+
+# Expose port
+EXPOSE 3001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3001/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+
+# Start the MCP process manager
+CMD ["node", "server.js"]

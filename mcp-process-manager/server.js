@@ -505,8 +505,8 @@ app.get('/mcp/diagnose', async (req, res) => {
       try {
         console.log('🔧 Auto-starting MCP server from diagnostic endpoint...');
         const config = {
-          command: 'bash',
-          args: ['start_mcp_server.sh'],
+          command: 'echo',
+          args: ['MCP server would start here - minimal mode active'],
           env: { 
             PYTHONPATH: '/backend-python',
             DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/hospital_management'

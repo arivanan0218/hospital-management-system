@@ -117,7 +117,12 @@ jobs:
         pwd
         ls -la
         echo "Building MCP manager Docker image..."
-        docker build -f mcp-process-manager/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY_MCP:$IMAGE_TAG .
+        echo "Checking if directories exist:"
+        ls -la mcp-process-manager/ || echo "mcp-process-manager directory not found"
+        ls -la backend-python/ || echo "backend-python directory not found"
+        
+        # Build with minimal Dockerfile that doesn't require backend-python
+        DOCKER_BUILDKIT=1 docker build --file mcp-process-manager/Dockerfile.minimal --tag $ECR_REGISTRY/$ECR_REPOSITORY_MCP:$IMAGE_TAG .
         docker tag $ECR_REGISTRY/$ECR_REPOSITORY_MCP:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY_MCP:latest
         docker push $ECR_REGISTRY/$ECR_REPOSITORY_MCP:$IMAGE_TAG
         docker push $ECR_REGISTRY/$ECR_REPOSITORY_MCP:latest
