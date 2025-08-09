@@ -4,12 +4,6 @@ FROM node:18-alpine AS build
 # Set working directory
 WORKDIR /app
 
-# Accept build argument for MCP bridge URL
-ARG VITE_MCP_BRIDGE_URL=http://localhost:3001
-
-# Set environment variable for Vite build
-ENV VITE_MCP_BRIDGE_URL=$VITE_MCP_BRIDGE_URL
-
 # Copy package files
 COPY package*.json ./
 
@@ -19,7 +13,7 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Build the application with environment variables
+# Build the application
 RUN npm run build
 
 # Production stage

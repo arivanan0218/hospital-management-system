@@ -55,9 +55,3 @@ coverage/
 
 # Optional eslint cache
 .eslintcache
-
-# AWS deployment files
-aws-setup/trust-policy.json
-aws-setup/task-definition-updated.json
-*.pem
-*.key
