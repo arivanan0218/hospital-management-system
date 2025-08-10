@@ -114,7 +114,7 @@ jobs:
           --name hospital-backend \
           --network hospital-network \
           --restart unless-stopped \
-          -e DATABASE_URL="postgresql://postgres:HospitalSecure123!@hospital-postgres:5432/hospital_db" \
+          -e DATABASE_URL="postgresql://hospital_user:hospital_pass@hospital-postgres:5432/hospital_db" \
           324037286635.dkr.ecr.us-east-1.amazonaws.com/hospital-backend:latest
         
         # Start new frontend container
