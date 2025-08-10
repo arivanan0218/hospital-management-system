@@ -1033,7 +1033,7 @@ if __name__ == "__main__":
         # Run the MCP server with SSE transport for better HTTP compatibility
         # This allows direct connection from frontend without process manager
         print("🚀 Starting Hospital Management FastMCP Server...")
-        print("🌐 Server will be available at: http://127.0.0.1:8000")
+        print("🌐 Server will be available at: http://0.0.0.0:8000")
         
         # Create FastAPI app with CORS using SSE transport
         from fastapi.middleware.cors import CORSMiddleware
@@ -1058,15 +1058,29 @@ if __name__ == "__main__":
         # Tool call endpoint handler
         async def call_tool_http(request: Request):
             """HTTP endpoint for calling MCP tools directly"""
+            data = None
+            tool_name = None
             try:
                 body = await request.body()
                 data = json.loads(body)
                 
+                # Parse the request format sent by frontend
                 tool_name = data.get("params", {}).get("name")
                 arguments = data.get("params", {}).get("arguments", {})
                 request_id = data.get("id", "unknown")
                 
                 print(f"🔧 HTTP Tool Call: {tool_name} with args: {arguments}")
+                
+                if not tool_name:
+                    error_response = {
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "error": {
+                            "code": -32602,
+                            "message": "Missing tool name in params"
+                        }
+                    }
+                    return JSONResponse(error_response, status_code=400)
                 
                 # Direct call to our tool functions
                 db = get_db_session()
@@ -1156,11 +1170,14 @@ if __name__ == "__main__":
                     db.close()
                     
             except Exception as e:
-                print(f"❌ Error calling tool {tool_name if 'tool_name' in locals() else 'unknown'}: {str(e)}")
+                print(f"❌ Error calling tool {tool_name or 'unknown'}: {str(e)}")
                 traceback.print_exc()
+                request_id = "unknown"
+                if data and isinstance(data, dict):
+                    request_id = data.get("id", "unknown")
                 error_response = {
                     "jsonrpc": "2.0",
-                    "id": data.get("id", "unknown") if 'data' in locals() else "unknown",
+                    "id": request_id,
                     "error": {
                         "code": -32603,
                         "message": f"Internal error: {str(e)}"
@@ -1274,7 +1291,10 @@ if __name__ == "__main__":
         # Add CORS middleware
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+            allow_origins=[
+                "http://localhost:3000", "http://127.0.0.1:3000",  # Production frontend
+                "http://localhost:5173", "http://127.0.0.1:5173"   # Dev frontend
+            ],
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],
@@ -1285,8 +1305,8 @@ if __name__ == "__main__":
         print("   GET /tools/list - List available tools")
         print("   GET /health - Health check")
         
-        # Run with uvicorn
-        uvicorn.run(app, host="127.0.0.1", port=8000)
+        # Run with uvicorn - bind to 0.0.0.0 for Docker container access
+        uvicorn.run(app, host="0.0.0.0", port=8000)
         
     except Exception as e:
         # Log errors to stderr (not stdout) if needed
