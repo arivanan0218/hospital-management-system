@@ -1,0 +1,186 @@
+name: Hospital Management System CI/CD
+
+on:
+  push:
+    branches: [ main, dev-aws ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY_BACKEND: hospital-backend
+  ECR_REPOSITORY_FRONTEND: hospital-frontend
+  EC2_HOST: 34.207.201.88
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+    
+    - name: Install dependencies
+      run: |
+        cd backend-python
+        pip install uv
+        uv pip install --system -e .
+    
+    - name: Run basic health check
+      run: |
+        cd backend-python
+        python -c "import database; print('✅ Database module imported successfully')"
+
+  build-and-deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev-aws'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build and push backend image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        echo "🔨 Building backend image..."
+        cd backend-python
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:$IMAGE_TAG .
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:latest .
+        echo "📤 Pushing backend image..."
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:$IMAGE_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:latest
+        echo "✅ Backend image pushed successfully"
+
+    - name: Build and push frontend image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        echo "🔨 Building frontend image..."
+        cd frontend
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG .
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:latest .
+        echo "📤 Pushing frontend image..."
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:latest
+        echo "✅ Frontend image pushed successfully"
+
+    - name: Create deployment script
+      run: |
+        cat > deploy-to-ec2.sh << 'EOF'
+        #!/bin/bash
+        set -e
+        
+        echo "🚀 Starting deployment to EC2..."
+        
+        # Configure AWS CLI on EC2
+        aws configure set region us-east-1
+        
+        # Login to ECR
+        echo "🔐 Logging into ECR..."
+        aws ecr get-login-password --region us-east-1 | sudo docker login --username AWS --password-stdin 324037286635.dkr.ecr.us-east-1.amazonaws.com
+        
+        # Pull latest images
+        echo "📥 Pulling latest images..."
+        sudo docker pull 324037286635.dkr.ecr.us-east-1.amazonaws.com/hospital-backend:latest
+        sudo docker pull 324037286635.dkr.ecr.us-east-1.amazonaws.com/hospital-frontend:latest
+        
+        # Stop and remove old containers (except database and nginx)
+        echo "🛑 Stopping old containers..."
+        sudo docker stop hospital-backend hospital-frontend 2>/dev/null || true
+        sudo docker rm hospital-backend hospital-frontend 2>/dev/null || true
+        
+        # Start new backend container
+        echo "🔄 Starting new backend container..."
+        sudo docker run -d \
+          --name hospital-backend \
+          --network hospital-network \
+          --restart unless-stopped \
+          -e DATABASE_URL="postgresql://postgres:HospitalSecure123!@hospital-postgres:5432/hospital_db" \
+          324037286635.dkr.ecr.us-east-1.amazonaws.com/hospital-backend:latest
+        
+        # Start new frontend container
+        echo "🔄 Starting new frontend container..."
+        sudo docker run -d \
+          --name hospital-frontend \
+          --network hospital-network \
+          --restart unless-stopped \
+          324037286635.dkr.ecr.us-east-1.amazonaws.com/hospital-frontend:latest
+        
+        # Wait for containers to be healthy
+        echo "⏳ Waiting for containers to be healthy..."
+        sleep 30
+        
+        # Test health endpoint
+        echo "🧪 Testing application health..."
+        if curl -f http://localhost/health >/dev/null 2>&1; then
+          echo "✅ Deployment successful! Application is healthy."
+        else
+          echo "❌ Deployment failed! Health check failed."
+          exit 1
+        fi
+        
+        # Show container status
+        echo "📋 Container status:"
+        sudo docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+        
+        echo "🎉 Deployment completed successfully!"
+        echo "🌐 Application URL: http://${{ env.EC2_HOST }}/"
+        EOF
+        
+        chmod +x deploy-to-ec2.sh
+
+    - name: Deploy to EC2
+      env:
+        PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+        HOST: ${{ env.EC2_HOST }}
+        USER: ubuntu
+      run: |
+        echo "🔐 Setting up SSH..."
+        echo "$PRIVATE_KEY" > private_key.pem
+        chmod 600 private_key.pem
+        
+        echo "📁 Copying deployment script to EC2..."
+        scp -i private_key.pem -o StrictHostKeyChecking=no deploy-to-ec2.sh $USER@$HOST:~/
+        
+        echo "🚀 Executing deployment on EC2..."
+        ssh -i private_key.pem -o StrictHostKeyChecking=no $USER@$HOST '
+          chmod +x ~/deploy-to-ec2.sh
+          ~/deploy-to-ec2.sh
+        '
+        
+        echo "🧹 Cleaning up..."
+        rm -f private_key.pem
+
+    - name: Final health check
+      run: |
+        echo "🔍 Final health check..."
+        sleep 10
+        if curl -f http://${{ env.EC2_HOST }}/health; then
+          echo ""
+          echo "🎉 ✅ DEPLOYMENT SUCCESSFUL! ✅ 🎉"
+          echo "🌐 Your Hospital Management System is live at: http://${{ env.EC2_HOST }}/"
+          echo "🏥 Health API: http://${{ env.EC2_HOST }}/health"
+          echo "📚 Documentation: http://${{ env.EC2_HOST }}/docs"
+        else
+          echo "❌ Final health check failed"
+          exit 1
+        fi
