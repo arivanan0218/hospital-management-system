@@ -28,7 +28,7 @@ class DirectHttpAIMCPService {
    * Initialize the service with OpenAI API key
    * serverConfig is optional since we connect directly to HTTP server
    */
-  async initialize(openaiApiKey) {
+  async initialize(openaiApiKey, serverConfig = null) {
     console.log('🚀 Initializing Direct HTTP AI-MCP Service (Claude Desktop Style)...');
     
     if (!openaiApiKey) {
@@ -78,11 +78,22 @@ class DirectHttpAIMCPService {
   }
 
   /**
-   * Get server information and status
+   * Get today's date for context
    */
-  getServerStatus() {
-    const serverInfo = this.getServerInfo();
-    return serverInfo;
+  getTodayDate() {
+    return new Date().toISOString().split('T')[0];
+  }
+
+  /**
+   * Get server information
+   */
+  getServerInfo() {
+    return {
+      type: 'Direct HTTP FastMCP Server',
+      url: this.mcpClient?.serverUrl || 'http://127.0.0.1:8000',
+      connected: this.isConnected(),
+      timestamp: new Date().toISOString()
+    };
   }
 
   /**
@@ -125,7 +136,7 @@ class DirectHttpAIMCPService {
 
       // Initial OpenAI call
       const openAIStart = Date.now();
-      gptResponse = await this.callOpenAI(userMessage, availableTools);
+      gptResponse = await this.callOpenAI(userMessage, availableTools, serverInfo);
       openAITotal += Date.now() - openAIStart;
 
       // Support multiple rounds of function calls (CLAUDE DESKTOP PATTERN)
@@ -149,7 +160,7 @@ class DirectHttpAIMCPService {
 
         // Continue conversation with updated context
         const openAIStart2 = Date.now();
-        gptResponse = await this.callOpenAI(null, availableTools);
+        gptResponse = await this.callOpenAI(null, availableTools, serverInfo);
         openAITotal += Date.now() - openAIStart2;
         iterationCount++;
       }
@@ -191,7 +202,7 @@ class DirectHttpAIMCPService {
   /**
    * Intelligent tool determination with AI assistance - Claude Desktop style
    */
-  async determineRequiredToolsWithAI(userMessage) {
+  async determineRequiredToolsWithAI(userMessage, availableTools) {
     // Check conversation context for ongoing operations
     const contextualTools = this.analyzeConversationContext(userMessage);
     if (contextualTools.length > 0) {
@@ -205,7 +216,7 @@ class DirectHttpAIMCPService {
     }
     
     // Fall back to existing logic
-    return this.determineRequiredTools(userMessage);
+    return this.determineRequiredTools(userMessage, availableTools);
   }
 
   /**
@@ -276,7 +287,7 @@ class DirectHttpAIMCPService {
   /**
    * Handle incomplete requests intelligently
    */
-  async handleIncompleteRequest(tool) {
+  async handleIncompleteRequest(tool, userMessage) {
     const requestType = tool.name;
     
     switch (requestType) {
@@ -313,7 +324,7 @@ class DirectHttpAIMCPService {
           params.department_id = dept.id;
           delete params.department_name;
         }
-      } catch {
+      } catch (error) {
         console.warn('Could not resolve department name:', params.department_name);
       }
     }
@@ -329,7 +340,7 @@ class DirectHttpAIMCPService {
           params.patient_id = patients[0].id;
           delete params.patient_name;
         }
-      } catch {
+      } catch (error) {
         console.warn('Could not resolve patient name:', params.patient_name);
       }
     }
@@ -346,7 +357,7 @@ class DirectHttpAIMCPService {
           params.doctor_id = doctor.id;
           delete params.doctor_name;
         }
-      } catch {
+      } catch (error) {
         console.warn('Could not resolve doctor name:', params.doctor_name);
       }
     }
@@ -450,7 +461,7 @@ Respond naturally, conversationally, and contextually based on the conversation 
   /**
    * Determine which tools are needed based on user input
    */
-  async determineRequiredTools(userMessage) {
+  async determineRequiredTools(userMessage, availableTools) {
     // Simple keyword-based tool mapping for better reliability
     const message = userMessage.toLowerCase();
     const toolsNeeded = [];
@@ -844,7 +855,7 @@ Respond naturally and helpfully based on the user's request and the tool results
           // Old format - parse JSON from text
           try {
             data = JSON.parse(result.result.content[0].text);
-          } catch {
+          } catch (e) {
             data = result.result.content[0].text;
           }
         } else if (result.result) {
@@ -1139,7 +1150,7 @@ Respond naturally and helpfully based on the user's request and the tool results
     }
     
     // Extract doctor name or ID
-    const doctorMatch = message.match(/doctor\s+([a-zA-Z\s.]+)|with\s+([a-zA-Z\s.]+)(?:\s+in|\s+on|$)/i);
+    const doctorMatch = message.match(/doctor\s+([a-zA-Z\s\.]+)|with\s+([a-zA-Z\s\.]+)(?:\s+in|\s+on|$)/i);
     if (doctorMatch) {
       const doctorInfo = doctorMatch[1] || doctorMatch[2];
       if (doctorInfo && doctorInfo.trim()) {
@@ -1635,6 +1646,102 @@ Respond naturally and helpfully based on the user's request and the tool results
   }
 
   /**
+   * Extract bed assignment parameters
+   */
+  extractBedAssignmentParameters(message) {
+    const params = {};
+    
+    const bedId = this.extractId(message, ['bed', 'b']);
+    if (bedId) {
+      params.bed_id = bedId;
+    }
+    
+    const patientId = this.extractId(message, ['patient', 'pat', 'p']);
+    if (patientId) {
+      params.patient_id = patientId;
+    }
+    
+    const dateMatch = message.match(/(\d{4}-\d{2}-\d{2})/);
+    if (dateMatch) {
+      params.admission_date = dateMatch[1];
+    }
+    
+    return params;
+  }
+
+  /**
+   * Extract bed discharge parameters
+   */
+  extractBedDischargeParameters(message) {
+    const params = {};
+    
+    const bedId = this.extractId(message, ['bed', 'b']);
+    if (bedId) {
+      params.bed_id = bedId;
+    }
+    
+    const dateMatch = message.match(/(\d{4}-\d{2}-\d{2})/);
+    if (dateMatch) {
+      params.discharge_date = dateMatch[1];
+    }
+    
+    return params;
+  }
+
+  /**
+   * Extract category parameters (for equipment/supply categories)
+   */
+  extractCategoryParameters(message, type) {
+    const params = {};
+    
+    const nameMatch = message.match(new RegExp(`${type}\\s+category\\s+([a-zA-Z\\s]+)`, 'i'));
+    if (nameMatch) {
+      params.name = nameMatch[1].trim();
+    } else {
+      const createMatch = message.match(/create\\s+([a-zA-Z\\s]+)\\s+category/i);
+      if (createMatch) {
+        params.name = createMatch[1].trim();
+      }
+    }
+    
+    const descMatch = message.match(/description[:\s]+([^,]+)/i);
+    if (descMatch) {
+      params.description = descMatch[1].trim();
+    }
+    
+    return params;
+  }
+
+  /**
+   * Extract legacy user parameters
+   */
+  extractLegacyUserParameters(message) {
+    const params = {};
+    
+    const nameMatch = message.match(/name[:\s]+([^,]+)/i);
+    if (nameMatch) {
+      params.name = nameMatch[1].trim();
+    }
+    
+    const emailMatch = message.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+    if (emailMatch) {
+      params.email = emailMatch[1];
+    }
+    
+    const phoneMatch = message.match(/phone[:\s]+([^\s,]+)/i);
+    if (phoneMatch) {
+      params.phone = phoneMatch[1];
+    }
+    
+    const addressMatch = message.match(/address[:\s]+([^,]+)/i);
+    if (addressMatch) {
+      params.address = addressMatch[1].trim();
+    }
+    
+    return params;
+  }
+
+  /**
    * Add message to conversation history with memory management
    */
   addToConversationHistory(role, content, tool_calls = null, functionName = null, tool_call_id = null) {
@@ -1666,7 +1773,7 @@ Respond naturally and helpfully based on the user's request and the tool results
   /**
    * Call OpenAI with function calling and conversation history (Claude Desktop Style)
    */
-  async callOpenAI(userMessage, functions) {
+  async callOpenAI(userMessage, functions, serverInfo) {
     const systemPrompt = `You are Hospital AI, an advanced AI assistant specialized in comprehensive hospital management. You're connected to a real hospital management system through MCP (Model Context Protocol).
 
 Today is: ${this.getTodayDate()}.
