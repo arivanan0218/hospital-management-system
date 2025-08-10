@@ -16,7 +16,7 @@ COPY pyproject.toml ./
 COPY uv.lock* ./
 
 # Install uv for faster package management
-RUN pip install uv
+RUN pip install --no-cache-dir uv
 
 # Install dependencies using uv
 RUN uv pip install --system --no-cache-dir -r pyproject.toml
