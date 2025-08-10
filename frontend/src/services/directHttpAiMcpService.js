@@ -26,9 +26,9 @@ class DirectHttpAIMCPService {
 
   /**
    * Initialize the service with OpenAI API key
-   * _serverConfig is optional since we connect directly to HTTP server
+   * serverConfig is optional since we connect directly to HTTP server
    */
-  async initialize(openaiApiKey, _serverConfig = null) {
+  async initialize(openaiApiKey) {
     console.log('🚀 Initializing Direct HTTP AI-MCP Service (Claude Desktop Style)...');
     
     if (!openaiApiKey) {
@@ -125,7 +125,7 @@ class DirectHttpAIMCPService {
 
       // Initial OpenAI call
       const openAIStart = Date.now();
-      gptResponse = await this.callOpenAI(userMessage, availableTools, serverInfo);
+      gptResponse = await this.callOpenAI(userMessage, availableTools);
       openAITotal += Date.now() - openAIStart;
 
       // Support multiple rounds of function calls (CLAUDE DESKTOP PATTERN)
@@ -149,7 +149,7 @@ class DirectHttpAIMCPService {
 
         // Continue conversation with updated context
         const openAIStart2 = Date.now();
-        gptResponse = await this.callOpenAI(null, availableTools, serverInfo);
+        gptResponse = await this.callOpenAI(null, availableTools);
         openAITotal += Date.now() - openAIStart2;
         iterationCount++;
       }
@@ -191,7 +191,7 @@ class DirectHttpAIMCPService {
   /**
    * Intelligent tool determination with AI assistance - Claude Desktop style
    */
-  async determineRequiredToolsWithAI(userMessage, availableTools) {
+  async determineRequiredToolsWithAI(userMessage) {
     // Check conversation context for ongoing operations
     const contextualTools = this.analyzeConversationContext(userMessage);
     if (contextualTools.length > 0) {
@@ -205,7 +205,7 @@ class DirectHttpAIMCPService {
     }
     
     // Fall back to existing logic
-    return this.determineRequiredTools(userMessage, availableTools);
+    return this.determineRequiredTools(userMessage);
   }
 
   /**
@@ -276,7 +276,7 @@ class DirectHttpAIMCPService {
   /**
    * Handle incomplete requests intelligently
    */
-  async handleIncompleteRequest(tool, _userMessage) {
+  async handleIncompleteRequest(tool) {
     const requestType = tool.name;
     
     switch (requestType) {
@@ -450,7 +450,7 @@ Respond naturally, conversationally, and contextually based on the conversation 
   /**
    * Determine which tools are needed based on user input
    */
-  async determineRequiredTools(userMessage, _availableTools) {
+  async determineRequiredTools(userMessage) {
     // Simple keyword-based tool mapping for better reliability
     const message = userMessage.toLowerCase();
     const toolsNeeded = [];
@@ -1666,7 +1666,7 @@ Respond naturally and helpfully based on the user's request and the tool results
   /**
    * Call OpenAI with function calling and conversation history (Claude Desktop Style)
    */
-  async callOpenAI(userMessage, functions, _serverInfo) {
+  async callOpenAI(userMessage, functions) {
     const systemPrompt = `You are Hospital AI, an advanced AI assistant specialized in comprehensive hospital management. You're connected to a real hospital management system through MCP (Model Context Protocol).
 
 Today is: ${this.getTodayDate()}.
