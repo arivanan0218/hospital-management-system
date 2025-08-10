@@ -19,7 +19,7 @@ class DirectHttpAIMCPService {
     this.openaiApiKey = null;
     this.isInitialized = false;
     this.conversationHistory = []; // Add conversation memory
-    this.maxHistoryLength = 10; // Keep last 20 messages to manage token usage
+    this.maxHistoryLength = 6; // Keep last 6 messages to manage token usage better
     this.verboseMode = true; // Toggle for response style
     this.previousQuestions = []; // Track user's previous questions for duplicate detection
   }
@@ -77,6 +77,40 @@ class DirectHttpAIMCPService {
   }
 
 
+
+  /**
+   * Validate conversation history for proper tool call/response structure
+   */
+  validateConversationStructure() {
+    const pendingToolCalls = new Set();
+    
+    for (const message of this.conversationHistory) {
+      if (message.role === 'assistant' && message.tool_calls) {
+        // Add all tool call IDs to pending set
+        for (const toolCall of message.tool_calls) {
+          pendingToolCalls.add(toolCall.id);
+        }
+      } else if (message.role === 'tool' && message.tool_call_id) {
+        // Remove responded tool call ID
+        pendingToolCalls.delete(message.tool_call_id);
+      }
+    }
+    
+    if (pendingToolCalls.size > 0) {
+      console.warn(`⚠️ Found ${pendingToolCalls.size} unresolved tool calls:`, Array.from(pendingToolCalls));
+      return false;
+    }
+    
+    return true;
+  }
+
+  /**
+   * Clear conversation history (useful for fresh context)
+   */
+  clearConversationHistory() {
+    this.conversationHistory = [];
+    console.log('🧹 Conversation history cleared');
+  }
 
   /**
    * Check if service is connected
@@ -1645,15 +1679,88 @@ Respond naturally and helpfully based on the user's request and the tool results
       message.tool_call_id = tool_call_id;
     }
     
+    // Truncate very large content to prevent token overflow
+    if (typeof content === 'string' && content.length > 2000) {
+      message.content = content.substring(0, 2000) + '... [truncated]';
+    }
+    
     this.conversationHistory.push(message);
     
-    // Manage conversation memory to prevent token overflow
+    // Advanced conversation memory management that preserves tool call/response pairs
     if (this.conversationHistory.length > this.maxHistoryLength) {
-      // Keep system message and recent conversations
-      const systemMessages = this.conversationHistory.filter(msg => msg.role === 'system');
-      const recentMessages = this.conversationHistory.slice(-this.maxHistoryLength + systemMessages.length);
-      this.conversationHistory = [...systemMessages, ...recentMessages];
+      this.trimConversationHistory();
     }
+  }
+
+  /**
+   * Trim conversation history while preserving tool call/response integrity
+   */
+  trimConversationHistory() {
+    const systemMessages = this.conversationHistory.filter(msg => msg.role === 'system');
+    const nonSystemMessages = this.conversationHistory.filter(msg => msg.role !== 'system');
+    
+    // Find complete tool call sequences (assistant with tool_calls + all tool responses)
+    const completeSequences = [];
+    let currentSequence = [];
+    
+    for (let i = 0; i < nonSystemMessages.length; i++) {
+      const msg = nonSystemMessages[i];
+      
+      if (msg.role === 'assistant' && msg.tool_calls) {
+        // Start new sequence
+        if (currentSequence.length > 0) {
+          completeSequences.push([...currentSequence]);
+        }
+        currentSequence = [msg];
+      } else if (msg.role === 'tool' && currentSequence.length > 0) {
+        // Add tool response to current sequence
+        currentSequence.push(msg);
+      } else if (msg.role === 'assistant' && !msg.tool_calls) {
+        // Complete current sequence with final assistant response
+        if (currentSequence.length > 0) {
+          currentSequence.push(msg);
+          completeSequences.push([...currentSequence]);
+          currentSequence = [];
+        } else {
+          // Standalone assistant message
+          completeSequences.push([msg]);
+        }
+      } else if (msg.role === 'user') {
+        // Complete current sequence and start fresh
+        if (currentSequence.length > 0) {
+          completeSequences.push([...currentSequence]);
+          currentSequence = [];
+        }
+        completeSequences.push([msg]);
+      }
+    }
+    
+    // Add any remaining sequence
+    if (currentSequence.length > 0) {
+      completeSequences.push([...currentSequence]);
+    }
+    
+    // Keep the most recent complete sequences that fit within our limit
+    const keptSequences = [];
+    let messageCount = 0;
+    
+    for (let i = completeSequences.length - 1; i >= 0; i--) {
+      const sequence = completeSequences[i];
+      if (messageCount + sequence.length <= this.maxHistoryLength) {
+        keptSequences.unshift(sequence);
+        messageCount += sequence.length;
+      } else {
+        break;
+      }
+    }
+    
+    // Flatten sequences back to message list
+    const keptMessages = keptSequences.flat();
+    
+    // Rebuild conversation history
+    this.conversationHistory = [...systemMessages, ...keptMessages];
+    
+    console.log(`🧹 Trimmed conversation history: ${nonSystemMessages.length} -> ${keptMessages.length} messages`);
   }
 
   /**
@@ -1729,17 +1836,36 @@ You have access to a complete hospital management system with tools for:
 - Provide clear, helpful responses based on actual tool results
 - If a parameter name doesn't exist in the schema, don't use it
 
-**CRITICAL: Multi-Step Operations with Foreign Key Resolution:**
-For complex requests that need foreign keys, follow this workflow:
-1. If user says "create bed in room 101":
-   → FIRST call list_rooms to find room_id for room "101"
-   → THEN call create_bed with the found room_id
-2. If user says "create appointment with Dr. Smith":
-   → FIRST call list_staff to find doctor_id for "Dr. Smith"
-   → THEN call create_appointment with the found doctor_id
-3. If user says "assign bed to John Doe":
-   → FIRST call search_patients with first_name="John", last_name="Doe"
-   → THEN call assign_bed_to_patient with the found patient_id
+**CRITICAL: Doctor Appointment Creation Workflow:**
+When creating appointments, follow this EXACT sequence to avoid foreign key errors:
+
+1. **First, always get valid doctor information:**
+   - Use list_staff with status active to get all active staff
+   - Filter results to find staff members who are doctors (position contains Doctor or Physician)
+   - NEVER use staff_id directly - appointments table expects doctor_id which maps to staff.user_id
+
+2. **For appointment creation, use this mapping:**
+   - patient_id: Use the patient UUID from create_patient or search_patients
+   - doctor_id: Use staff.user_id (NOT staff.employee_id or staff table primary key)
+   - department_id: Use the department where the doctor works (staff.department_id)
+   - appointment_date: Use format YYYY-MM-DD HH:MM (example 2025-08-10 14:30)
+
+3. **Correct workflow steps:**
+   - Step 1: Call list_staff with status active
+   - Step 2: Find doctor where position contains Doctor
+   - Step 3: Use that doctor user_id as doctor_id in create_appointment
+   - Step 4: Call create_appointment with patient_id, doctor_id, department_id, appointment_date, and reason
+
+4. **Foreign Key Troubleshooting:**
+   - If foreign key error occurs, first verify doctor exists using get_user_by_id
+   - Check if department exists using get_department_by_id  
+   - Ensure patient exists using get_patient_by_id
+   - CRITICAL: The appointments table doctor_id field references users.id, NOT staff.id
+
+5. **Error Recovery:**
+   - If appointment creation fails, list available doctors again
+   - Show user available doctors and ask them to choose
+   - Always verify foreign key relationships before creating appointment
 
 **ALWAYS resolve human names to IDs before create operations - this is how Claude Desktop works!**
 
@@ -1755,6 +1881,12 @@ For complex requests that need foreign keys, follow this workflow:
 Use the available functions to help users with hospital management tasks.`;
 
     const messages = [{ role: 'system', content: systemPrompt }];
+    
+    // Validate conversation structure before adding to messages
+    if (!this.validateConversationStructure()) {
+      console.warn('⚠️ Invalid conversation structure detected, clearing history');
+      this.clearConversationHistory();
+    }
     
     // Add conversation history
     messages.push(...this.conversationHistory);
@@ -1777,12 +1909,30 @@ Use the available functions to help users with hospital management tasks.`;
           tools: functions,
           tool_choice: 'auto',
           temperature: 0.7,
-          max_tokens: 2000
+          max_tokens: 1500  // Reduced from 2000 to leave more room for context
         })
       });
 
       if (!response.ok) {
-        throw new Error(`OpenAI API error: ${response.status} - ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('OpenAI API Error Details:', errorText);
+        
+        // Handle specific error cases
+        if (response.status === 400) {
+          if (errorText.includes('context_length_exceeded')) {
+            // Clear conversation history and retry with minimal context
+            console.warn('⚠️ Context length exceeded, clearing conversation history');
+            this.clearConversationHistory();
+            return this.callOpenAI(userMessage, functions);
+          } else if (errorText.includes('tool_call_id')) {
+            // Handle broken tool call/response structure
+            console.warn('⚠️ Broken tool call structure detected, clearing conversation history');
+            this.clearConversationHistory();
+            return this.callOpenAI(userMessage, functions);
+          }
+        }
+        
+        throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
@@ -1792,6 +1942,47 @@ Use the available functions to help users with hospital management tasks.`;
 
     } catch (error) {
       console.error('❌ OpenAI API call failed:', error);
+      
+      // Handle various OpenAI API errors with automatic recovery
+      if (error.message.includes('context_length') || 
+          error.message.includes('token') || 
+          error.message.includes('tool_call_id')) {
+        console.warn('⚠️ Conversation structure issue detected, clearing history and retrying');
+        this.clearConversationHistory();
+        
+        // Retry once with clean context
+        try {
+          const retryMessages = [{ role: 'system', content: systemPrompt }];
+          if (userMessage) {
+            retryMessages.push({ role: 'user', content: userMessage });
+          }
+          
+          const retryResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${this.openaiApiKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              model: 'gpt-4-turbo-preview',
+              messages: retryMessages,
+              tools: functions,
+              tool_choice: 'auto',
+              temperature: 0.7,
+              max_tokens: 1500
+            })
+          });
+          
+          if (retryResponse.ok) {
+            const retryData = await retryResponse.json();
+            console.log('✅ Retry successful:', retryData.choices[0].message);
+            return retryData;
+          }
+        } catch (retryError) {
+          console.error('❌ Retry also failed:', retryError);
+        }
+      }
+      
       throw error;
     }
   }
