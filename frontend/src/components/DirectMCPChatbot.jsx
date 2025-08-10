@@ -10,7 +10,6 @@ const DirectMCPChatbot = () => {
   
   // Configuration state
   const [openaiApiKey, setOpenaiApiKey] = useState(import.meta.env.VITE_OPENAI_API_KEY || '');
-  const [serverStatus, setServerStatus] = useState('Checking server...');
   
   const [serverInfo, setServerInfo] = useState(null);
   const [connectionError, setConnectionError] = useState('');
