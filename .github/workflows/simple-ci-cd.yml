@@ -1,0 +1,253 @@
+name: Simple CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY_BACKEND: hospital-backend
+  ECR_REPOSITORY_FRONTEND: hospital-frontend
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Install Python dependencies
+      run: |
+        cd backend-python
+        pip install uv
+        uv pip install --system -r pyproject.toml
+
+    - name: Install Node.js dependencies
+      run: |
+        cd frontend
+        npm ci
+
+    - name: Lint frontend code
+      run: |
+        cd frontend
+        npm run lint
+
+    - name: Build frontend
+      run: |
+        cd frontend
+        npm run build
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+    
+    outputs:
+      backend-image: ${{ steps.build-info.outputs.backend-image }}
+      frontend-image: ${{ steps.build-info.outputs.frontend-image }}
+      image-tag: ${{ steps.build-info.outputs.image-tag }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build, tag, and push images
+      id: build-info
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        # Build and push backend
+        echo "Building backend image..."
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:$IMAGE_TAG ./backend-python
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:$IMAGE_TAG
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:latest
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:latest
+        
+        # Build and push frontend
+        echo "Building frontend image..."
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG ./frontend
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:latest
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:latest
+        
+        # Set outputs
+        echo "backend-image=$ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:$IMAGE_TAG" >> $GITHUB_OUTPUT
+        echo "frontend-image=$ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG" >> $GITHUB_OUTPUT
+        echo "image-tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/dev'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Deploy via AWS Systems Manager
+      env:
+        IMAGE_TAG: ${{ needs.build-and-push.outputs.image-tag }}
+        AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+        POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        VITE_CLAUDE_API_KEY: ${{ secrets.VITE_CLAUDE_API_KEY }}
+        VITE_OPENAI_API_KEY: ${{ secrets.VITE_OPENAI_API_KEY }}
+        VITE_GROQ_API_KEY: ${{ secrets.VITE_GROQ_API_KEY }}
+        VITE_GOOGLE_API_KEY: ${{ secrets.VITE_GOOGLE_API_KEY }}
+      run: |
+        # Get EC2 instance ID by tag
+        INSTANCE_ID=$(aws ec2 describe-instances \
+          --filters "Name=tag:Name,Values=hospital-management-server" "Name=instance-state-name,Values=running" \
+          --query 'Reservations[0].Instances[0].InstanceId' \
+          --output text)
+        
+        if [ "$INSTANCE_ID" = "None" ] || [ -z "$INSTANCE_ID" ]; then
+          echo "❌ No running EC2 instance found with tag Name=hospital-management-server"
+          exit 1
+        fi
+        
+        echo "🎯 Deploying to instance: $INSTANCE_ID"
+        
+        # Get AWS Account ID
+        AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+        
+        # Create deployment script
+        cat > deploy-commands.sh << 'EOF'
+        #!/bin/bash
+        set -e
+        
+        # Set environment variables
+        export AWS_REGION="${AWS_REGION}"
+        export AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID}"
+        export IMAGE_TAG="${IMAGE_TAG}"
+        export POSTGRES_PASSWORD="${POSTGRES_PASSWORD}"
+        export GEMINI_API_KEY="${GEMINI_API_KEY}"
+        export VITE_CLAUDE_API_KEY="${VITE_CLAUDE_API_KEY:-}"
+        export VITE_OPENAI_API_KEY="${VITE_OPENAI_API_KEY:-}"
+        export VITE_GROQ_API_KEY="${VITE_GROQ_API_KEY:-}"
+        export VITE_GOOGLE_API_KEY="${VITE_GOOGLE_API_KEY:-}"
+        
+        # Login to ECR
+        aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+        
+        # Navigate to application directory
+        cd /home/ec2-user/hospital-management || mkdir -p /home/ec2-user/hospital-management && cd /home/ec2-user/hospital-management
+        
+        # Download docker-compose.prod.yml if not exists
+        if [ ! -f docker-compose.prod.yml ]; then
+          wget -O docker-compose.prod.yml https://raw.githubusercontent.com/${{ github.repository }}/main/docker-compose.prod.yml
+        fi
+        
+        # Stop existing containers
+        docker-compose -f docker-compose.prod.yml down || true
+        
+        # Pull latest images
+        docker pull $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/hospital-backend:$IMAGE_TAG
+        docker pull $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/hospital-frontend:$IMAGE_TAG
+        
+        # Start new containers
+        docker-compose -f docker-compose.prod.yml up -d
+        
+        # Clean up old images
+        docker image prune -f
+        
+        echo "✅ Deployment completed successfully"
+        EOF
+        
+        # Upload and execute deployment script via SSM
+        aws ssm send-command \
+          --instance-ids "$INSTANCE_ID" \
+          --document-name "AWS-RunShellScript" \
+          --parameters 'commands=["'"$(cat deploy-commands.sh | sed 's/"/\\"/g' | tr '\n' ' ')"'"]' \
+          --timeout-seconds 600 \
+          --region $AWS_REGION \
+          --output text \
+          --query 'Command.CommandId' > command_id.txt
+        
+        COMMAND_ID=$(cat command_id.txt)
+        echo "📡 Command ID: $COMMAND_ID"
+        
+        # Wait for command completion
+        echo "⏳ Waiting for deployment to complete..."
+        aws ssm wait command-executed \
+          --command-id "$COMMAND_ID" \
+          --instance-id "$INSTANCE_ID" \
+          --region $AWS_REGION
+        
+        # Get command results
+        aws ssm get-command-invocation \
+          --command-id "$COMMAND_ID" \
+          --instance-id "$INSTANCE_ID" \
+          --region $AWS_REGION \
+          --query 'StandardOutputContent' \
+          --output text
+
+    - name: Verify deployment
+      run: |
+        # Get instance IP
+        INSTANCE_ID=$(aws ec2 describe-instances \
+          --filters "Name=tag:Name,Values=hospital-management-server" "Name=instance-state-name,Values=running" \
+          --query 'Reservations[0].Instances[0].InstanceId' \
+          --output text)
+        
+        PUBLIC_IP=$(aws ec2 describe-instances \
+          --instance-ids "$INSTANCE_ID" \
+          --query 'Reservations[0].Instances[0].PublicIpAddress' \
+          --output text)
+        
+        echo "🌐 Application URL: http://$PUBLIC_IP"
+        
+        # Wait for services to be ready
+        echo "⏳ Waiting for services to start..."
+        sleep 60
+        
+        # Test health endpoint
+        if curl -f "http://$PUBLIC_IP:8000/health"; then
+          echo "✅ Backend health check passed"
+        else
+          echo "❌ Backend health check failed"
+          exit 1
+        fi
+        
+        # Test frontend
+        if curl -f "http://$PUBLIC_IP/"; then
+          echo "✅ Frontend check passed"
+        else
+          echo "❌ Frontend check failed"
+          exit 1
+        fi
+        
+        echo "🎉 Deployment verification completed successfully!"
+        echo "📱 Access your application at: http://$PUBLIC_IP"

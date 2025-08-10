@@ -7,12 +7,9 @@ services:
     environment:
       POSTGRES_DB: hospital_management
       POSTGRES_USER: hospital_user
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hospital_password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend-python/init.sql:/docker-entrypoint-initdb.d/
-    ports:
-      - "5432:5432"
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U hospital_user -d hospital_management"]
@@ -22,21 +19,17 @@ services:
 
   # Backend Python Service
   backend:
-    build:
-      context: ./backend-python
-      dockerfile: Dockerfile
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/hospital-backend:${IMAGE_TAG}
     environment:
-      - DATABASE_URL=postgresql://hospital_user:${POSTGRES_PASSWORD:-hospital_password}@postgres:5432/hospital_management
+      - DATABASE_URL=postgresql://hospital_user:${POSTGRES_PASSWORD}@postgres:5432/hospital_management
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_LEVEL=INFO
     ports:
       - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
     restart: unless-stopped
-    volumes:
-      - ./backend-python:/app
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -45,9 +38,7 @@ services:
 
   # Frontend React Service
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/hospital-frontend:${IMAGE_TAG}
     environment:
       - VITE_CLAUDE_API_KEY=${VITE_CLAUDE_API_KEY}
       - VITE_OPENAI_API_KEY=${VITE_OPENAI_API_KEY}
