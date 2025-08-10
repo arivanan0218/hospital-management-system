@@ -43,30 +43,11 @@ This hospital management system is a **3-tier containerized application** with t
 2. **Environment Setup**:
    ```bash
    # Copy environment template
-   cp .env.example .env
+   cp .env.docker .env
    
    # Edit .env file with your API keys
    # nano .env  # or use your preferred editor
    ```
-
-3. **For Local Development**:
-   ```bash
-   # Run the setup script
-   chmod +x setup-local.sh
-   ./setup-local.sh
-   ```
-
-4. **For AWS Production Deployment**:
-   ```bash
-   # Run the AWS setup script
-   chmod +x setup-aws-simple.sh
-   ./setup-aws-simple.sh
-   
-   # Follow the instructions to configure GitHub Secrets
-   # Push to main branch to trigger deployment
-   ```
-
-   📚 **For detailed deployment instructions, see [DEPLOYMENT.md](DEPLOYMENT.md)**
 
 3. **Deploy with Docker**:
 
