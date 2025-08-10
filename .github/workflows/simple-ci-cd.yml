@@ -140,63 +140,67 @@ jobs:
         
         echo "🎯 Deploying to instance: $INSTANCE_ID"
         
-        # Get AWS Account ID
-        AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-        
-        # Create deployment script
-        cat > deploy-commands.sh << 'EOF'
+        # Create a simple deployment script
+        cat > /tmp/deploy.sh << 'EOFSCRIPT'
         #!/bin/bash
         set -e
         
-        # Set environment variables
-        export AWS_REGION="${AWS_REGION}"
-        export AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID}"
-        export IMAGE_TAG="${IMAGE_TAG}"
-        export POSTGRES_PASSWORD="${POSTGRES_PASSWORD}"
-        export GEMINI_API_KEY="${GEMINI_API_KEY}"
-        export VITE_CLAUDE_API_KEY="${VITE_CLAUDE_API_KEY:-}"
-        export VITE_OPENAI_API_KEY="${VITE_OPENAI_API_KEY:-}"
-        export VITE_GROQ_API_KEY="${VITE_GROQ_API_KEY:-}"
-        export VITE_GOOGLE_API_KEY="${VITE_GOOGLE_API_KEY:-}"
-        
-        # Login to ECR
-        aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+        echo "🚀 Starting deployment..."
         
         # Navigate to application directory
-        cd /home/ec2-user/hospital-management || mkdir -p /home/ec2-user/hospital-management && cd /home/ec2-user/hospital-management
+        cd /home/ec2-user
+        mkdir -p hospital-management
+        cd hospital-management
         
-        # Download docker-compose.prod.yml if not exists
-        if [ ! -f docker-compose.prod.yml ]; then
-          wget -O docker-compose.prod.yml https://raw.githubusercontent.com/${{ github.repository }}/main/docker-compose.prod.yml
-        fi
+        # Login to ECR
+        aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 324037286635.dkr.ecr.us-east-1.amazonaws.com
+        
+        # Download docker-compose.prod.yml
+        curl -o docker-compose.prod.yml https://raw.githubusercontent.com/arivanan0218/hospital-management-system/dev/docker-compose.prod.yml
         
         # Stop existing containers
         docker-compose -f docker-compose.prod.yml down || true
         
         # Pull latest images
-        docker pull $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/hospital-backend:$IMAGE_TAG
-        docker pull $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/hospital-frontend:$IMAGE_TAG
+        docker pull 324037286635.dkr.ecr.us-east-1.amazonaws.com/hospital-backend:latest
+        docker pull 324037286635.dkr.ecr.us-east-1.amazonaws.com/hospital-frontend:latest
         
-        # Start new containers
+        # Set environment variables and start containers
+        export AWS_ACCOUNT_ID=324037286635
+        export AWS_REGION=us-east-1
+        export IMAGE_TAG=latest
+        export POSTGRES_PASSWORD=HospitalSecure2024!
+        export GEMINI_API_KEY=$GEMINI_API_KEY
+        
         docker-compose -f docker-compose.prod.yml up -d
         
         # Clean up old images
         docker image prune -f
         
         echo "✅ Deployment completed successfully"
-        EOF
+        EOFSCRIPT
         
-        # Upload and execute deployment script via SSM
-        aws ssm send-command \
+        # Upload script to S3 temporarily
+        aws s3 cp /tmp/deploy.sh s3://temp-deploy-scripts-$AWS_ACCOUNT_ID/deploy-$IMAGE_TAG.sh || {
+          # If S3 bucket doesn't exist, create it and upload
+          aws s3 mb s3://temp-deploy-scripts-$AWS_ACCOUNT_ID
+          aws s3 cp /tmp/deploy.sh s3://temp-deploy-scripts-$AWS_ACCOUNT_ID/deploy-$IMAGE_TAG.sh
+        }
+        
+        # Execute deployment via SSM using S3 script
+        COMMAND_ID=$(aws ssm send-command \
           --instance-ids "$INSTANCE_ID" \
           --document-name "AWS-RunShellScript" \
-          --parameters 'commands=["'"$(cat deploy-commands.sh | sed 's/"/\\"/g' | tr '\n' ' ')"'"]' \
+          --parameters "commands=[
+            'aws s3 cp s3://temp-deploy-scripts-$AWS_ACCOUNT_ID/deploy-$IMAGE_TAG.sh /tmp/deploy.sh',
+            'chmod +x /tmp/deploy.sh',
+            'GEMINI_API_KEY=$GEMINI_API_KEY /tmp/deploy.sh'
+          ]" \
           --timeout-seconds 600 \
           --region $AWS_REGION \
           --output text \
-          --query 'Command.CommandId' > command_id.txt
+          --query 'Command.CommandId')
         
-        COMMAND_ID=$(cat command_id.txt)
         echo "📡 Command ID: $COMMAND_ID"
         
         # Wait for command completion
@@ -213,6 +217,9 @@ jobs:
           --region $AWS_REGION \
           --query 'StandardOutputContent' \
           --output text
+        
+        # Clean up S3 script
+        aws s3 rm s3://temp-deploy-scripts-$AWS_ACCOUNT_ID/deploy-$IMAGE_TAG.sh
 
     - name: Verify deployment
       run: |
