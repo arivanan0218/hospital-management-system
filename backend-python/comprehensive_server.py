@@ -1286,7 +1286,7 @@ if __name__ == "__main__":
         print("   GET /health - Health check")
         
         # Run with uvicorn
-        uvicorn.run(app, host="127.0.0.1", port=8000)
+        uvicorn.run(app, host="0.0.0.0", port=8000)
         
     except Exception as e:
         # Log errors to stderr (not stdout) if needed
