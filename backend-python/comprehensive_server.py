@@ -250,8 +250,8 @@ def get_department_by_id(department_id: str) -> Dict[str, Any]:
 # ================================
 
 @mcp.tool()
-def create_patient(patient_number: str, first_name: str, last_name: str, date_of_birth: str,
-                  gender: str = None, phone: str = None, email: str = None, address: str = None,
+def create_patient(first_name: str, last_name: str, date_of_birth: str,
+                  patient_number: str = None, gender: str = None, phone: str = None, email: str = None, address: str = None,
                   emergency_contact_name: str = None, emergency_contact_phone: str = None,
                   blood_type: str = None, allergies: str = None, medical_history: str = None) -> Dict[str, Any]:
     """Create a new patient."""
@@ -260,6 +260,12 @@ def create_patient(patient_number: str, first_name: str, last_name: str, date_of
     
     try:
         db = get_db_session()
+        
+        # Auto-generate patient number if not provided
+        if not patient_number:
+            import time
+            patient_number = f"PAT{int(time.time() * 1000)}"
+        
         patient = Patient(
             patient_number=patient_number,
             first_name=first_name,
@@ -483,9 +489,16 @@ def assign_bed_to_patient(bed_id: str, patient_id: str, admission_date: str = No
             db.close()
             return {"success": False, "message": "Bed not found"}
         
-        if bed.status != "available":
+        # Check if bed is already occupied or assigned to another patient
+        if bed.status != "available" or bed.patient_id is not None:
             db.close()
-            return {"success": False, "message": "Bed is not available"}
+            return {"success": False, "message": f"Bed {bed.bed_number} is not available (status: {bed.status})"}
+        
+        # Check if patient is already assigned to another bed
+        existing_bed = db.query(Bed).filter(Bed.patient_id == uuid.UUID(patient_id)).first()
+        if existing_bed:
+            db.close()
+            return {"success": False, "message": f"Patient is already assigned to bed {existing_bed.bed_number}"}
         
         bed.patient_id = uuid.UUID(patient_id)
         bed.status = "occupied"
@@ -883,11 +896,26 @@ def create_appointment(patient_id: str, doctor_id: str, department_id: str, appo
     
     try:
         db = get_db_session()
+        
+        # Parse appointment date - handle different formats including timezone
+        try:
+            if appointment_date.endswith('Z'):
+                # Remove Z and parse as UTC
+                appointment_datetime = datetime.fromisoformat(appointment_date[:-1])
+            elif '+' in appointment_date or appointment_date.count('-') > 2:
+                # Handle timezone offset
+                appointment_datetime = datetime.fromisoformat(appointment_date.replace('Z', '+00:00'))
+            else:
+                appointment_datetime = datetime.fromisoformat(appointment_date)
+        except ValueError as e:
+            db.close()
+            return {"success": False, "message": f"Invalid appointment date format: {appointment_date}. Use YYYY-MM-DD HH:MM or YYYY-MM-DDTHH:MM:SS"}
+        
         appointment = Appointment(
             patient_id=uuid.UUID(patient_id),
             doctor_id=uuid.UUID(doctor_id),
             department_id=uuid.UUID(department_id),
-            appointment_date=datetime.fromisoformat(appointment_date),
+            appointment_date=appointment_datetime,
             duration_minutes=duration_minutes,
             reason=reason,
             notes=notes
@@ -900,6 +928,7 @@ def create_appointment(patient_id: str, doctor_id: str, department_id: str, appo
         
         return {"success": True, "message": "Appointment created successfully", "data": result}
     except Exception as e:
+        db.close()
         return {"success": False, "message": f"Failed to create appointment: {str(e)}"}
 
 @mcp.tool()
