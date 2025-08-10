@@ -2,7 +2,6 @@
  * Direct HTTP AI MCP Service - Claude Desktop Style
  * Uses HTTP transport directly to FastMCP server with OpenAI function calling
  */
-/* eslint-disable no-unused-vars, no-dupe-class-members, no-useless-escape */
 
 import DirectHttpMCPClient from './directHttpMcpClient.js';
 
@@ -27,8 +26,9 @@ class DirectHttpAIMCPService {
 
   /**
    * Initialize the service with OpenAI API key
+   * serverConfig is optional since we connect directly to HTTP server
    */
-  async initialize(openaiApiKey) {
+  async initialize(openaiApiKey, serverConfig = null) {
     console.log('🚀 Initializing Direct HTTP AI-MCP Service (Claude Desktop Style)...');
     
     if (!openaiApiKey) {

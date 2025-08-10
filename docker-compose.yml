@@ -2,69 +2,59 @@ version: '3.8'
 
 services:
   # PostgreSQL Database
-  postgres:
+  db:
     image: postgres:15-alpine
     environment:
-      POSTGRES_DB: hospital_management
-      POSTGRES_USER: hospital_user
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hospital_password}
+      POSTGRES_DB: ${POSTGRES_DB:-hospital_management}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend-python/init.sql:/docker-entrypoint-initdb.d/
     ports:
       - "5432:5432"
-    restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U hospital_user -d hospital_management"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 30s
       timeout: 10s
       retries: 3
 
-  # Backend Python Service
+  # Backend Python MCP Server
   backend:
     build:
       context: ./backend-python
       dockerfile: Dockerfile
     environment:
-      - DATABASE_URL=postgresql://hospital_user:${POSTGRES_PASSWORD:-hospital_password}@postgres:5432/hospital_management
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-hospital_management}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - PORT=8000
     ports:
       - "8000:8000"
     depends_on:
-      postgres:
+      db:
         condition: service_healthy
-    restart: unless-stopped
-    volumes:
-      - ./backend-python:/app
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
 
-  # Frontend React Service
+  # Frontend React App
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     environment:
-      - VITE_CLAUDE_API_KEY=${VITE_CLAUDE_API_KEY}
       - VITE_OPENAI_API_KEY=${VITE_OPENAI_API_KEY}
+      - VITE_CLAUDE_API_KEY=${VITE_CLAUDE_API_KEY}
       - VITE_GROQ_API_KEY=${VITE_GROQ_API_KEY}
       - VITE_GOOGLE_API_KEY=${VITE_GOOGLE_API_KEY}
-      - VITE_MCP_BRIDGE_URL=http://backend:8000
+      - VITE_BACKEND_URL=http://backend:8000
     ports:
       - "80:80"
     depends_on:
       backend:
         condition: service_healthy
-    restart: unless-stopped
 
 volumes:
   postgres_data:
-    driver: local
-
-networks:
-  default:
-    driver: bridge
