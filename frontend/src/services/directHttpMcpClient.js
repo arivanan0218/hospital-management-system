@@ -162,61 +162,344 @@ class DirectHttpMCPClient {
           }
         });
       } else if (message.method === 'tools/list') {
-        // Return the actual hospital management tools from comprehensive_server.py
+        // Return the actual hospital management tools from comprehensive_server.py with proper schemas
         const hospitalTools = [
           // User Management
-          { name: 'create_user', description: 'Create a new user in the system' },
+          { 
+            name: 'create_user', 
+            description: 'Create a new user in the system',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                username: { type: 'string', description: 'Username for the user' },
+                email: { type: 'string', description: 'Email address' },
+                password_hash: { type: 'string', description: 'Password hash (use "temp_password" for demo)' },
+                role: { type: 'string', description: 'User role (admin, doctor, nurse, etc.)' },
+                first_name: { type: 'string', description: 'First name' },
+                last_name: { type: 'string', description: 'Last name' },
+                phone: { type: 'string', description: 'Phone number (optional)' }
+              },
+              required: ['username', 'email', 'password_hash', 'role', 'first_name', 'last_name']
+            }
+          },
           { name: 'get_user_by_id', description: 'Get a user by ID' },
           { name: 'list_users', description: 'List all users' },
-          { name: 'update_user', description: 'Update user information' },
+          { 
+            name: 'update_user', 
+            description: 'Update user information',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                user_id: { type: 'string', description: 'User ID' },
+                username: { type: 'string', description: 'Username' },
+                email: { type: 'string', description: 'Email address' },
+                role: { type: 'string', description: 'User role' },
+                first_name: { type: 'string', description: 'First name' },
+                last_name: { type: 'string', description: 'Last name' },
+                phone: { type: 'string', description: 'Phone number' },
+                is_active: { type: 'boolean', description: 'Active status' }
+              },
+              required: ['user_id']
+            }
+          },
           { name: 'delete_user', description: 'Delete a user' },
           
           // Department Management
-          { name: 'create_department', description: 'Create a new department' },
+          { 
+            name: 'create_department', 
+            description: 'Create a new department',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                name: { type: 'string', description: 'Department name' },
+                description: { type: 'string', description: 'Department description (optional)' },
+                floor_number: { type: 'integer', description: 'Floor number (optional)' },
+                head_doctor_id: { type: 'string', description: 'Head doctor ID (optional)' },
+                phone: { type: 'string', description: 'Department phone (optional)' },
+                email: { type: 'string', description: 'Department email (optional)' }
+              },
+              required: ['name']
+            }
+          },
           { name: 'list_departments', description: 'List all departments' },
           { name: 'get_department_by_id', description: 'Get a department by ID' },
           
           // Patient Management
-          { name: 'create_patient', description: 'Create a new patient' },
+          { 
+            name: 'create_patient', 
+            description: 'Create a new patient',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                patient_number: { type: 'string', description: 'Patient number (auto-generated if not provided)' },
+                first_name: { type: 'string', description: 'Patient first name' },
+                last_name: { type: 'string', description: 'Patient last name' },
+                date_of_birth: { type: 'string', description: 'Date of birth (YYYY-MM-DD)' },
+                gender: { type: 'string', description: 'Gender (Male/Female/Other)' },
+                phone: { type: 'string', description: 'Phone number' },
+                email: { type: 'string', description: 'Email address' },
+                address: { type: 'string', description: 'Home address' },
+                emergency_contact_name: { type: 'string', description: 'Emergency contact name' },
+                emergency_contact_phone: { type: 'string', description: 'Emergency contact phone' },
+                blood_type: { type: 'string', description: 'Blood type (A+, B+, O+, etc.)' },
+                allergies: { type: 'string', description: 'Known allergies' },
+                medical_history: { type: 'string', description: 'Medical history' }
+              },
+              required: ['first_name', 'last_name', 'date_of_birth']
+            }
+          },
           { name: 'list_patients', description: 'List all patients' },
           { name: 'get_patient_by_id', description: 'Get a patient by ID' },
-          { name: 'search_patients', description: 'Search patients by criteria' },
+          { 
+            name: 'search_patients', 
+            description: 'Search patients by specific criteria (do not use generic query parameter)',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                patient_number: { type: 'string', description: 'Search by patient number' },
+                first_name: { type: 'string', description: 'Search by first name' },
+                last_name: { type: 'string', description: 'Search by last name' },
+                phone: { type: 'string', description: 'Search by phone number' },
+                email: { type: 'string', description: 'Search by email address' }
+              }
+            }
+          },
           
           // Room Management
-          { name: 'create_room', description: 'Create a new room' },
-          { name: 'list_rooms', description: 'List all rooms' },
+          { 
+            name: 'create_room', 
+            description: 'Create a new room (if user provides department name, use list_departments first to find department_id)',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                room_number: { type: 'string', description: 'Room number' },
+                department_id: { type: 'string', description: 'Department ID (UUID) - if user provides department name, search list_departments first' },
+                room_type: { type: 'string', description: 'Room type (ICU, General, etc.)' },
+                capacity: { type: 'integer', description: 'Room capacity' },
+                floor_number: { type: 'integer', description: 'Floor number' }
+              },
+              required: ['room_number', 'department_id']
+            }
+          },
+          { name: 'list_rooms', description: 'List all rooms (use this to find room_id when user provides room number or name)' },
           
           // Bed Management
-          { name: 'create_bed', description: 'Create a new bed' },
+          { 
+            name: 'create_bed', 
+            description: 'Create a new bed (if user provides room name/number, use list_rooms first to find room_id)',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                bed_number: { type: 'string', description: 'Bed number' },
+                room_id: { type: 'string', description: 'Room ID (UUID) - if user provides room name/number, search list_rooms first' },
+                bed_type: { type: 'string', description: 'Bed type (ICU, General, etc.)' },
+                status: { type: 'string', description: 'Bed status (available, occupied, maintenance)' }
+              },
+              required: ['bed_number', 'room_id']
+            }
+          },
           { name: 'list_beds', description: 'List all beds' },
-          { name: 'assign_bed_to_patient', description: 'Assign a bed to a patient' },
-          { name: 'discharge_bed', description: 'Discharge a patient from a bed' },
+          { 
+            name: 'assign_bed_to_patient', 
+            description: 'Assign a bed to a patient',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                bed_id: { type: 'string', description: 'Bed ID' },
+                patient_id: { type: 'string', description: 'Patient ID' },
+                admission_date: { type: 'string', description: 'Admission date (YYYY-MM-DD)' }
+              },
+              required: ['bed_id', 'patient_id']
+            }
+          },
+          { 
+            name: 'discharge_bed', 
+            description: 'Discharge a patient from a bed',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                bed_id: { type: 'string', description: 'Bed ID' },
+                discharge_date: { type: 'string', description: 'Discharge date (YYYY-MM-DD)' }
+              },
+              required: ['bed_id']
+            }
+          },
           
           // Staff Management
-          { name: 'create_staff', description: 'Create a new staff member' },
+          { 
+            name: 'create_staff', 
+            description: 'Create a new staff member (if user provides names instead of IDs, search first: list_users for user_id, list_departments for department_id)',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                user_id: { type: 'string', description: 'User ID (UUID) - if user provides name, search list_users first' },
+                employee_id: { type: 'string', description: 'Employee ID' },
+                department_id: { type: 'string', description: 'Department ID (UUID) - if user provides department name, search list_departments first' },
+                position: { type: 'string', description: 'Job position (Doctor, Nurse, etc.)' },
+                specialization: { type: 'string', description: 'Medical specialization' },
+                license_number: { type: 'string', description: 'Medical license number' },
+                hire_date: { type: 'string', description: 'Hire date (YYYY-MM-DD)' },
+                salary: { type: 'number', description: 'Salary amount' },
+                shift_pattern: { type: 'string', description: 'Shift pattern (Day, Night, etc.)' },
+                status: { type: 'string', description: 'Employment status (active, inactive)' }
+              },
+              required: ['user_id', 'employee_id', 'department_id', 'position']
+            }
+          },
           { name: 'list_staff', description: 'List all staff members' },
           { name: 'get_staff_by_id', description: 'Get a staff member by ID' },
           
+          // Appointment Management
+          { 
+            name: 'create_appointment', 
+            description: 'Create a new appointment (only use supported parameters: patient_id, doctor_id, department_id, appointment_date, duration_minutes, reason, notes)',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                patient_id: { type: 'string', description: 'Patient ID' },
+                doctor_id: { type: 'string', description: 'Doctor ID (use staff member ID who is a doctor) - NEVER use staff_id' },
+                department_id: { type: 'string', description: 'Department ID' },
+                appointment_date: { type: 'string', description: 'Appointment date and time (use format: YYYY-MM-DD HH:MM, avoid timezone suffixes like Z)' },
+                duration_minutes: { type: 'integer', description: 'Duration in minutes (default 30)' },
+                reason: { type: 'string', description: 'Reason for appointment' },
+                notes: { type: 'string', description: 'Additional notes' }
+              },
+              required: ['patient_id', 'doctor_id', 'department_id', 'appointment_date']
+            }
+          },
+          { 
+            name: 'list_appointments', 
+            description: 'List appointments with optional filters',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                doctor_id: { type: 'string', description: 'Filter by doctor ID' },
+                patient_id: { type: 'string', description: 'Filter by patient ID' },
+                date: { type: 'string', description: 'Filter by date (YYYY-MM-DD)' }
+              }
+            }
+          },
+          
           // Equipment Management
-          { name: 'create_equipment_category', description: 'Create an equipment category' },
-          { name: 'create_equipment', description: 'Create a new equipment item' },
+          { 
+            name: 'create_equipment_category', 
+            description: 'Create an equipment category',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                name: { type: 'string', description: 'Category name' },
+                description: { type: 'string', description: 'Category description' }
+              },
+              required: ['name']
+            }
+          },
+          { 
+            name: 'create_equipment', 
+            description: 'Create a new equipment item',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                equipment_id: { type: 'string', description: 'Equipment ID' },
+                name: { type: 'string', description: 'Equipment name' },
+                category_id: { type: 'string', description: 'Equipment category ID' },
+                manufacturer: { type: 'string', description: 'Manufacturer' },
+                model: { type: 'string', description: 'Model' },
+                serial_number: { type: 'string', description: 'Serial number' },
+                department_id: { type: 'string', description: 'Department ID' },
+                location: { type: 'string', description: 'Equipment location' },
+                purchase_date: { type: 'string', description: 'Purchase date (YYYY-MM-DD)' },
+                cost: { type: 'number', description: 'Purchase cost' },
+                warranty_expiry: { type: 'string', description: 'Warranty expiry date (YYYY-MM-DD)' }
+              },
+              required: ['equipment_id', 'name', 'category_id']
+            }
+          },
           { name: 'list_equipment', description: 'List all equipment' },
           { name: 'get_equipment_by_id', description: 'Get equipment by ID' },
-          { name: 'update_equipment_status', description: 'Update equipment status' },
+          { 
+            name: 'update_equipment_status', 
+            description: 'Update equipment status',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                equipment_id: { type: 'string', description: 'Equipment ID' },
+                status: { type: 'string', description: 'New status (available, in_use, maintenance, retired)' },
+                notes: { type: 'string', description: 'Additional notes about the status change' }
+              },
+              required: ['equipment_id', 'status']
+            }
+          },
           
           // Supply Management
-          { name: 'create_supply_category', description: 'Create a supply category' },
-          { name: 'create_supply', description: 'Create a new supply item' },
+          { 
+            name: 'create_supply_category', 
+            description: 'Create a supply category',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                name: { type: 'string', description: 'Category name' },
+                description: { type: 'string', description: 'Category description' }
+              },
+              required: ['name']
+            }
+          },
+          { 
+            name: 'create_supply', 
+            description: 'Create a new supply item',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                item_code: { type: 'string', description: 'Item code' },
+                name: { type: 'string', description: 'Supply name' },
+                category_id: { type: 'string', description: 'Supply category ID' },
+                unit_of_measure: { type: 'string', description: 'Unit of measure (pieces, kg, ml, etc.)' },
+                description: { type: 'string', description: 'Supply description' },
+                supplier: { type: 'string', description: 'Supplier name' },
+                current_stock: { type: 'integer', description: 'Current stock level' },
+                minimum_stock_level: { type: 'integer', description: 'Minimum stock level' },
+                maximum_stock_level: { type: 'integer', description: 'Maximum stock level' },
+                unit_cost: { type: 'number', description: 'Cost per unit' },
+                location: { type: 'string', description: 'Storage location' },
+                expiry_date: { type: 'string', description: 'Expiry date (YYYY-MM-DD)' }
+              },
+              required: ['item_code', 'name', 'category_id', 'unit_of_measure']
+            }
+          },
           { name: 'list_supplies', description: 'List all supplies' },
-          { name: 'update_supply_stock', description: 'Update supply stock' },
-          
-          // Appointment Management
-          { name: 'create_appointment', description: 'Create a new appointment' },
-          { name: 'list_appointments', description: 'List appointments' },
+          { 
+            name: 'update_supply_stock', 
+            description: 'Update supply stock levels',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                supply_id: { type: 'string', description: 'Supply ID' },
+                quantity_change: { type: 'integer', description: 'Quantity change (positive for addition, negative for removal)' },
+                transaction_type: { type: 'string', description: 'Transaction type (purchase, usage, adjustment, etc.)' },
+                performed_by: { type: 'string', description: 'Person performing the transaction' },
+                unit_cost: { type: 'number', description: 'Cost per unit (optional)' },
+                reference_number: { type: 'string', description: 'Reference number (invoice, order, etc.)' },
+                notes: { type: 'string', description: 'Additional notes' }
+              },
+              required: ['supply_id', 'quantity_change', 'transaction_type', 'performed_by']
+            }
+          },
           
           // System Management
           { name: 'log_agent_interaction', description: 'Log an AI agent interaction' },
-          { name: 'create_legacy_user', description: 'Create a legacy user' },
+          { 
+            name: 'create_legacy_user', 
+            description: 'Create a legacy user',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                name: { type: 'string', description: 'Full name' },
+                email: { type: 'string', description: 'Email address' },
+                address: { type: 'string', description: 'Address' },
+                phone: { type: 'string', description: 'Phone number' }
+              },
+              required: ['name', 'email', 'address', 'phone']
+            }
+          },
           { name: 'list_legacy_users', description: 'List legacy users' }
         ];
         
