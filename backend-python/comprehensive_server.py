@@ -7,8 +7,10 @@ from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
-from sqlalchemy import Date
+from sqlalchemy import Date, text
 from mcp.server.fastmcp import FastMCP
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 # Import database modules
 try:
@@ -999,9 +1001,264 @@ def list_legacy_users() -> Dict[str, Any]:
 
 if __name__ == "__main__":
     try:
-        # Run the MCP server silently - no print statements allowed
-        # as they interfere with the MCP protocol communication
-        mcp.run()
+        # Run the MCP server with SSE transport for better HTTP compatibility
+        # This allows direct connection from frontend without process manager
+        print("🚀 Starting Hospital Management FastMCP Server...")
+        print("🌐 Server will be available at: http://127.0.0.1:8000")
+        
+        # Create FastAPI app with CORS using SSE transport
+        from fastapi.middleware.cors import CORSMiddleware
+        from fastapi import HTTPException, Request, Response
+        from pydantic import BaseModel
+        from starlette.routing import Route
+        from starlette.responses import JSONResponse
+        import uvicorn
+        import traceback
+        import json
+        
+        # Get the FastAPI app for SSE (Server-Sent Events)
+        app = mcp.sse_app()
+        
+        # Define request model for tool calls
+        class ToolCallRequest(BaseModel):
+            jsonrpc: str = "2.0"
+            id: str
+            method: str
+            params: dict
+        
+        # Tool call endpoint handler
+        async def call_tool_http(request: Request):
+            """HTTP endpoint for calling MCP tools directly"""
+            try:
+                body = await request.body()
+                data = json.loads(body)
+                
+                tool_name = data.get("params", {}).get("name")
+                arguments = data.get("params", {}).get("arguments", {})
+                request_id = data.get("id", "unknown")
+                
+                print(f"🔧 HTTP Tool Call: {tool_name} with args: {arguments}")
+                
+                # Direct call to our tool functions
+                db = get_db_session()
+                
+                try:
+                    if tool_name == "list_patients":
+                        result = list_patients()
+                    elif tool_name == "create_patient":
+                        result = create_patient(**arguments)
+                    elif tool_name == "list_departments":
+                        result = list_departments()
+                    elif tool_name == "create_department":
+                        result = create_department(**arguments)
+                    elif tool_name == "list_staff":
+                        result = list_staff()
+                    elif tool_name == "create_staff":
+                        result = create_staff(**arguments)
+                    elif tool_name == "list_users":
+                        result = list_users()
+                    elif tool_name == "create_user":
+                        result = create_user(**arguments)
+                    elif tool_name == "list_rooms":
+                        result = list_rooms()
+                    elif tool_name == "create_room":
+                        result = create_room(**arguments)
+                    elif tool_name == "list_beds":
+                        result = list_beds()
+                    elif tool_name == "create_bed":
+                        result = create_bed(**arguments)
+                    elif tool_name == "list_equipment":
+                        result = list_equipment()
+                    elif tool_name == "create_equipment":
+                        result = create_equipment(**arguments)
+                    elif tool_name == "list_supplies":
+                        result = list_supplies()
+                    elif tool_name == "create_supply":
+                        result = create_supply(**arguments)
+                    elif tool_name == "list_appointments":
+                        result = list_appointments()
+                    elif tool_name == "create_appointment":
+                        result = create_appointment(**arguments)
+                    elif tool_name == "get_patient_by_id":
+                        result = get_patient_by_id(**arguments)
+                    elif tool_name == "search_patients":
+                        result = search_patients(**arguments)
+                    elif tool_name == "assign_bed_to_patient":
+                        result = assign_bed_to_patient(**arguments)
+                    elif tool_name == "discharge_bed":
+                        result = discharge_bed(**arguments)
+                    elif tool_name == "update_equipment_status":
+                        result = update_equipment_status(**arguments)
+                    elif tool_name == "update_supply_stock":
+                        result = update_supply_stock(**arguments)
+                    else:
+                        available_tools = [
+                            "list_patients", "create_patient", "list_departments", "create_department",
+                            "list_staff", "create_staff", "list_users", "create_user",
+                            "list_rooms", "create_room", "list_beds", "create_bed",
+                            "list_equipment", "create_equipment", "list_supplies", "create_supply",
+                            "list_appointments", "create_appointment", "get_patient_by_id", "search_patients",
+                            "assign_bed_to_patient", "discharge_bed", "update_equipment_status", "update_supply_stock"
+                        ]
+                        error_response = {
+                            "jsonrpc": "2.0",
+                            "id": request_id,
+                            "error": {
+                                "code": -32601,
+                                "message": f"Tool '{tool_name}' not found. Available tools: {available_tools}"
+                            }
+                        }
+                        return JSONResponse(error_response, status_code=404)
+                    
+                    # Format response according to JSON-RPC 2.0
+                    response_data = {
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "result": {
+                            "content": [{
+                                "type": "text",
+                                "text": json.dumps(result, indent=2) if isinstance(result, (dict, list)) else str(result)
+                            }]
+                        }
+                    }
+                    return JSONResponse(response_data)
+                    
+                finally:
+                    db.close()
+                    
+            except Exception as e:
+                print(f"❌ Error calling tool {tool_name if 'tool_name' in locals() else 'unknown'}: {str(e)}")
+                traceback.print_exc()
+                error_response = {
+                    "jsonrpc": "2.0",
+                    "id": data.get("id", "unknown") if 'data' in locals() else "unknown",
+                    "error": {
+                        "code": -32603,
+                        "message": f"Internal error: {str(e)}"
+                    }
+                }
+                return JSONResponse(error_response, status_code=500)
+        
+        # List tools endpoint handler
+        async def list_tools_http(request: Request):
+            """HTTP endpoint to list all available MCP tools"""
+            try:
+                # Define all available hospital management tools
+                tools = [
+                    {"name": "list_patients", "description": "List all patients in the database"},
+                    {"name": "create_patient", "description": "Create a new patient record"},
+                    {"name": "get_patient_by_id", "description": "Get a patient by ID or patient number"},
+                    {"name": "search_patients", "description": "Search patients by various criteria"},
+                    
+                    {"name": "list_departments", "description": "List all departments"},
+                    {"name": "create_department", "description": "Create a new department"},
+                    {"name": "get_department_by_id", "description": "Get a department by ID"},
+                    
+                    {"name": "list_staff", "description": "List all staff members"},
+                    {"name": "create_staff", "description": "Create a new staff member"},
+                    {"name": "get_staff_by_id", "description": "Get a staff member by ID"},
+                    
+                    {"name": "list_users", "description": "List all users"},
+                    {"name": "create_user", "description": "Create a new user"},
+                    {"name": "get_user_by_id", "description": "Get a user by ID"},
+                    {"name": "update_user", "description": "Update user information"},
+                    {"name": "delete_user", "description": "Delete a user"},
+                    
+                    {"name": "list_rooms", "description": "List all rooms"},
+                    {"name": "create_room", "description": "Create a new room"},
+                    
+                    {"name": "list_beds", "description": "List all beds"},
+                    {"name": "create_bed", "description": "Create a new bed"},
+                    {"name": "assign_bed_to_patient", "description": "Assign a bed to a patient"},
+                    {"name": "discharge_bed", "description": "Discharge a patient from a bed"},
+                    
+                    {"name": "list_equipment", "description": "List all equipment"},
+                    {"name": "create_equipment", "description": "Create a new equipment item"},
+                    {"name": "get_equipment_by_id", "description": "Get equipment by ID"},
+                    {"name": "update_equipment_status", "description": "Update equipment status"},
+                    {"name": "create_equipment_category", "description": "Create an equipment category"},
+                    
+                    {"name": "list_supplies", "description": "List all supplies"},
+                    {"name": "create_supply", "description": "Create a new supply item"},
+                    {"name": "update_supply_stock", "description": "Update supply stock levels"},
+                    {"name": "create_supply_category", "description": "Create a supply category"},
+                    
+                    {"name": "list_appointments", "description": "List appointments"},
+                    {"name": "create_appointment", "description": "Create a new appointment"},
+                    
+                    {"name": "create_legacy_user", "description": "Create a legacy user"},
+                    {"name": "list_legacy_users", "description": "List all legacy users"},
+                    {"name": "log_agent_interaction", "description": "Log an AI agent interaction"}
+                ]
+                
+                response_data = {
+                    "jsonrpc": "2.0",
+                    "result": {
+                        "tools": tools
+                    }
+                }
+                return JSONResponse(response_data)
+            except Exception as e:
+                print(f"❌ Error listing tools: {str(e)}")
+                error_response = {
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32603,
+                        "message": f"Internal error: {str(e)}"
+                    }
+                }
+                return JSONResponse(error_response, status_code=500)
+        
+        # Health check endpoint handler
+        async def health_check(request: Request):
+            """Health check endpoint"""
+            try:
+                # Test database connection
+                db = get_db_session()
+                db.execute(text("SELECT 1"))
+                db.close()
+                
+                response_data = {
+                    "status": "healthy",
+                    "database": "connected",
+                    "server": "running"
+                }
+                return JSONResponse(response_data)
+            except Exception as e:
+                response_data = {
+                    "status": "unhealthy",
+                    "database": "error",
+                    "error": str(e)
+                }
+                return JSONResponse(response_data, status_code=500)
+        
+        # Add custom routes to the Starlette app
+        custom_routes = [
+            Route("/tools/call", call_tool_http, methods=["POST"]),
+            Route("/tools/list", list_tools_http, methods=["GET"]),
+            Route("/health", health_check, methods=["GET"]),
+        ]
+        
+        # Add routes to existing app
+        app.routes.extend(custom_routes)
+        
+        # Add CORS middleware
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+        
+        print("📡 Added custom HTTP endpoints:")
+        print("   POST /tools/call - Call MCP tools via HTTP")
+        print("   GET /tools/list - List available tools")
+        print("   GET /health - Health check")
+        
+        # Run with uvicorn
+        uvicorn.run(app, host="127.0.0.1", port=8000)
+        
     except Exception as e:
         # Log errors to stderr (not stdout) if needed
         import sys
