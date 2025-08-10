@@ -101,7 +101,7 @@ requires-dist = [
     { name = "fastmcp", specifier = ">=0.2.0" },
     { name = "google-generativeai", specifier = ">=0.8.0" },
     { name = "inquirer", specifier = ">=3.0.0" },
-    { name = "mcp", extras = ["cli"] },
+    { name = "mcp", extras = ["cli"], specifier = ">=1.0.0" },
     { name = "prompt-toolkit", specifier = ">=3.0.0" },
     { name = "protobuf", specifier = "==3.20.3" },
     { name = "psycopg2-binary", specifier = ">=2.9.0" },

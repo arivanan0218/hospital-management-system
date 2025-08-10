@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import DirectAIMCPService from '../services/directAiMcpService.js';
+import DirectHttpAIMCPService from '../services/directHttpAiMcpService.js';
 
 const DirectMCPChatbot = () => {
   const [messages, setMessages] = useState([]);
@@ -10,14 +10,7 @@ const DirectMCPChatbot = () => {
   
   // Configuration state
   const [openaiApiKey, setOpenaiApiKey] = useState(import.meta.env.VITE_OPENAI_API_KEY || '');
-  const [mcpServerConfig, setMcpServerConfig] = useState({
-    command: 'uv',
-    args: ['run', 'python', 'comprehensive_server.py'],
-    env: {
-      'PYTHONPATH': '/backend-python'
-    },
-    cwd: '/backend-python'
-  });
+  const [serverStatus, setServerStatus] = useState('Checking server...');
   
   const [serverInfo, setServerInfo] = useState(null);
   const [connectionError, setConnectionError] = useState('');
@@ -107,24 +100,11 @@ const DirectMCPChatbot = () => {
     setConnectionError('');
     
     try {
-      aiMcpServiceRef.current = new DirectAIMCPService();
+      aiMcpServiceRef.current = new DirectHttpAIMCPService();
       
-      // Force the correct containerized configuration
-      const containerizedConfig = {
-        command: 'uv',
-        args: ['run', 'python', 'comprehensive_server.py'],
-        env: {
-          'PYTHONPATH': '/backend-python'
-        },
-        cwd: '/backend-python'
-      };
+      console.log('🚀 Initializing Direct HTTP MCP Service...');
       
-      console.log('🚀 Initializing with config:', containerizedConfig);
-      
-      const initialized = await aiMcpServiceRef.current.initialize(
-        openaiApiKey,
-        containerizedConfig
-      );
+      const initialized = await aiMcpServiceRef.current.initialize(openaiApiKey);
       
       if (initialized) {
         setIsConnected(true);
@@ -305,7 +285,7 @@ const DirectMCPChatbot = () => {
         // Final response with the processed data
         const finalResponse = {
           id: Date.now() + 1000,
-          text: response.message || 'Here\'s what I found based on your request.',
+          text: response.response || response.message || 'Here\'s what I found based on your request.',
           sender: 'ai',
           timestamp: new Date().toLocaleTimeString(),
           isFinalAnswer: true
@@ -789,68 +769,13 @@ const DirectMCPChatbot = () => {
                 />
               </div>
 
-              {/* Advanced Configuration */}
-              <div className="bg-[#2a2a2a] rounded-lg border border-gray-700">
-                <details className="group">
-                  <summary className="flex items-center justify-between cursor-pointer p-6 hover:bg-[#333] rounded-lg transition-colors">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 bg-gray-600 rounded-lg flex items-center justify-center">
-                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                      </div>
-                      <div>
-                        <h3 className="text-white font-medium">Advanced Configuration</h3>
-                        <p className="text-xs text-gray-400">MCP server settings (optional)</p>
-                      </div>
-                    </div>
-                    <svg className="w-4 h-4 text-gray-400 transform group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </summary>
-                  
-                  <div className="px-6 pb-6 space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">Command</label>
-                      <input
-                        type="text"
-                        value={mcpServerConfig.command}
-                        onChange={(e) => setMcpServerConfig(prev => ({
-                          ...prev,
-                          command: e.target.value
-                        }))}
-                        className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-white text-sm"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">Arguments</label>
-                      <textarea
-                        value={mcpServerConfig.args ? mcpServerConfig.args.join('\n') : ''}
-                        onChange={(e) => setMcpServerConfig(prev => ({
-                          ...prev,
-                          args: e.target.value.split('\n').filter(arg => arg.trim())
-                        }))}
-                        rows={2}
-                        className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-white text-sm resize-none"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">Working Directory</label>
-                      <input
-                        type="text"
-                        value={mcpServerConfig.cwd || ''}
-                        onChange={(e) => setMcpServerConfig(prev => ({
-                          ...prev,
-                          cwd: e.target.value
-                        }))}
-                        className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-white text-sm"
-                      />
-                    </div>
-                  </div>
-                </details>
+              {/* Server Status */}
+              <div className="bg-[#2a2a2a] rounded-lg p-4 border border-gray-700">
+                <h4 className="text-white font-medium mb-2 text-sm">📡 Server Connection</h4>
+                <p className="text-xs text-gray-400">
+                  Connecting directly to FastMCP server at: <br/>
+                  <code className="text-green-400">http://127.0.0.1:8000</code>
+                </p>
               </div>
 
               {/* Connection Status */}
@@ -870,14 +795,14 @@ const DirectMCPChatbot = () => {
                   onClick={async () => {
                     setConnectionError('');
                     try {
-                      const response = await fetch('http://localhost:3001/mcp/status');
+                      const response = await fetch('http://127.0.0.1:8000/');
                       if (response.ok) {
-                        setConnectionError('✅ MCP Process Manager is running and ready');
+                        setConnectionError('✅ FastMCP Server is running and ready');
                       } else {
-                        setConnectionError(`❌ Process Manager error: ${response.status}`);
+                        setConnectionError(`❌ Server error: ${response.status}`);
                       }
                     } catch (error) {
-                      setConnectionError(`❌ Cannot reach Process Manager: ${error.message}`);
+                      setConnectionError(`❌ Cannot reach FastMCP Server: ${error.message}\nMake sure comprehensive_server.py is running on port 8000`);
                     }
                   }}
                   className="w-full py-3 px-4 bg-[#333] hover:bg-[#404040] text-white rounded-lg transition-colors text-sm font-medium border border-gray-600"
@@ -886,7 +811,7 @@ const DirectMCPChatbot = () => {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <span>Test Connection</span>
+                    <span>Test Server Connection</span>
                   </div>
                 </button>
                 
@@ -915,9 +840,9 @@ const DirectMCPChatbot = () => {
               <div className="bg-[#2a2a2a] rounded-lg p-4 border border-gray-700">
                 <h4 className="text-white font-medium mb-2 text-sm">Quick Tips:</h4>
                 <ul className="text-xs text-gray-400 space-y-1">
-                  <li>• Make sure the MCP Process Manager is running on port 3001</li>
+                  <li>• Make sure comprehensive_server.py is running on port 8000</li>
                   <li>• Your OpenAI API key needs GPT-4 access for best results</li>
-                  <li>• Advanced configuration is optional for most users</li>
+                  <li>• No process manager needed - direct HTTP connection</li>
                 </ul>
               </div>
             </div>
