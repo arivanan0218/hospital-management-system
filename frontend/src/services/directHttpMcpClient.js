@@ -5,9 +5,9 @@
 
 class DirectHttpMCPClient {
   constructor() {
-    // Use localhost:8000 for browser access to Docker backend
-    // In Docker, the backend is exposed on host localhost:8000
-    this.serverUrl = 'http://localhost:8000';
+    // Use relative URL to go through nginx proxy
+    // This will use the current domain/port and route through nginx
+    this.serverUrl = '';
     this.isConnected = false;
     this.serverInfo = {};
     this.tools = [];
