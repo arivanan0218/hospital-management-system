@@ -1,16 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LogOut, User, Settings } from 'lucide-react';
 import DirectHttpAIMCPService from '../services/directHttpAiMcpService.js';
 
-const DirectMCPChatbot = ({ user, onLogout }) => {
+const DirectMCPChatbot = () => {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
-  const [showSetup, setShowSetup] = useState(false); // Start with false since auth is handled by parent
+  const [showSetup, setShowSetup] = useState(true);
   
-  // Configuration state - get API key from authenticated user
-  const [openaiApiKey, setOpenaiApiKey] = useState(user?.apiKey || import.meta.env.VITE_OPENAI_API_KEY || '');
+  // Configuration state
+  const [openaiApiKey, setOpenaiApiKey] = useState(import.meta.env.VITE_OPENAI_API_KEY || '');
   
   const [serverInfo, setServerInfo] = useState(null);
   const [connectionError, setConnectionError] = useState('');
@@ -21,14 +20,6 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]); // Only trigger on message count change, not message content changes
-
-  // Auto-connect when component mounts if user is authenticated
-  useEffect(() => {
-    if (user && openaiApiKey && !isConnected && !showSetup) {
-      console.log('🔄 Auto-connecting for authenticated user...');
-      initializeService();
-    }
-  }, [user, openaiApiKey, isConnected, showSetup]); // Dependencies that should trigger auto-connection
 
   // Component to display thinking duration
   const ThinkingDuration = React.memo(({ startTime }) => {
@@ -133,7 +124,7 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
           if (inputFieldRef.current) {
             inputFieldRef.current.focus();
           }
-        }, 100); // Reduced delay for faster UI response
+        }, 500); // Delay to ensure UI is fully rendered
         
       } else {
         throw new Error('Failed to initialize service');
@@ -232,8 +223,8 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
       if (thinkingMessageId) {
         setMessages(prev => prev.filter(msg => msg.id !== thinkingMessageId));
         
-        // Remove artificial delay for faster response
-        // await new Promise(resolve => setTimeout(resolve, 200));
+        // Add a brief pause to show the thinking completed
+        await new Promise(resolve => setTimeout(resolve, 200));
       }
       
       if (response.success) {
@@ -879,39 +870,23 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
               )}
             </div>
           </div>
-          
-          {/* User Info and Actions */}
-          <div className="flex items-center space-x-3">
-            {/* User Profile */}
-            <div className="flex items-center space-x-2">
-              <div className="w-6 h-6 bg-green-600 rounded-full flex items-center justify-center">
-                <span className="text-white text-xs font-medium">
-                  {user?.fullName ? user.fullName.charAt(0).toUpperCase() : user?.email?.charAt(0).toUpperCase() || 'U'}
-                </span>
-              </div>
-              <div className="hidden sm:block">
-                <p className="text-xs text-white font-medium">{user?.fullName || 'User'}</p>
-                <p className="text-xs text-gray-400">{user?.role || 'Staff'}</p>
-              </div>
-            </div>
-
+          <div className="flex items-center space-x-2">
             {/* Action Buttons */}
-            <div className="flex items-center space-x-1">
-              <button
-                onClick={() => {
-                  if (aiMcpServiceRef.current) {
-                    aiMcpServiceRef.current.resetConversation();
-                    setMessages(prev => [...prev, {
-                      id: Date.now(),
-                      text: '🔄 **Conversation Reset** - Memory cleared. Starting fresh!',
-                      sender: 'ai',
-                      timestamp: new Date().toLocaleTimeString()
-                    }]);
-                  }
-                }}
-                className="p-1.5 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors"
-                title="Reset Conversation Memory"
-              >
+            <button
+              onClick={() => {
+                if (aiMcpServiceRef.current) {
+                  aiMcpServiceRef.current.resetConversation();
+                  setMessages(prev => [...prev, {
+                    id: Date.now(),
+                    text: '🔄 **Conversation Reset** - Memory cleared. Starting fresh!',
+                    sender: 'ai',
+                    timestamp: new Date().toLocaleTimeString()
+                  }]);
+                }
+              }}
+              className="p-1.5 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors"
+              title="Reset Conversation Memory"
+            >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
@@ -934,25 +909,6 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
-            
-            {/* Settings Button */}
-            <button
-              onClick={() => setShowSetup(true)}
-              className="p-1.5 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors"
-              title="Settings"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
-            
-            {/* Logout Button */}
-            <button
-              onClick={onLogout}
-              className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded-md transition-colors"
-              title="Logout"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-            </div>
           </div>
         </div>
       </div>
@@ -977,17 +933,17 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
                   <span className="text-2xl font-medium text-white">H</span>
                 </div>
                 <h2 className="text-xl font-medium text-white mb-3">
-                  Welcome back, {user?.fullName?.split(' ')[0] || 'User'}!
+                  Hospital Management Assistant
                 </h2>
                 <p className="text-gray-400 mb-6 text-sm">
                   I'm your AI assistant for hospital management tasks. I can help you manage patients, staff, departments, equipment, and more through natural conversation.
                 </p>
-                {/* <div className="grid grid-cols-1 gap-3 text-sm">
+                <div className="grid grid-cols-1 gap-3 text-sm">
                   <div className="bg-[#2a2a2a] rounded-lg p-3 text-left">
                     <div className="font-medium text-white mb-1">Try asking:</div>
                     <div className="text-gray-400">"List all patients" or "Create a new department"</div>
                   </div>
-                </div> */}
+                </div>
               </div>
             </div>
           )}
