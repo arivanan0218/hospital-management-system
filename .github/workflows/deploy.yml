@@ -91,6 +91,17 @@ jobs:
         
         echo "🚀 Starting deployment to EC2..."
         
+        # Clean up disk space first
+        echo "🧹 Cleaning up disk space..."
+        sudo docker system prune -af --volumes || true
+        sudo docker image prune -af || true
+        sudo apt-get clean || true
+        sudo rm -rf /var/lib/apt/lists/* || true
+        sudo rm -rf /tmp/* || true
+        
+        echo "💾 Disk space after cleanup:"
+        df -h
+        
         # Configure AWS CLI on EC2
         aws configure set region us-east-1
         
