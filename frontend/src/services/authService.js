@@ -81,8 +81,8 @@ class AuthService {
    */
   async signIn(email, password) {
     try {
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Simulate network delay (reduced for better UX)
+      await new Promise(resolve => setTimeout(resolve, 300));
 
       // Get all stored users (demo + registered users)
       const allUsers = this.getStoredUsers();
@@ -121,8 +121,8 @@ class AuthService {
    */
   async signUp(userData) {
     try {
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Simulate network delay (reduced for better UX)
+      await new Promise(resolve => setTimeout(resolve, 300));
 
       // Simple validation
       if (!userData.email || !userData.password || !userData.fullName) {
@@ -186,8 +186,8 @@ class AuthService {
    */
   async validateApiKey(apiKey) {
     try {
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Simulate network delay (reduced for better UX)
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       // Basic OpenAI API key format validation
       if (!apiKey || !apiKey.startsWith('sk-')) {

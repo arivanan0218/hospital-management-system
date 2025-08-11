@@ -133,7 +133,7 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
           if (inputFieldRef.current) {
             inputFieldRef.current.focus();
           }
-        }, 500); // Delay to ensure UI is fully rendered
+        }, 100); // Reduced delay for faster UI response
         
       } else {
         throw new Error('Failed to initialize service');
@@ -232,8 +232,8 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
       if (thinkingMessageId) {
         setMessages(prev => prev.filter(msg => msg.id !== thinkingMessageId));
         
-        // Add a brief pause to show the thinking completed
-        await new Promise(resolve => setTimeout(resolve, 200));
+        // Remove artificial delay for faster response
+        // await new Promise(resolve => setTimeout(resolve, 200));
       }
       
       if (response.success) {
