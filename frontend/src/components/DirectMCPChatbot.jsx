@@ -982,12 +982,12 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
                 <p className="text-gray-400 mb-6 text-sm">
                   I'm your AI assistant for hospital management tasks. I can help you manage patients, staff, departments, equipment, and more through natural conversation.
                 </p>
-                <div className="grid grid-cols-1 gap-3 text-sm">
+                {/* <div className="grid grid-cols-1 gap-3 text-sm">
                   <div className="bg-[#2a2a2a] rounded-lg p-3 text-left">
                     <div className="font-medium text-white mb-1">Try asking:</div>
                     <div className="text-gray-400">"List all patients" or "Create a new department"</div>
                   </div>
-                </div>
+                </div> */}
               </div>
             </div>
           )}
