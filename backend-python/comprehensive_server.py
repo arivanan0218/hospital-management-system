@@ -1,4 +1,4 @@
-"""Hospital Management System MCP Server - Complete CRUD Operations for All Tables."""
+"""Hospital Management System MCP Server - Multi-Agent Architecture with Complete CRUD Operations."""
 
 import random
 import uuid
@@ -24,8 +24,28 @@ except ImportError:
     DATABASE_AVAILABLE = False
     print("WARNING: Database modules not available. Install dependencies: pip install sqlalchemy psycopg2-binary")
 
+# Import multi-agent system
+try:
+    from agents.orchestrator_agent import OrchestratorAgent
+    MULTI_AGENT_AVAILABLE = True
+    print("🤖 Multi-agent system imported successfully")
+except ImportError:
+    MULTI_AGENT_AVAILABLE = False
+    print("⚠️  Multi-agent system not available - running in single-agent mode")
+
 # Initialize FastMCP server
 mcp = FastMCP("hospital-management-system")
+
+# Initialize orchestrator agent if available
+orchestrator = None
+if MULTI_AGENT_AVAILABLE:
+    try:
+        orchestrator = OrchestratorAgent()
+        print(f"🤖 Multi-agent system initialized with {len(orchestrator.agents)} agents")
+        print(f"🔧 Total tools available: {len(orchestrator.get_tools())}")
+    except Exception as e:
+        print(f"❌ Failed to initialize multi-agent system: {str(e)}")
+        MULTI_AGENT_AVAILABLE = False
 
 # Database helper functions
 def get_db_session() -> Session:
@@ -50,6 +70,19 @@ def serialize_model(obj):
             result[column.name] = value
     return result
 
+def route_to_agent(tool_name: str, **kwargs) -> Any:
+    """Route tool request to appropriate agent if multi-agent system is available."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        try:
+            # Let orchestrator handle the routing
+            return orchestrator.route_request(tool_name, **kwargs)
+        except Exception as e:
+            print(f"⚠️  Agent routing failed for {tool_name}: {str(e)}")
+            print("🔄 Falling back to direct implementation")
+    
+    # If multi-agent not available or routing failed, return None to use fallback
+    return None
+
 # ================================
 # USER CRUD OPERATIONS
 # ================================
@@ -58,6 +91,14 @@ def serialize_model(obj):
 def create_user(username: str, email: str, password_hash: str, role: str, 
                 first_name: str, last_name: str, phone: str = None) -> Dict[str, Any]:
     """Create a new user in the database."""
+    # Try routing to multi-agent system first
+    agent_result = route_to_agent("create_user", 
+                                 username=username, email=email, password_hash=password_hash,
+                                 role=role, first_name=first_name, last_name=last_name, phone=phone)
+    if agent_result is not None:
+        return agent_result
+    
+    # Fallback to direct implementation
     if not DATABASE_AVAILABLE:
         return {"success": False, "message": "Database not available"}
     
