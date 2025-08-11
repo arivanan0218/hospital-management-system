@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LogOut, User, Settings } from 'lucide-react';
+import { LogOut, User, Settings, Upload, FileText, History } from 'lucide-react';
 import DirectHttpAIMCPService from '../services/directHttpAiMcpService.js';
+import MedicalDocumentUpload from './MedicalDocumentUpload.jsx';
+import MedicalHistoryViewer from './MedicalHistoryViewer.jsx';
 
 const DirectMCPChatbot = ({ user, onLogout }) => {
   const [messages, setMessages] = useState([]);
@@ -16,6 +18,11 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   const [connectionError, setConnectionError] = useState('');
   const [expandedThinking, setExpandedThinking] = useState({}); // Track which thinking messages are expanded
   const [isInputFocused, setIsInputFocused] = useState(false); // Track input focus state
+  
+  // Medical document features
+  const [activeTab, setActiveTab] = useState('chat'); // chat, upload, history
+  const [selectedPatientId, setSelectedPatientId] = useState(null);
+  const [patients, setPatients] = useState([]);
   
   // Auto-scroll to bottom only when new messages are added, not on timer updates
   useEffect(() => {
@@ -957,18 +964,62 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
         </div>
       </div>
 
-      {/* Messages Container - Claude Style */}
-      <div 
-        ref={messagesContainerRef} 
-        className="flex-1 overflow-y-auto bg-[#1a1a1a]"
-        onClick={() => {
-          // Focus input when clicking anywhere in the chat area, but not when selecting text
-          const selection = window.getSelection();
-          if (inputFieldRef.current && isConnected && selection.toString().length === 0) {
-            inputFieldRef.current.focus();
-          }
-        }}
-      >
+      {/* Tab Navigation */}
+      <div className="border-b border-gray-700 bg-[#1a1a1a]">
+        <div className="max-w-4xl mx-auto px-4">
+          <nav className="flex space-x-8">
+            <button
+              onClick={() => setActiveTab('chat')}
+              className={`py-3 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
+                activeTab === 'chat'
+                  ? 'border-blue-500 text-blue-400'
+                  : 'border-transparent text-gray-400 hover:text-gray-300'
+              }`}
+            >
+              <User className="w-4 h-4" />
+              <span>Chat Assistant</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('upload')}
+              className={`py-3 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
+                activeTab === 'upload'
+                  ? 'border-blue-500 text-blue-400'
+                  : 'border-transparent text-gray-400 hover:text-gray-300'
+              }`}
+            >
+              <Upload className="w-4 h-4" />
+              <span>Upload Documents</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('history')}
+              className={`py-3 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
+                activeTab === 'history'
+                  ? 'border-blue-500 text-blue-400'
+                  : 'border-transparent text-gray-400 hover:text-gray-300'
+              }`}
+            >
+              <History className="w-4 h-4" />
+              <span>Medical History</span>
+            </button>
+          </nav>
+        </div>
+      </div>
+
+      {/* Content Area */}
+      {activeTab === 'chat' && (
+        <>
+          {/* Messages Container - Claude Style */}
+          <div 
+            ref={messagesContainerRef} 
+            className="flex-1 overflow-y-auto bg-[#1a1a1a]"
+            onClick={() => {
+              // Focus input when clicking anywhere in the chat area, but not when selecting text
+              const selection = window.getSelection();
+              if (inputFieldRef.current && isConnected && selection.toString().length === 0) {
+                inputFieldRef.current.focus();
+              }
+            }}
+          >
         <div className="max-w-4xl mx-auto">
           {messages.length === 0 && (
             <div className="flex items-center justify-center h-full text-center px-6">
@@ -1302,6 +1353,110 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
           </div>
         </div>
       </div>
+        </>
+      )}
+
+      {/* Upload Documents Tab */}
+      {activeTab === 'upload' && (
+        <div className="flex-1 overflow-y-auto bg-[#1a1a1a] p-6">
+          <div className="max-w-4xl mx-auto">
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-white mb-2">Upload Medical Documents</h2>
+              <p className="text-gray-400">Upload patient medical documents for AI-powered analysis and history tracking.</p>
+            </div>
+            
+            {/* Patient Selection */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Select Patient
+              </label>
+              <div className="flex space-x-4">
+                <input
+                  type="text"
+                  placeholder="Enter Patient ID (e.g., P123456)"
+                  value={selectedPatientId || ''}
+                  onChange={(e) => setSelectedPatientId(e.target.value)}
+                  className="flex-1 p-3 bg-[#2a2a2a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <button
+                  onClick={async () => {
+                    // You could add a patient search function here
+                    if (selectedPatientId) {
+                      setInputMessage(`Search for patient ${selectedPatientId}`);
+                    }
+                  }}
+                  className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Verify
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                You can ask the AI assistant to help find patient IDs or create new patients.
+              </p>
+            </div>
+
+            {/* Document Upload Component */}
+            {selectedPatientId && (
+              <MedicalDocumentUpload 
+                patientId={selectedPatientId}
+                onUploadComplete={(result) => {
+                  console.log('Document uploaded:', result);
+                  // You could show a success message or refresh data here
+                }}
+              />
+            )}
+
+            {!selectedPatientId && (
+              <div className="text-center text-gray-500 py-12">
+                <Upload className="w-16 h-16 mx-auto mb-4" />
+                <p className="text-lg font-medium">Enter a Patient ID to start uploading documents</p>
+                <p className="text-sm">Make sure you have the correct patient identifier before uploading medical documents.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Medical History Tab */}
+      {activeTab === 'history' && (
+        <div className="flex-1 overflow-y-auto bg-[#1a1a1a] p-6">
+          <div className="max-w-4xl mx-auto">
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-white mb-2">Medical History</h2>
+              <p className="text-gray-400">View comprehensive medical history extracted from uploaded documents.</p>
+            </div>
+            
+            {/* Patient Selection for History */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                View History for Patient
+              </label>
+              <div className="flex space-x-4">
+                <input
+                  type="text"
+                  placeholder="Enter Patient ID to view medical history"
+                  value={selectedPatientId || ''}
+                  onChange={(e) => setSelectedPatientId(e.target.value)}
+                  className="flex-1 p-3 bg-[#2a2a2a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            {/* Medical History Component */}
+            {selectedPatientId && (
+              <MedicalHistoryViewer patientId={selectedPatientId} />
+            )}
+
+            {!selectedPatientId && (
+              <div className="text-center text-gray-500 py-12">
+                <FileText className="w-16 h-16 mx-auto mb-4" />
+                <p className="text-lg font-medium">Enter a Patient ID to view medical history</p>
+                <p className="text-sm">Access comprehensive medical records and AI-extracted insights.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
