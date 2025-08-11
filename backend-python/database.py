@@ -91,6 +91,8 @@ class Patient(Base):
     # Relationships
     beds = relationship("Bed", back_populates="patient")
     appointments = relationship("Appointment", back_populates="patient")
+    medical_documents = relationship("MedicalDocument", back_populates="patient")
+    extracted_medical_data = relationship("ExtractedMedicalData", back_populates="patient")
 
 class Room(Base):
     """Room table model."""
@@ -282,6 +284,84 @@ class Appointment(Base):
     patient = relationship("Patient", back_populates="appointments")
     doctor = relationship("User", foreign_keys=[doctor_id], back_populates="appointments_as_doctor")
     department = relationship("Department", back_populates="appointments")
+
+class MedicalDocument(Base):
+    """Medical documents table model for storing uploaded medical files."""
+    __tablename__ = "medical_documents"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
+    document_type = Column(String(50), nullable=False)  # prescription, lab_result, imaging, discharge_summary, etc.
+    file_name = Column(String(255), nullable=False)
+    file_path = Column(String(500), nullable=False)  # Local path or S3 URL
+    file_size = Column(Integer)  # File size in bytes
+    mime_type = Column(String(100))  # File MIME type
+    upload_date = Column(DateTime, default=func.now())
+    extracted_text = Column(Text)  # OCR extracted text
+    processing_status = Column(String(20), default='pending')  # pending, processing, completed, failed
+    extracted_metadata = Column(Text)  # JSON string of extracted medical data
+    confidence_score = Column(DECIMAL(3, 2))  # AI extraction confidence (0.00-1.00)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    # Relationships
+    patient = relationship("Patient", back_populates="medical_documents")
+    extracted_medical_data = relationship("ExtractedMedicalData", back_populates="document")
+
+class ExtractedMedicalData(Base):
+    """Structured medical data extracted from documents."""
+    __tablename__ = "extracted_medical_data"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    document_id = Column(UUID(as_uuid=True), ForeignKey("medical_documents.id"), nullable=False)
+    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
+    data_type = Column(String(50), nullable=False)  # medication, condition, procedure, allergy, vital_sign
+    
+    # Medical entity fields
+    entity_name = Column(String(200), nullable=False)  # Name of medication, condition, etc.
+    entity_value = Column(String(200))  # Dosage, measurement value, etc.
+    entity_unit = Column(String(50))  # mg, ml, mmHg, etc.
+    
+    # Temporal information
+    date_prescribed = Column(Date)
+    date_recorded = Column(Date)
+    date_effective = Column(Date)
+    
+    # Context information
+    doctor_name = Column(String(100))
+    hospital_name = Column(String(100))
+    department_name = Column(String(100))
+    
+    # AI extraction metadata
+    extraction_confidence = Column(DECIMAL(3, 2))  # Confidence score for this extraction
+    extraction_method = Column(String(50))  # OCR, AI_PARSING, MANUAL
+    verified = Column(Boolean, default=False)  # Human verified
+    
+    # Additional context
+    notes = Column(Text)  # Additional notes or context
+    
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    # Relationships
+    document = relationship("MedicalDocument", back_populates="extracted_medical_data")
+    patient = relationship("Patient", back_populates="extracted_medical_data")
+
+class DocumentEmbedding(Base):
+    """Vector embeddings for RAG system."""
+    __tablename__ = "document_embeddings"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    document_id = Column(UUID(as_uuid=True), ForeignKey("medical_documents.id"), nullable=False)
+    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
+    chunk_text = Column(Text, nullable=False)  # Text chunk for embedding
+    chunk_index = Column(Integer, nullable=False)  # Order of chunk in document
+    embedding_vector = Column(Text)  # JSON serialized embedding vector
+    created_at = Column(DateTime, default=func.now())
+
+    # Relationships
+    document = relationship("MedicalDocument")
+    patient = relationship("Patient")
 
 # Legacy User model for backward compatibility
 class LegacyUser(Base):

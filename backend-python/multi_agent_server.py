@@ -449,6 +449,81 @@ def get_staff_by_id(staff_id: str) -> Dict[str, Any]:
 # [The file would continue with all other tools following the same pattern]
 
 # ================================
+# MEDICAL DOCUMENT MANAGEMENT TOOLS  
+# ================================
+
+@mcp.tool()
+def upload_medical_document(patient_id: str, file_content: str, file_name: str, 
+                          document_type: str = "prescription", mime_type: str = None) -> Dict[str, Any]:
+    """Upload a medical document for a patient."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("upload_medical_document",
+                                           patient_id=patient_id, file_content=file_content,
+                                           file_name=file_name, document_type=document_type, 
+                                           mime_type=mime_type)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def process_medical_document(document_id: str) -> Dict[str, Any]:
+    """Process uploaded medical document with OCR and AI extraction."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("process_medical_document", document_id=document_id)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def get_patient_medical_history(patient_id: str) -> Dict[str, Any]:
+    """Get comprehensive medical history for a patient from uploaded documents."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("get_patient_medical_history", patient_id=patient_id)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def search_medical_documents(patient_id: str = None, document_type: str = None, 
+                           date_from: str = None, date_to: str = None) -> Dict[str, Any]:
+    """Search medical documents with filters."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("search_medical_documents",
+                                           patient_id=patient_id, document_type=document_type,
+                                           date_from=date_from, date_to=date_to)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def query_medical_knowledge(query: str, patient_id: str = None) -> Dict[str, Any]:
+    """Query medical documents using RAG system for intelligent answers."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("query_medical_knowledge", 
+                                           query=query, patient_id=patient_id)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def extract_medical_entities(text: str) -> Dict[str, Any]:
+    """Extract medical entities from text using AI."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("extract_medical_entities", text=text)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def get_medical_timeline(patient_id: str) -> Dict[str, Any]:
+    """Get chronological medical timeline for a patient."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("get_medical_timeline", patient_id=patient_id)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+# ================================
 # HTTP ENDPOINTS FOR FRONTEND
 # ================================
 

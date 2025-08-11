@@ -16,6 +16,7 @@ try:
     from .equipment_agent import EquipmentAgent
     from .inventory_agent import InventoryAgent
     from .appointment_agent import AppointmentAgent
+    from .medical_document_agent import MedicalDocumentAgent
     AGENTS_AVAILABLE = True
 except ImportError:
     AGENTS_AVAILABLE = False
@@ -46,7 +47,8 @@ class OrchestratorAgent(BaseAgent):
                 "staff": StaffAgent(),
                 "equipment": EquipmentAgent(),
                 "inventory": InventoryAgent(),
-                "appointment": AppointmentAgent()
+                "appointment": AppointmentAgent(),
+                "medical_document": MedicalDocumentAgent()
             }
             print(f"✅ Initialized {len(self.agents)} specialized agents")
         except Exception as e:
@@ -84,6 +86,8 @@ class OrchestratorAgent(BaseAgent):
     
     def route_request(self, tool_name: str, **kwargs) -> Dict[str, Any]:
         """Route a tool request to the appropriate specialized agent"""
+        import inspect
+        
         try:
             if tool_name in self.agent_routing:
                 agent_name = self.agent_routing[tool_name]
@@ -92,6 +96,8 @@ class OrchestratorAgent(BaseAgent):
                 # Check if agent has the method
                 if hasattr(agent, tool_name):
                     method = getattr(agent, tool_name)
+                    
+                    # Execute method (should be synchronous now)
                     result = method(**kwargs)
                     
                     # Log the routing
