@@ -55,5 +55,10 @@ coverage/
 
 # Optional eslint cache
 .eslintcache
+<<<<<<< HEAD
 
 hospital_env
+
+_pycache_
+=======
+>>>>>>> origin/dev-aws-dev
