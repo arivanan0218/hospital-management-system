@@ -55,10 +55,26 @@ coverage/
 
 # Optional eslint cache
 .eslintcache
-<<<<<<< HEAD
 
-hospital_env
+# Python
+hospital_env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
 
-_pycache_
-=======
->>>>>>> origin/dev-aws-dev
+# Database files
+*.sqlite3
+*.db
+chroma_db/
+backend-python/chroma_db/
+
+# AWS
+*.pem
+*.key
