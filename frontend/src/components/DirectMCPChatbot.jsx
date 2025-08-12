@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { LogOut, User, Settings, Upload, FileText, History } from 'lucide-react';
 import DirectHttpAIMCPService from '../services/directHttpAiMcpService.js';
 import MedicalDocumentUpload from './MedicalDocumentUpload.jsx';
+import EnhancedMedicalDocumentUpload from './EnhancedMedicalDocumentUpload.jsx';
 import MedicalHistoryViewer from './MedicalHistoryViewer.jsx';
 
 const DirectMCPChatbot = ({ user, onLogout }) => {
@@ -1395,13 +1396,19 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
               </p>
             </div>
 
-            {/* Document Upload Component */}
+            {/* Enhanced Document Upload Component */}
             {selectedPatientId && (
-              <MedicalDocumentUpload 
+              <EnhancedMedicalDocumentUpload 
                 patientId={selectedPatientId}
-                onUploadComplete={(result) => {
-                  console.log('Document uploaded:', result);
-                  // You could show a success message or refresh data here
+                onUploadComplete={(results) => {
+                  console.log('Documents uploaded:', results);
+                  // Show success message and potentially switch to history tab
+                  setMessages(prev => [...prev, {
+                    id: Date.now(),
+                    type: 'assistant',
+                    content: `✅ Successfully uploaded ${results.length} medical document(s) for patient ${selectedPatientId}. ${results.map(r => `\n• ${r.fileName}: ${r.entitiesCount} entities extracted`).join('')}`,
+                    timestamp: new Date()
+                  }]);
                 }}
               />
             )}
