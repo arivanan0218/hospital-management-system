@@ -220,15 +220,15 @@ const EnhancedMedicalDocumentUpload = ({ patientId, onUploadComplete }) => {
     if (!showPreview || !previewFile) return null;
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-6 max-w-4xl max-h-[90vh] overflow-auto">
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-[#2a2a2a] border border-gray-600 rounded-lg p-4 sm:p-6 max-w-4xl max-h-[90vh] overflow-auto w-full">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold">Preview: {previewFile.name}</h3>
+            <h3 className="text-lg font-semibold text-white">Preview: {previewFile.name}</h3>
             <button
               onClick={() => setShowPreview(false)}
-              className="p-2 hover:bg-gray-100 rounded-full"
+              className="p-2 hover:bg-gray-700 rounded-full transition-colors"
             >
-              <X className="w-5 h-5" />
+              <X className="w-5 h-5 text-gray-400" />
             </button>
           </div>
 
@@ -237,21 +237,21 @@ const EnhancedMedicalDocumentUpload = ({ patientId, onUploadComplete }) => {
               <img
                 src={previewFile.preview}
                 alt="Preview"
-                className="max-w-full max-h-96 object-contain mx-auto"
+                className="max-w-full max-h-96 object-contain mx-auto rounded-lg"
               />
             )}
 
             {previewFile.type === 'application/pdf' && (
               <div className="pdf-preview">
                 <div className="text-center">
-                  <p className="text-gray-600 mb-4">
+                  <p className="text-gray-300 mb-4">
                     PDF Preview: {pdfPages} page(s)
                   </p>
                   <iframe
                     src={previewFile.preview}
                     width="100%"
                     height="500px"
-                    className="border rounded"
+                    className="border border-gray-600 rounded bg-white"
                     title="PDF Preview"
                   />
                 </div>
@@ -264,24 +264,24 @@ const EnhancedMedicalDocumentUpload = ({ patientId, onUploadComplete }) => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
-      <h3 className="text-xl font-semibold mb-4 flex items-center">
-        <Upload className="w-5 h-5 mr-2" />
+    <div className="bg-[#2a2a2a] rounded-lg shadow-md p-4 sm:p-6 border border-gray-600">
+      <h3 className="text-lg sm:text-xl font-semibold mb-4 flex items-center text-white">
+        <Upload className="w-5 h-5 mr-2 text-blue-400" />
         Upload Medical Documents
       </h3>
 
       {/* Document Type Selection */}
       <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-300 mb-2">
           Document Type
         </label>
         <select
           value={documentType}
           onChange={(e) => setDocumentType(e.target.value)}
-          className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full p-3 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         >
           {documentTypes.map(type => (
-            <option key={type.value} value={type.value}>
+            <option key={type.value} value={type.value} className="bg-[#1a1a1a] text-white">
               {type.label}
             </option>
           ))}
@@ -291,21 +291,21 @@ const EnhancedMedicalDocumentUpload = ({ patientId, onUploadComplete }) => {
       {/* Enhanced Dropzone */}
       <div
         {...getRootProps()}
-        className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+        className={`border-2 border-dashed rounded-lg p-6 sm:p-8 text-center cursor-pointer transition-colors ${
           isDragActive
-            ? 'border-blue-400 bg-blue-50'
-            : 'border-gray-300 hover:border-gray-400'
+            ? 'border-blue-400 bg-blue-900/20'
+            : 'border-gray-600 hover:border-gray-500 bg-[#1a1a1a]'
         }`}
       >
         <input {...getInputProps()} />
-        <Upload className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+        <Upload className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-4 text-gray-400" />
         {isDragActive ? (
-          <p className="text-blue-600">Drop the files here...</p>
+          <p className="text-blue-400 text-sm sm:text-base">Drop the files here...</p>
         ) : (
           <div>
-            <p className="text-lg mb-2">Drag & drop medical documents here</p>
-            <p className="text-gray-500 mb-2">or click to browse</p>
-            <p className="text-sm text-gray-400">
+            <p className="text-base sm:text-lg mb-2 text-white">Drag & drop medical documents here</p>
+            <p className="text-gray-400 mb-2 text-sm sm:text-base">or click to browse</p>
+            <p className="text-xs sm:text-sm text-gray-500">
               Supports: Images (JPG, PNG, GIF), PDF, Text files (Max 10MB each)
             </p>
           </div>
@@ -315,38 +315,38 @@ const EnhancedMedicalDocumentUpload = ({ patientId, onUploadComplete }) => {
       {/* Selected Files Preview */}
       {selectedFiles.length > 0 && (
         <div className="mt-6">
-          <h4 className="font-medium mb-3">Selected Files ({selectedFiles.length})</h4>
+          <h4 className="font-medium mb-3 text-white">Selected Files ({selectedFiles.length})</h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {selectedFiles.map((fileData) => (
-              <div key={fileData.id} className="border rounded-lg p-3">
+              <div key={fileData.id} className="border border-gray-600 bg-[#1a1a1a] rounded-lg p-3">
                 <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center">
+                  <div className="flex items-center min-w-0 flex-1">
                     {fileData.type.startsWith('image/') ? (
-                      <Image className="w-5 h-5 mr-2 text-green-600" />
+                      <Image className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-green-400 flex-shrink-0" />
                     ) : (
-                      <FileText className="w-5 h-5 mr-2 text-blue-600" />
+                      <FileText className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-blue-400 flex-shrink-0" />
                     )}
-                    <span className="text-sm font-medium truncate">
+                    <span className="text-xs sm:text-sm font-medium truncate text-white">
                       {fileData.name}
                     </span>
                   </div>
                   <button
                     onClick={() => removeFile(fileData.id)}
-                    className="p-1 hover:bg-gray-100 rounded"
+                    className="p-1 hover:bg-gray-700 rounded ml-2 flex-shrink-0"
                   >
-                    <X className="w-4 h-4" />
+                    <X className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
                   </button>
                 </div>
                 
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-500">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
+                  <span className="text-xs text-gray-400">
                     {(fileData.size / 1024 / 1024).toFixed(2)} MB
                   </span>
                   <button
                     onClick={() => previewDocument(fileData)}
-                    className="flex items-center text-sm text-blue-600 hover:text-blue-800"
+                    className="flex items-center text-xs sm:text-sm text-blue-400 hover:text-blue-300 self-start sm:self-auto"
                   >
-                    <Eye className="w-4 h-4 mr-1" />
+                    <Eye className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
                     Preview
                   </button>
                 </div>
@@ -357,21 +357,22 @@ const EnhancedMedicalDocumentUpload = ({ patientId, onUploadComplete }) => {
       )}
 
       {/* Upload Button */}
+      {/* Upload Button */}
       {selectedFiles.length > 0 && (
         <div className="mt-6">
           <button
             onClick={uploadDocuments}
             disabled={uploading || processing}
-            className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+            className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
           >
             {uploading || processing ? (
               <>
-                <Clock className="w-5 h-5 mr-2 animate-spin" />
+                <Clock className="w-4 h-4 sm:w-5 sm:h-5 mr-2 animate-spin" />
                 {uploading ? 'Uploading...' : 'Processing...'}
               </>
             ) : (
               <>
-                <Upload className="w-5 h-5 mr-2" />
+                <Upload className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                 Upload & Process Documents
               </>
             )}
@@ -381,28 +382,28 @@ const EnhancedMedicalDocumentUpload = ({ patientId, onUploadComplete }) => {
 
       {/* Status Messages */}
       {uploadStatus && (
-        <div className={`mt-4 p-4 rounded-lg ${
+        <div className={`mt-4 p-4 rounded-lg border ${
           uploadStatus.type === 'success' 
-            ? 'bg-green-50 border border-green-200' 
-            : 'bg-red-50 border border-red-200'
+            ? 'bg-green-900/20 border-green-500/30' 
+            : 'bg-red-900/20 border-red-500/30'
         }`}>
           <div className="flex items-center">
             {uploadStatus.type === 'success' ? (
-              <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
+              <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-400 mr-2" />
             ) : (
-              <AlertCircle className="w-5 h-5 text-red-600 mr-2" />
+              <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-400 mr-2" />
             )}
-            <span className={`font-medium ${
-              uploadStatus.type === 'success' ? 'text-green-800' : 'text-red-800'
+            <span className={`font-medium text-sm sm:text-base ${
+              uploadStatus.type === 'success' ? 'text-green-400' : 'text-red-400'
             }`}>
               {uploadStatus.message}
             </span>
           </div>
           
           {uploadStatus.results && (
-            <div className="mt-2">
+            <div className="mt-2 space-y-1">
               {uploadStatus.results.map((result, index) => (
-                <div key={index} className="text-sm text-green-700">
+                <div key={index} className="text-xs sm:text-sm text-green-300">
                   • {result.fileName}: {result.entitiesCount} entities extracted 
                   (confidence: {(result.confidence * 100).toFixed(1)}%)
                 </div>

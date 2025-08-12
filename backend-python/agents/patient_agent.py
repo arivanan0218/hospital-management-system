@@ -28,7 +28,8 @@ class PatientAgent(BaseAgent):
             "get_patient_by_id",
             "search_patients",
             "update_patient",
-            "delete_patient"
+            "delete_patient",
+            "get_patient_medical_history_summary"
         ]
     
     def get_capabilities(self) -> List[str]:
@@ -284,3 +285,177 @@ class PatientAgent(BaseAgent):
             return {"success": True, "message": "Patient deleted successfully"}
         except Exception as e:
             return {"success": False, "message": f"Failed to delete patient: {str(e)}"}
+    
+    def get_patient_medical_history_summary(self, patient_id: str = None, patient_number: str = None, 
+                                          patient_name: str = None) -> Dict[str, Any]:
+        """Get comprehensive medical history summary for a patient from documents and basic info."""
+        if not DATABASE_AVAILABLE:
+            return {"success": False, "message": "Database not available"}
+        
+        try:
+            db = self.get_db_session()
+            patient = None
+            
+            # Find patient by different identifiers
+            if patient_id:
+                patient = db.query(Patient).filter(Patient.id == uuid.UUID(patient_id)).first()
+            elif patient_number:
+                patient = db.query(Patient).filter(Patient.patient_number == patient_number).first()
+            elif patient_name:
+                # Search by name (case insensitive)
+                name_parts = patient_name.strip().split()
+                if len(name_parts) >= 2:
+                    first_name, last_name = name_parts[0], " ".join(name_parts[1:])
+                    patient = db.query(Patient).filter(
+                        Patient.first_name.ilike(f"%{first_name}%"),
+                        Patient.last_name.ilike(f"%{last_name}%")
+                    ).first()
+                else:
+                    # Single name search
+                    patient = db.query(Patient).filter(
+                        or_(
+                            Patient.first_name.ilike(f"%{patient_name}%"),
+                            Patient.last_name.ilike(f"%{patient_name}%")
+                        )
+                    ).first()
+            
+            if not patient:
+                return {"success": False, "message": "Patient not found"}
+            
+            # Get basic patient info
+            basic_info = {
+                "patient_id": str(patient.id),
+                "patient_number": patient.patient_number,
+                "name": f"{patient.first_name} {patient.last_name}",
+                "date_of_birth": patient.date_of_birth.isoformat() if patient.date_of_birth else None,
+                "gender": patient.gender,
+                "phone": patient.phone,
+                "email": patient.email,
+                "address": patient.address,
+                "blood_type": patient.blood_type,
+                "allergies": patient.allergies,
+                "basic_medical_history": patient.medical_history
+            }
+            
+            # Try to get detailed medical history from documents
+            from agents.medical_document_agent import MedicalDocumentAgent
+            medical_agent = MedicalDocumentAgent()
+            
+            try:
+                detailed_history = medical_agent.get_patient_medical_history(str(patient.id))
+                if detailed_history.get("success"):
+                    medical_data = detailed_history.get("medical_history", {})
+                    
+                    # Create comprehensive summary
+                    total_documents = detailed_history.get("total_documents", 0)
+                    medications_count = len(medical_data.get("medications", []))
+                    conditions_count = len(medical_data.get("conditions", []))
+                    instructions_count = len(medical_data.get("instructions", []))
+                    allergies_count = len(medical_data.get("allergies", []))
+                    
+                    if total_documents > 0:
+                        summary = f"""
+📋 **Comprehensive Medical History for {basic_info['name']} (Patient #{patient.patient_number})**
+
+👤 **Basic Information:**
+- Date of Birth: {basic_info['date_of_birth']}
+- Gender: {basic_info['gender'] or 'Not specified'}
+- Blood Type: {basic_info['blood_type'] or 'Not recorded'}
+- Phone: {basic_info['phone'] or 'Not recorded'}
+- Email: {basic_info['email'] or 'Not recorded'}
+
+📄 **Medical Documents:** {total_documents} document(s) processed
+
+💊 **Current Medications ({medications_count}):**"""
+                        
+                        for med in medical_data.get("medications", [])[:5]:  # Show up to 5
+                            name = med.get('name', 'Unknown')
+                            value = med.get('value', '')
+                            confidence = med.get('confidence', 0)
+                            summary += f"\n- {name}" + (f" ({value})" if value else "") + f" [Confidence: {confidence:.0%}]"
+                        
+                        summary += f"\n\n🏥 **Medical Conditions ({conditions_count}):**"
+                        for condition in medical_data.get("conditions", [])[:3]:  # Show up to 3
+                            name = condition.get('name', 'Unknown')
+                            confidence = condition.get('confidence', 0)
+                            summary += f"\n- {name} [Confidence: {confidence:.0%}]"
+                        
+                        if instructions_count > 0:
+                            summary += f"\n\n📋 **Treatment Instructions ({instructions_count}):**"
+                            for instruction in medical_data.get("instructions", [])[:3]:  # Show up to 3
+                                name = instruction.get('name', 'Unknown')
+                                summary += f"\n- {name}"
+                        
+                        if allergies_count > 0:
+                            summary += f"\n\n⚠️ **Known Allergies ({allergies_count}):**"
+                            for allergy in medical_data.get("allergies", []):
+                                name = allergy.get('name', 'Unknown')
+                                summary += f"\n- {name}"
+                        elif basic_info['allergies']:
+                            summary += f"\n\n⚠️ **Known Allergies:**\n- {basic_info['allergies']}"
+                        
+                        if basic_info['basic_medical_history']:
+                            summary += f"\n\n📝 **Additional Medical History:**\n{basic_info['basic_medical_history']}"
+                        
+                        summary += f"\n\n*This information is extracted from uploaded medical documents with AI assistance.*"
+                        
+                        return {
+                            "success": True,
+                            "patient_info": basic_info,
+                            "detailed_history": medical_data,
+                            "summary": summary,
+                            "total_documents": total_documents
+                        }
+                    
+            except Exception as e:
+                print(f"Failed to get detailed medical history: {e}")
+            
+            # Fallback to basic patient information only
+            if basic_info['allergies'] or basic_info['basic_medical_history'] or basic_info['blood_type']:
+                summary = f"""
+📋 **Basic Medical Information for {basic_info['name']} (Patient #{patient.patient_number})**
+
+👤 **Patient Details:**
+- Date of Birth: {basic_info['date_of_birth']}
+- Gender: {basic_info['gender'] or 'Not specified'}
+- Blood Type: {basic_info['blood_type'] or 'Not recorded'}
+- Phone: {basic_info['phone'] or 'Not recorded'}
+- Email: {basic_info['email'] or 'Not recorded'}
+
+⚠️ **Known Allergies:** {basic_info['allergies'] or 'None recorded'}
+
+📝 **Medical History:** {basic_info['basic_medical_history'] or 'No detailed history recorded'}
+
+📄 **Medical Documents:** No processed documents found. Upload medical documents for detailed history.
+"""
+            else:
+                summary = f"""
+📋 **Limited Medical Information for {basic_info['name']} (Patient #{patient.patient_number})**
+
+👤 **Basic Patient Details:**
+- Date of Birth: {basic_info['date_of_birth']}
+- Gender: {basic_info['gender'] or 'Not specified'}
+
+⚠️ **Current Medical Records:** This patient has minimal information in the system. No detailed medical history, allergies, or blood type are currently recorded.
+
+📄 **Recommendation:** Please upload medical documents or update patient records to build a comprehensive medical history.
+"""
+            
+            self.log_interaction(
+                query=f"Get medical history summary for {basic_info['name']}",
+                response=f"Retrieved medical summary for patient {patient.patient_number}",
+                tool_used="get_patient_medical_history_summary"
+            )
+            
+            return {
+                "success": True,
+                "patient_info": basic_info,
+                "summary": summary,
+                "has_detailed_history": False
+            }
+            
+        except Exception as e:
+            return {"success": False, "message": f"Failed to get medical history: {str(e)}"}
+        finally:
+            if 'db' in locals():
+                db.close()
