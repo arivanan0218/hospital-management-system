@@ -4,60 +4,33 @@ Version: 0.1.0
 Summary: Hospital Management System MCP Server using FastMCP
 Requires-Python: >=3.12
 Description-Content-Type: text/markdown
-Requires-Dist: mcp[cli]
+Requires-Dist: mcp[cli]>=1.0.0
 Requires-Dist: pydantic>=2.0.0
 Requires-Dist: fastmcp>=0.2.0
-
-# Hospital Management System - Python Backend
-
-This is a Python implementation of the Hospital Management System MCP (Model Context Protocol) server using FastMCP.
-
-## Features
-
-- **User Management**: Create, read, update, and delete users
-- **Random User Generation**: Generate fake users with realistic data
-- **Resource Access**: Access user data through MCP resources
-- **Structured Output**: All tools return properly typed data using Pydantic models
-
-## Tools Available
-
-- `create-user`: Create a new user with name, email, address, and phone
-- `create-random-user`: Generate a random user with fake data
-- `get-user-by-id`: Retrieve a specific user by their ID
-- `list-users`: Get all users in the system
-- `delete-user`: Remove a user from the database
-- `update-user`: Update an existing user's information
-
-## Resources Available
-
-- `users://all`: Get all users data
-- `users://{user_id}/profile`: Get specific user profile
-
-## Installation
-
-1. Install dependencies:
-```bash
-pip install -e .
-```
-
-2. Run the server:
-```bash
-python server.py
-```
-
-## Usage
-
-The server implements the Model Context Protocol and can be used with any MCP-compatible client. It manages user data in a JSON file (`data/users.json`) and provides both tools and resources for user management operations.
-
-## Data Structure
-
-Users are stored with the following structure:
-```json
-{
-  "id": 1,
-  "name": "John Doe",
-  "email": "john@example.com",
-  "address": "123 Main St, City, State 12345",
-  "phone": "(555) 123-4567"
-}
-```
+Requires-Dist: google-generativeai>=0.8.0
+Requires-Dist: prompt-toolkit>=3.0.0
+Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: inquirer>=3.0.0
+Requires-Dist: streamlit>=1.47.1
+Requires-Dist: protobuf==3.20.3
+Requires-Dist: psycopg2-binary>=2.9.0
+Requires-Dist: sqlalchemy>=2.0.0
+Requires-Dist: fastapi>=0.104.0
+Requires-Dist: uvicorn[standard]>=0.24.0
+Requires-Dist: python-multipart>=0.0.6
+Requires-Dist: pytesseract>=0.3.10
+Requires-Dist: opencv-python>=4.8.0
+Requires-Dist: pdf2image>=1.17.0
+Requires-Dist: pillow>=10.0.0
+Requires-Dist: pypdf>=4.0.0
+Requires-Dist: chromadb>=0.4.0
+Requires-Dist: sentence-transformers>=2.2.0
+Requires-Dist: transformers>=4.35.0
+Requires-Dist: torch>=2.1.0
+Requires-Dist: numpy>=1.24.0
+Requires-Dist: aiofiles>=23.0.0
+Requires-Dist: python-magic>=0.4.27
+Requires-Dist: filetype>=1.2.0
+Requires-Dist: python-dateutil>=2.8.0
+Requires-Dist: spacy>=3.7.0
+Requires-Dist: regex>=2023.0.0

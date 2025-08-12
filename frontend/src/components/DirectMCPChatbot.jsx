@@ -1,25 +1,45 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { LogOut, User, Settings, Upload, FileText, History, CheckCircle } from 'lucide-react';
 import DirectHttpAIMCPService from '../services/directHttpAiMcpService.js';
+import MedicalDocumentUpload from './MedicalDocumentUpload.jsx';
+import EnhancedMedicalDocumentUpload from './EnhancedMedicalDocumentUpload.jsx';
+import MedicalHistoryViewer from './MedicalHistoryViewer.jsx';
 
-const DirectMCPChatbot = () => {
+const DirectMCPChatbot = ({ user, onLogout }) => {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
-  const [showSetup, setShowSetup] = useState(true);
+  const [showSetup, setShowSetup] = useState(false); // Start with false since auth is handled by parent
   
-  // Configuration state
-  const [openaiApiKey, setOpenaiApiKey] = useState(import.meta.env.VITE_OPENAI_API_KEY || '');
+  // Configuration state - get API key from authenticated user
+  const [openaiApiKey, setOpenaiApiKey] = useState(user?.apiKey || import.meta.env.VITE_OPENAI_API_KEY || '');
   
   const [serverInfo, setServerInfo] = useState(null);
   const [connectionError, setConnectionError] = useState('');
   const [expandedThinking, setExpandedThinking] = useState({}); // Track which thinking messages are expanded
   const [isInputFocused, setIsInputFocused] = useState(false); // Track input focus state
   
+  // Medical document features
+  const [activeTab, setActiveTab] = useState('chat'); // chat, upload, history
+  const [selectedPatientId, setSelectedPatientId] = useState(null); // This will store the UUID
+  const [selectedPatientNumber, setSelectedPatientNumber] = useState(''); // This will store the patient number (P123456)
+  const [searchingPatient, setSearchingPatient] = useState(false);
+  const [patientSearchResult, setPatientSearchResult] = useState(null);
+  const [patients, setPatients] = useState([]);
+  
   // Auto-scroll to bottom only when new messages are added, not on timer updates
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]); // Only trigger on message count change, not message content changes
+
+  // Auto-connect when component mounts if user is authenticated
+  useEffect(() => {
+    if (user && openaiApiKey && !isConnected && !showSetup) {
+      console.log('🔄 Auto-connecting for authenticated user...');
+      initializeService();
+    }
+  }, [user, openaiApiKey, isConnected, showSetup]); // Dependencies that should trigger auto-connection
 
   // Component to display thinking duration
   const ThinkingDuration = React.memo(({ startTime }) => {
@@ -124,7 +144,7 @@ const DirectMCPChatbot = () => {
           if (inputFieldRef.current) {
             inputFieldRef.current.focus();
           }
-        }, 500); // Delay to ensure UI is fully rendered
+        }, 100); // Reduced delay for faster UI response
         
       } else {
         throw new Error('Failed to initialize service');
@@ -223,8 +243,8 @@ const DirectMCPChatbot = () => {
       if (thinkingMessageId) {
         setMessages(prev => prev.filter(msg => msg.id !== thinkingMessageId));
         
-        // Add a brief pause to show the thinking completed
-        await new Promise(resolve => setTimeout(resolve, 200));
+        // Remove artificial delay for faster response
+        // await new Promise(resolve => setTimeout(resolve, 200));
       }
       
       if (response.success) {
@@ -711,6 +731,79 @@ const DirectMCPChatbot = () => {
     }
   };
 
+  /**
+   * Search for patient by patient number and get UUID
+   */
+  const searchPatientByNumber = async (patientNumber) => {
+    if (!patientNumber.trim()) {
+      return null;
+    }
+
+    setSearchingPatient(true);
+    try {
+      const response = await fetch('http://localhost:8000/tools/call', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          params: {
+            name: 'search_patients',
+            arguments: {
+              patient_number: patientNumber.trim()
+            }
+          }
+        })
+      });
+
+      const result = await response.json();
+      
+      if (result.result?.content?.[0]?.text) {
+        const data = JSON.parse(result.result.content[0].text);
+        
+        if (data.success && data.result?.data?.length > 0) {
+          const patient = data.result.data[0]; // Get first matching patient
+          return {
+            id: patient.id,
+            patient_number: patient.patient_number,
+            name: `${patient.first_name} ${patient.last_name}`,
+            patient: patient
+          };
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('Patient search error:', error);
+      return null;
+    } finally {
+      setSearchingPatient(false);
+    }
+  };
+
+  /**
+   * Handle patient number verification
+   */
+  const verifyPatient = async () => {
+    if (!selectedPatientNumber.trim()) return;
+
+    const patient = await searchPatientByNumber(selectedPatientNumber);
+    
+    if (patient) {
+      setSelectedPatientId(patient.id);
+      setPatientSearchResult(patient);
+    } else {
+      setPatientSearchResult(null);
+      setSelectedPatientId(null);
+      // Show error message
+      setMessages(prev => [...prev, {
+        id: Date.now(),
+        text: `❌ No patient found with number: ${selectedPatientNumber}. Please check the patient number or create a new patient.`,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      }]);
+    }
+  };
+
   // Setup Panel - Dark Chatbot Style
   if (showSetup) {
     return (
@@ -851,126 +944,223 @@ const DirectMCPChatbot = () => {
     );
   }
 
-  // Main Chat Interface - Claude Desktop Style
+  // Main Chat Interface - Claude Desktop Style with Responsive Design
   return (
     <div className="h-screen bg-[#1a1a1a] flex flex-col text-white">
-      {/* Claude-style Header */}
-      <div className="border-b border-gray-700 px-4 py-3 bg-[#1a1a1a]">
+      {/* Claude-style Header - Responsive */}
+      <div className="border-b border-gray-700 px-3 sm:px-4 py-3 bg-[#1a1a1a]">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-medium shadow-lg">
+          <div className="flex items-center space-x-2 sm:space-x-3">
+            <div className="w-6 h-6 sm:w-7 sm:h-7 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs sm:text-sm font-medium shadow-lg">
               H
             </div>
-            <div>
-              <h1 className="text-sm font-medium text-white">Hospital Assistant</h1>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-sm font-medium text-white truncate">Hospital Assistant</h1>
               {serverInfo && (
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-gray-400 hidden sm:block">
                   Connected • {serverInfo.toolCount} tools • {aiMcpServiceRef.current?.getConversationSummary?.()?.messageCount || 0} messages in memory
                 </p>
               )}
             </div>
           </div>
-          <div className="flex items-center space-x-2">
-            {/* Action Buttons */}
-            <button
-              onClick={() => {
-                if (aiMcpServiceRef.current) {
-                  aiMcpServiceRef.current.resetConversation();
-                  setMessages(prev => [...prev, {
-                    id: Date.now(),
-                    text: '🔄 **Conversation Reset** - Memory cleared. Starting fresh!',
-                    sender: 'ai',
-                    timestamp: new Date().toLocaleTimeString()
-                  }]);
-                }
-              }}
-              className="p-1.5 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors"
-              title="Reset Conversation Memory"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-            </button>
-            <button
-              onClick={checkStatus}
-              className="p-1.5 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors"
-              title="Check Status"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-            </button>
-            <button
-              onClick={disconnect}
-              className="p-1.5 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors"
-              title="Disconnect"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+          
+          {/* User Info and Actions - Responsive */}
+          <div className="flex items-center space-x-1 sm:space-x-3">
+            {/* User Profile */}
+            <div className="flex items-center space-x-1 sm:space-x-2">
+              <div className="w-5 h-5 sm:w-6 sm:h-6 bg-green-600 rounded-full flex items-center justify-center">
+                <span className="text-white text-xs font-medium">
+                  {user?.fullName ? user.fullName.charAt(0).toUpperCase() : user?.email?.charAt(0).toUpperCase() || 'U'}
+                </span>
+              </div>
+              <div className="hidden md:block">
+                <p className="text-xs text-white font-medium">{user?.fullName || 'User'}</p>
+                <p className="text-xs text-gray-400">{user?.role || 'Staff'}</p>
+              </div>
+            </div>
+
+            {/* Action Buttons - Responsive with Mobile Menu */}
+            <div className="flex items-center space-x-1">
+              {/* Mobile: Show only essential buttons */}
+              <div className="flex items-center space-x-1 sm:hidden">
+                <button
+                  onClick={() => setShowSetup(true)}
+                  className="p-1.5 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors"
+                  title="Settings"
+                >
+                  <Settings className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={onLogout}
+                  className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded-md transition-colors"
+                  title="Logout"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+              
+              {/* Desktop: Show all buttons */}
+              <div className="hidden sm:flex items-center space-x-1">
+                <button
+                  onClick={() => {
+                    if (aiMcpServiceRef.current) {
+                      aiMcpServiceRef.current.resetConversation();
+                      setMessages(prev => [...prev, {
+                        id: Date.now(),
+                        text: '🔄 **Conversation Reset** - Memory cleared. Starting fresh!',
+                        sender: 'ai',
+                        timestamp: new Date().toLocaleTimeString()
+                      }]);
+                    }
+                  }}
+                  className="p-1.5 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors"
+                  title="Reset Conversation Memory"
+                >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+              <button
+                onClick={checkStatus}
+                className="p-1.5 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors"
+                title="Check Status"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </button>
+              <button
+                onClick={disconnect}
+                className="p-1.5 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors"
+                title="Disconnect"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+              
+              {/* Settings Button */}
+              <button
+                onClick={() => setShowSetup(true)}
+                className="p-1.5 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors"
+                title="Settings"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+              
+              {/* Logout Button */}
+              <button
+                onClick={onLogout}
+                className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded-md transition-colors"
+                title="Logout"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Messages Container - Claude Style */}
-      <div 
-        ref={messagesContainerRef} 
-        className="flex-1 overflow-y-auto bg-[#1a1a1a]"
-        onClick={() => {
-          // Focus input when clicking anywhere in the chat area, but not when selecting text
-          const selection = window.getSelection();
-          if (inputFieldRef.current && isConnected && selection.toString().length === 0) {
-            inputFieldRef.current.focus();
-          }
-        }}
-      >
-        <div className="max-w-4xl mx-auto">
+      {/* Tab Navigation - Responsive */}
+      <div className="border-b border-gray-700 bg-[#1a1a1a]">
+        <div className="max-w-4xl mx-auto px-3 sm:px-4">
+          <nav className="flex space-x-4 sm:space-x-8 overflow-x-auto">
+            <button
+              onClick={() => setActiveTab('chat')}
+              className={`py-3 px-1 border-b-2 font-medium text-xs sm:text-sm flex items-center space-x-1 sm:space-x-2 whitespace-nowrap ${
+                activeTab === 'chat'
+                  ? 'border-blue-500 text-blue-400'
+                  : 'border-transparent text-gray-400 hover:text-gray-300'
+              }`}
+            >
+              <User className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Chat Assistant</span>
+              <span className="sm:hidden">Chat</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('upload')}
+              className={`py-3 px-1 border-b-2 font-medium text-xs sm:text-sm flex items-center space-x-1 sm:space-x-2 whitespace-nowrap ${
+                activeTab === 'upload'
+                  ? 'border-blue-500 text-blue-400'
+                  : 'border-transparent text-gray-400 hover:text-gray-300'
+              }`}
+            >
+              <Upload className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Upload Documents</span>
+              <span className="sm:hidden">Upload</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('history')}
+              className={`py-3 px-1 border-b-2 font-medium text-xs sm:text-sm flex items-center space-x-1 sm:space-x-2 whitespace-nowrap ${
+                activeTab === 'history'
+                  ? 'border-blue-500 text-blue-400'
+                  : 'border-transparent text-gray-400 hover:text-gray-300'
+              }`}
+            >
+              <History className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Medical History</span>
+              <span className="sm:hidden">History</span>
+            </button>
+          </nav>
+        </div>
+      </div>
+
+      {/* Content Area */}
+      {activeTab === 'chat' && (
+        <>
+          {/* Messages Container - Claude Style - Responsive */}
+          <div 
+            ref={messagesContainerRef} 
+            className="flex-1 overflow-y-auto bg-[#1a1a1a]"
+            onClick={() => {
+              // Focus input when clicking anywhere in the chat area, but not when selecting text
+              const selection = window.getSelection();
+              if (inputFieldRef.current && isConnected && selection.toString().length === 0) {
+                inputFieldRef.current.focus();
+              }
+            }}
+          >
+        <div className="max-w-4xl mx-auto px-3 sm:px-4">
           {messages.length === 0 && (
-            <div className="flex items-center justify-center h-full text-center px-6">
-              <div className="max-w-md">
-                <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
-                  <span className="text-2xl font-medium text-white">H</span>
+            <div className="flex items-center justify-center h-full text-center px-3 sm:px-6">
+              <div className="max-w-xs sm:max-w-md">
+                <div className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6 shadow-lg">
+                  <span className="text-lg sm:text-2xl font-medium text-white">H</span>
                 </div>
-                <h2 className="text-xl font-medium text-white mb-3">
-                  Hospital Management Assistant
+                <h2 className="text-lg sm:text-xl font-medium text-white mb-2 sm:mb-3">
+                  Welcome back, {user?.fullName?.split(' ')[0] || 'User'}!
                 </h2>
-                <p className="text-gray-400 mb-6 text-sm">
+                <p className="text-gray-400 mb-4 sm:mb-6 text-sm">
                   I'm your AI assistant for hospital management tasks. I can help you manage patients, staff, departments, equipment, and more through natural conversation.
                 </p>
-                <div className="grid grid-cols-1 gap-3 text-sm">
-                  <div className="bg-[#2a2a2a] rounded-lg p-3 text-left">
-                    <div className="font-medium text-white mb-1">Try asking:</div>
-                    <div className="text-gray-400">"List all patients" or "Create a new department"</div>
-                  </div>
-                </div>
               </div>
             </div>
           )}
           
           {messages.map((message) => (
-            <div key={message.id} className={`px-4 py-2 ${
+            <div key={message.id} className={`px-2 sm:px-4 py-2 ${
               message.isThinking ? 'bg-[#1a1a1a]' : 
               message.isFinalAnswer ? 'bg-[#1a1a1a]' : 
               message.isError ? 'bg-[#1a1a1a]' : 'bg-[#1a1a1a]'
             }`}>
               {message.sender === 'user' ? (
-                // User message - aligned to the right
+                // User message - aligned to the right - Responsive
                 <div className="flex justify-end">
-                  <div className="max-w-[80%]">
+                  <div className="max-w-[85%] sm:max-w-[80%]">
                     <div className="prose prose-sm max-w-none">
-                      <div className="whitespace-pre-wrap leading-relaxed text-sm text-white bg-slate-700 rounded-2xl px-4 py-2">
+                      <div className="whitespace-pre-wrap leading-relaxed text-xs sm:text-sm text-white bg-slate-700 rounded-2xl px-3 sm:px-4 py-2">
                         <div dangerouslySetInnerHTML={{ __html: formatMessageText(message.text) }} />
                       </div>
                     </div>
                   </div>
                 </div>
               ) : (
-                // AI message - aligned to the left (existing layout)
-                <div className="flex space-x-3">
-                  <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-medium text-white shadow-lg">
+                // AI message - aligned to the left - Responsive
+                <div className="flex space-x-2 sm:space-x-3">
+                  <div className="w-6 h-6 sm:w-7 sm:h-7 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 text-xs sm:text-sm font-medium text-white shadow-lg">
                     {message.isThinking ? (
-                      <div className="w-3 h-3 border border-gray-400 border-t-white rounded-full animate-spin"></div>
+                      <div className="w-2 h-2 sm:w-3 sm:h-3 border border-gray-400 border-t-white rounded-full animate-spin"></div>
                     ) : (
                       'H'
                     )}
@@ -984,13 +1174,13 @@ const DirectMCPChatbot = () => {
                           ...prev,
                           [message.id]: !prev[message.id]
                         }))}
-                        className="flex items-center space-x-2 text-xs text-gray-500 italic hover:text-gray-400 transition-colors w-full justify-between"
+                        className="flex items-center space-x-1 sm:space-x-2 text-xs text-gray-500 italic hover:text-gray-400 transition-colors w-full justify-between"
                       >
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-1 sm:space-x-2 min-w-0">
                           <span className="text-gray-400">🔧</span>
-                          <span className="font-mono text-blue-400">{message.toolFunction || 'thinking'}</span>
+                          <span className="font-mono text-blue-400 truncate">{message.toolFunction || 'thinking'}</span>
                         </div>
-                        <span className="ml-auto flex items-center space-x-1">
+                        <span className="ml-auto flex items-center space-x-1 flex-shrink-0">
                           <ThinkingDuration startTime={message.startTime} />
                           <svg 
                             className={`w-3 h-3 transform transition-transform ${expandedThinking[message.id] ? 'rotate-180' : ''}`} 
@@ -1003,7 +1193,7 @@ const DirectMCPChatbot = () => {
                         </span>
                       </button>
                       {expandedThinking[message.id] && (
-                        <div className="mt-2 text-sm text-gray-300 pl-6">
+                        <div className="mt-2 text-xs sm:text-sm text-gray-300 pl-4 sm:pl-6">
                           {message.text}
                         </div>
                       )}
@@ -1162,16 +1352,16 @@ const DirectMCPChatbot = () => {
       </div>
 
       {/* Modern Chat Input - Two Row Layout */}
-      <div className="bg-[#1a1a1a] px-4 py-2">
+      <div className="bg-[#1a1a1a] px-3 sm:px-4 py-2">
         <div className="max-w-4xl mx-auto">
           <div className="relative">
             {/* Main Input Container - Rounded Rectangle */}
-            <div className={`bg-[#2a2a2a] rounded-3xl border px-4 py-4 transition-colors duration-200 ${
+            <div className={`bg-[#2a2a2a] rounded-2xl sm:rounded-3xl border px-3 sm:px-4 py-3 sm:py-4 transition-colors duration-200 ${
               isInputFocused ? 'border-blue-500' : 'border-gray-600'
             }`}>
               
               {/* First Row - Text Input (Full Width) */}
-              <div className="mb-3">
+              <div className="mb-2 sm:mb-3">
                 <textarea
                   ref={inputFieldRef}
                   value={inputMessage}
@@ -1187,9 +1377,9 @@ const DirectMCPChatbot = () => {
                   placeholder={isConnected ? "Ask anything (Ctrl+/ to focus)" : "Ask anything"}
                   disabled={!isConnected || isLoading}
                   rows={1}
-                  className="w-full bg-transparent border-none outline-none resize-none text-white placeholder-gray-400 text-base"
+                  className="w-full bg-transparent border-none outline-none resize-none text-white placeholder-gray-400 text-sm sm:text-base"
                   style={{
-                    minHeight: '24px',
+                    minHeight: '20px',
                     maxHeight: '120px'
                   }}
                   onInput={(e) => {
@@ -1202,37 +1392,37 @@ const DirectMCPChatbot = () => {
               {/* Second Row - Icons */}
               <div className="flex items-center justify-between">
                 {/* Left Side - Plus and Tools Icons */}
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2 sm:space-x-3">
                   {/* Plus Button */}
                   <button
                     className="text-gray-400 hover:text-white transition-colors p-1"
                     title="Add attachment"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
                   </button>
                   
                   {/* Tools Button */}
                   <button
-                    className="text-gray-400 hover:text-white transition-colors p-1 flex items-center space-x-2"
+                    className="text-gray-400 hover:text-white transition-colors p-1 flex items-center space-x-1 sm:space-x-2"
                     title="Tools"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
                     </svg>
-                    <span className="text-sm">MCP</span>
+                    <span className="text-xs sm:text-sm">MCP</span>
                   </button>
                 </div>
                 
                 {/* Right Side - Microphone and Send Icons */}
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2 sm:space-x-3">
                   {/* Microphone Button */}
                   <button
                     className="text-gray-400 hover:text-white transition-colors p-1"
                     title="Voice input"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
                     </svg>
                   </button>
@@ -1241,13 +1431,13 @@ const DirectMCPChatbot = () => {
                   <button
                     onClick={handleSendMessage}
                     disabled={!isConnected || isLoading || !inputMessage.trim()}
-                    className="w-8 h-8 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 text-white rounded-full flex items-center justify-center transition-colors duration-200"
+                    className="w-7 h-7 sm:w-8 sm:h-8 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 text-white rounded-full flex items-center justify-center transition-colors duration-200"
                     title="Send message"
                   >
                     {isLoading ? (
-                      <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
+                      <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
                     ) : (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
                       </svg>
                     )}
@@ -1258,6 +1448,165 @@ const DirectMCPChatbot = () => {
           </div>
         </div>
       </div>
+        </>
+      )}
+
+      {/* Upload Documents Tab */}
+      {activeTab === 'upload' && (
+        <div className="flex-1 overflow-y-auto bg-[#1a1a1a] p-3 sm:p-6">
+          <div className="max-w-4xl mx-auto">
+            <div className="mb-4 sm:mb-6">
+              <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">Upload Medical Documents</h2>
+              <p className="text-sm sm:text-base text-gray-400">Upload patient medical documents for AI-powered analysis and history tracking.</p>
+            </div>
+            
+            {/* Patient Selection */}
+            <div className="mb-4 sm:mb-6">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Select Patient by Patient Number
+              </label>
+              <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
+                <input
+                  type="text"
+                  placeholder="Enter Patient Number (e.g., P123456)"
+                  value={selectedPatientNumber}
+                  onChange={(e) => setSelectedPatientNumber(e.target.value.toUpperCase())}
+                  className="flex-1 p-3 bg-[#2a2a2a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
+                  onKeyPress={(e) => e.key === 'Enter' && verifyPatient()}
+                />
+                <button
+                  onClick={verifyPatient}
+                  disabled={searchingPatient || !selectedPatientNumber.trim()}
+                  className="bg-blue-600 text-white px-4 sm:px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-sm sm:text-base whitespace-nowrap"
+                >
+                  {searchingPatient ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                      Searching...
+                    </>
+                  ) : (
+                    'Verify Patient'
+                  )}
+                </button>
+              </div>
+              
+              {/* Patient Search Result */}
+              {patientSearchResult && (
+                <div className="mt-3 p-3 bg-green-900/20 border border-green-500/30 rounded-lg">
+                  <div className="flex items-center text-green-400">
+                    <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+                    <span className="font-medium text-sm sm:text-base">Patient Found:</span>
+                  </div>
+                  <div className="mt-1 text-xs sm:text-sm text-gray-300 space-y-1">
+                    <p><strong>Name:</strong> {patientSearchResult.name}</p>
+                    <p><strong>Patient Number:</strong> {patientSearchResult.patient_number}</p>
+                    <p><strong>Email:</strong> {patientSearchResult.patient.email || 'Not provided'}</p>
+                    <p><strong>Phone:</strong> {patientSearchResult.patient.phone || 'Not provided'}</p>
+                  </div>
+                </div>
+              )}
+              
+              <p className="text-xs text-gray-500 mt-2">
+                Enter the patient number (like P123456) to verify the patient exists before uploading documents.
+              </p>
+            </div>
+
+            {/* Enhanced Document Upload Component */}
+            {selectedPatientId && (
+              <EnhancedMedicalDocumentUpload 
+                patientId={selectedPatientId}
+                onUploadComplete={(results) => {
+                  console.log('Documents uploaded:', results);
+                  // Show success message and potentially switch to history tab
+                  setMessages(prev => [...prev, {
+                    id: Date.now(),
+                    type: 'assistant',
+                    content: `✅ Successfully uploaded ${results.length} medical document(s) for patient ${patientSearchResult?.name} (${patientSearchResult?.patient_number}). ${results.map(r => `\n• ${r.fileName}: ${r.entitiesCount} entities extracted`).join('')}`,
+                    timestamp: new Date()
+                  }]);
+                }}
+              />
+            )}
+
+            {!selectedPatientId && (
+              <div className="text-center text-gray-500 py-8 sm:py-12">
+                <Upload className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4" />
+                <p className="text-base sm:text-lg font-medium">Enter a Patient Number to start uploading documents</p>
+                <p className="text-xs sm:text-sm">Search for the patient by their patient number (like P123456) before uploading medical documents.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Medical History Tab */}
+      {activeTab === 'history' && (
+        <div className="flex-1 overflow-y-auto bg-[#1a1a1a] p-3 sm:p-6">
+          <div className="max-w-4xl mx-auto">
+            <div className="mb-4 sm:mb-6">
+              <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">Medical History</h2>
+              <p className="text-sm sm:text-base text-gray-400">View comprehensive medical history extracted from uploaded documents.</p>
+            </div>
+            
+            {/* Patient Selection for History */}
+            <div className="mb-4 sm:mb-6">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                View History for Patient
+              </label>
+              <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
+                <input
+                  type="text"
+                  placeholder="Enter Patient Number (e.g., P123456)"
+                  value={selectedPatientNumber}
+                  onChange={(e) => setSelectedPatientNumber(e.target.value.toUpperCase())}
+                  className="flex-1 p-3 bg-[#2a2a2a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
+                  onKeyPress={(e) => e.key === 'Enter' && verifyPatient()}
+                />
+                <button
+                  onClick={verifyPatient}
+                  disabled={searchingPatient || !selectedPatientNumber.trim()}
+                  className="bg-blue-600 text-white px-4 sm:px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-sm sm:text-base whitespace-nowrap"
+                >
+                  {searchingPatient ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                      Searching...
+                    </>
+                  ) : (
+                    'Find Patient'
+                  )}
+                </button>
+              </div>
+              
+              {/* Patient Search Result */}
+              {patientSearchResult && (
+                <div className="mt-3 p-3 bg-green-900/20 border border-green-500/30 rounded-lg">
+                  <div className="flex items-center text-green-400">
+                    <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+                    <span className="font-medium text-sm sm:text-base">Viewing history for:</span>
+                  </div>
+                  <div className="mt-1 text-xs sm:text-sm text-gray-300">
+                    <p><strong>{patientSearchResult.name}</strong> ({patientSearchResult.patient_number})</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Medical History Component */}
+            {selectedPatientId && (
+              <MedicalHistoryViewer patientId={selectedPatientId} />
+            )}
+
+            {!selectedPatientId && (
+              <div className="text-center text-gray-500 py-8 sm:py-12">
+                <FileText className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4" />
+                <p className="text-base sm:text-lg font-medium">Enter a Patient ID to view medical history</p>
+                <p className="text-xs sm:text-sm">Access comprehensive medical records and AI-extracted insights.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

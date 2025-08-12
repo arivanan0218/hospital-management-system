@@ -5,9 +5,10 @@
 
 class DirectHttpMCPClient {
   constructor() {
-    // Use relative URL to go through nginx proxy
+   // Use relative URL to go through nginx proxy
     // This will use the current domain/port and route through nginx
     this.serverUrl = '';
+    // this.serverUrl = 'http://localhost:8000';
     this.isConnected = false;
     this.serverInfo = {};
     this.tools = [];
