@@ -18,10 +18,14 @@ init_database() {
     python setup_database.py || echo "Database initialization completed or already exists"
 }
 
-# Start the FastMCP server
+# Start the Multi-Agent MCP server
 start_server() {
-    echo "Starting Hospital Management MCP Server..."
-    python comprehensive_server.py
+    echo "Starting Hospital Management Multi-Agent MCP Server..."
+    echo "🤖 Multi-Agent Architecture Enabled"
+    echo "🔧 Agents: User, Patient, Department, Room/Bed, Staff, Equipment, Inventory, Appointment"
+    echo "🎯 Orchestrator: Coordinating all agents"
+    echo "📡 Server starting on port 8000..."
+    python multi_agent_server.py
 }
 
 # Main execution
