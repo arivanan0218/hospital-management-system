@@ -57,3 +57,5 @@ coverage/
 .eslintcache
 
 hospital_env
+
+_pycache_
