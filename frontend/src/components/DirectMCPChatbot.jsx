@@ -1,45 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LogOut, User, Settings, Upload, FileText, History, CheckCircle } from 'lucide-react';
 import DirectHttpAIMCPService from '../services/directHttpAiMcpService.js';
-import MedicalDocumentUpload from './MedicalDocumentUpload.jsx';
-import EnhancedMedicalDocumentUpload from './EnhancedMedicalDocumentUpload.jsx';
-import MedicalHistoryViewer from './MedicalHistoryViewer.jsx';
 
-const DirectMCPChatbot = ({ user, onLogout }) => {
+const DirectMCPChatbot = () => {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
-  const [showSetup, setShowSetup] = useState(false); // Start with false since auth is handled by parent
+  const [showSetup, setShowSetup] = useState(true);
   
-  // Configuration state - get API key from authenticated user
-  const [openaiApiKey, setOpenaiApiKey] = useState(user?.apiKey || import.meta.env.VITE_OPENAI_API_KEY || '');
+  // Configuration state
+  const [openaiApiKey, setOpenaiApiKey] = useState(import.meta.env.VITE_OPENAI_API_KEY || '');
   
   const [serverInfo, setServerInfo] = useState(null);
   const [connectionError, setConnectionError] = useState('');
   const [expandedThinking, setExpandedThinking] = useState({}); // Track which thinking messages are expanded
   const [isInputFocused, setIsInputFocused] = useState(false); // Track input focus state
   
-  // Medical document features
-  const [activeTab, setActiveTab] = useState('chat'); // chat, upload, history
-  const [selectedPatientId, setSelectedPatientId] = useState(null); // This will store the UUID
-  const [selectedPatientNumber, setSelectedPatientNumber] = useState(''); // This will store the patient number (P123456)
-  const [searchingPatient, setSearchingPatient] = useState(false);
-  const [patientSearchResult, setPatientSearchResult] = useState(null);
-  const [patients, setPatients] = useState([]);
-  
   // Auto-scroll to bottom only when new messages are added, not on timer updates
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]); // Only trigger on message count change, not message content changes
-
-  // Auto-connect when component mounts if user is authenticated
-  useEffect(() => {
-    if (user && openaiApiKey && !isConnected && !showSetup) {
-      console.log('🔄 Auto-connecting for authenticated user...');
-      initializeService();
-    }
-  }, [user, openaiApiKey, isConnected, showSetup]); // Dependencies that should trigger auto-connection
 
   // Component to display thinking duration
   const ThinkingDuration = React.memo(({ startTime }) => {
@@ -144,7 +124,7 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
           if (inputFieldRef.current) {
             inputFieldRef.current.focus();
           }
-        }, 100); // Reduced delay for faster UI response
+        }, 500); // Delay to ensure UI is fully rendered
         
       } else {
         throw new Error('Failed to initialize service');
@@ -243,8 +223,8 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
       if (thinkingMessageId) {
         setMessages(prev => prev.filter(msg => msg.id !== thinkingMessageId));
         
-        // Remove artificial delay for faster response
-        // await new Promise(resolve => setTimeout(resolve, 200));
+        // Add a brief pause to show the thinking completed
+        await new Promise(resolve => setTimeout(resolve, 200));
       }
       
       if (response.success) {
@@ -731,79 +711,6 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
     }
   };
 
-  /**
-   * Search for patient by patient number and get UUID
-   */
-  const searchPatientByNumber = async (patientNumber) => {
-    if (!patientNumber.trim()) {
-      return null;
-    }
-
-    setSearchingPatient(true);
-    try {
-      const response = await fetch('http://localhost:8000/tools/call', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          params: {
-            name: 'search_patients',
-            arguments: {
-              patient_number: patientNumber.trim()
-            }
-          }
-        })
-      });
-
-      const result = await response.json();
-      
-      if (result.result?.content?.[0]?.text) {
-        const data = JSON.parse(result.result.content[0].text);
-        
-        if (data.success && data.result?.success && data.result.data?.length > 0) {
-          const patient = data.result.data[0]; // Get first matching patient
-          return {
-            id: patient.id,
-            patient_number: patient.patient_number,
-            name: `${patient.first_name} ${patient.last_name}`,
-            patient: patient
-          };
-        }
-      }
-      return null;
-    } catch (error) {
-      console.error('Patient search error:', error);
-      return null;
-    } finally {
-      setSearchingPatient(false);
-    }
-  };
-
-  /**
-   * Handle patient number verification
-   */
-  const verifyPatient = async () => {
-    if (!selectedPatientNumber.trim()) return;
-
-    const patient = await searchPatientByNumber(selectedPatientNumber);
-    
-    if (patient) {
-      setSelectedPatientId(patient.id);
-      setPatientSearchResult(patient);
-    } else {
-      setPatientSearchResult(null);
-      setSelectedPatientId(null);
-      // Show error message
-      setMessages(prev => [...prev, {
-        id: Date.now(),
-        text: `❌ No patient found with number: ${selectedPatientNumber}. Please check the patient number or create a new patient.`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      }]);
-    }
-  };
-
   // Setup Panel - Dark Chatbot Style
   if (showSetup) {
     return (
@@ -963,39 +870,23 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
               )}
             </div>
           </div>
-          
-          {/* User Info and Actions */}
-          <div className="flex items-center space-x-3">
-            {/* User Profile */}
-            <div className="flex items-center space-x-2">
-              <div className="w-6 h-6 bg-green-600 rounded-full flex items-center justify-center">
-                <span className="text-white text-xs font-medium">
-                  {user?.fullName ? user.fullName.charAt(0).toUpperCase() : user?.email?.charAt(0).toUpperCase() || 'U'}
-                </span>
-              </div>
-              <div className="hidden sm:block">
-                <p className="text-xs text-white font-medium">{user?.fullName || 'User'}</p>
-                <p className="text-xs text-gray-400">{user?.role || 'Staff'}</p>
-              </div>
-            </div>
-
+          <div className="flex items-center space-x-2">
             {/* Action Buttons */}
-            <div className="flex items-center space-x-1">
-              <button
-                onClick={() => {
-                  if (aiMcpServiceRef.current) {
-                    aiMcpServiceRef.current.resetConversation();
-                    setMessages(prev => [...prev, {
-                      id: Date.now(),
-                      text: '🔄 **Conversation Reset** - Memory cleared. Starting fresh!',
-                      sender: 'ai',
-                      timestamp: new Date().toLocaleTimeString()
-                    }]);
-                  }
-                }}
-                className="p-1.5 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors"
-                title="Reset Conversation Memory"
-              >
+            <button
+              onClick={() => {
+                if (aiMcpServiceRef.current) {
+                  aiMcpServiceRef.current.resetConversation();
+                  setMessages(prev => [...prev, {
+                    id: Date.now(),
+                    text: '🔄 **Conversation Reset** - Memory cleared. Starting fresh!',
+                    sender: 'ai',
+                    timestamp: new Date().toLocaleTimeString()
+                  }]);
+                }
+              }}
+              className="p-1.5 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors"
+              title="Reset Conversation Memory"
+            >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
@@ -1018,85 +909,22 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
-            
-            {/* Settings Button */}
-            <button
-              onClick={() => setShowSetup(true)}
-              className="p-1.5 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors"
-              title="Settings"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
-            
-            {/* Logout Button */}
-            <button
-              onClick={onLogout}
-              className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded-md transition-colors"
-              title="Logout"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-            </div>
           </div>
         </div>
       </div>
 
-      {/* Tab Navigation */}
-      <div className="border-b border-gray-700 bg-[#1a1a1a]">
-        <div className="max-w-4xl mx-auto px-4">
-          <nav className="flex space-x-8">
-            <button
-              onClick={() => setActiveTab('chat')}
-              className={`py-3 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
-                activeTab === 'chat'
-                  ? 'border-blue-500 text-blue-400'
-                  : 'border-transparent text-gray-400 hover:text-gray-300'
-              }`}
-            >
-              <User className="w-4 h-4" />
-              <span>Chat Assistant</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('upload')}
-              className={`py-3 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
-                activeTab === 'upload'
-                  ? 'border-blue-500 text-blue-400'
-                  : 'border-transparent text-gray-400 hover:text-gray-300'
-              }`}
-            >
-              <Upload className="w-4 h-4" />
-              <span>Upload Documents</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('history')}
-              className={`py-3 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
-                activeTab === 'history'
-                  ? 'border-blue-500 text-blue-400'
-                  : 'border-transparent text-gray-400 hover:text-gray-300'
-              }`}
-            >
-              <History className="w-4 h-4" />
-              <span>Medical History</span>
-            </button>
-          </nav>
-        </div>
-      </div>
-
-      {/* Content Area */}
-      {activeTab === 'chat' && (
-        <>
-          {/* Messages Container - Claude Style */}
-          <div 
-            ref={messagesContainerRef} 
-            className="flex-1 overflow-y-auto bg-[#1a1a1a]"
-            onClick={() => {
-              // Focus input when clicking anywhere in the chat area, but not when selecting text
-              const selection = window.getSelection();
-              if (inputFieldRef.current && isConnected && selection.toString().length === 0) {
-                inputFieldRef.current.focus();
-              }
-            }}
-          >
+      {/* Messages Container - Claude Style */}
+      <div 
+        ref={messagesContainerRef} 
+        className="flex-1 overflow-y-auto bg-[#1a1a1a]"
+        onClick={() => {
+          // Focus input when clicking anywhere in the chat area, but not when selecting text
+          const selection = window.getSelection();
+          if (inputFieldRef.current && isConnected && selection.toString().length === 0) {
+            inputFieldRef.current.focus();
+          }
+        }}
+      >
         <div className="max-w-4xl mx-auto">
           {messages.length === 0 && (
             <div className="flex items-center justify-center h-full text-center px-6">
@@ -1105,17 +933,17 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
                   <span className="text-2xl font-medium text-white">H</span>
                 </div>
                 <h2 className="text-xl font-medium text-white mb-3">
-                  Welcome back, {user?.fullName?.split(' ')[0] || 'User'}!
+                  Hospital Management Assistant
                 </h2>
                 <p className="text-gray-400 mb-6 text-sm">
                   I'm your AI assistant for hospital management tasks. I can help you manage patients, staff, departments, equipment, and more through natural conversation.
                 </p>
-                {/* <div className="grid grid-cols-1 gap-3 text-sm">
+                <div className="grid grid-cols-1 gap-3 text-sm">
                   <div className="bg-[#2a2a2a] rounded-lg p-3 text-left">
                     <div className="font-medium text-white mb-1">Try asking:</div>
                     <div className="text-gray-400">"List all patients" or "Create a new department"</div>
                   </div>
-                </div> */}
+                </div>
               </div>
             </div>
           )}
@@ -1430,165 +1258,6 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
           </div>
         </div>
       </div>
-        </>
-      )}
-
-      {/* Upload Documents Tab */}
-      {activeTab === 'upload' && (
-        <div className="flex-1 overflow-y-auto bg-[#1a1a1a] p-6">
-          <div className="max-w-4xl mx-auto">
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold text-white mb-2">Upload Medical Documents</h2>
-              <p className="text-gray-400">Upload patient medical documents for AI-powered analysis and history tracking.</p>
-            </div>
-            
-            {/* Patient Selection */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Select Patient by Patient Number
-              </label>
-              <div className="flex space-x-4">
-                <input
-                  type="text"
-                  placeholder="Enter Patient Number (e.g., P123456)"
-                  value={selectedPatientNumber}
-                  onChange={(e) => setSelectedPatientNumber(e.target.value.toUpperCase())}
-                  className="flex-1 p-3 bg-[#2a2a2a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  onKeyPress={(e) => e.key === 'Enter' && verifyPatient()}
-                />
-                <button
-                  onClick={verifyPatient}
-                  disabled={searchingPatient || !selectedPatientNumber.trim()}
-                  className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-                >
-                  {searchingPatient ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                      Searching...
-                    </>
-                  ) : (
-                    'Verify Patient'
-                  )}
-                </button>
-              </div>
-              
-              {/* Patient Search Result */}
-              {patientSearchResult && (
-                <div className="mt-3 p-3 bg-green-900/20 border border-green-500/30 rounded-lg">
-                  <div className="flex items-center text-green-400">
-                    <CheckCircle className="w-5 h-5 mr-2" />
-                    <span className="font-medium">Patient Found:</span>
-                  </div>
-                  <div className="mt-1 text-sm text-gray-300">
-                    <p><strong>Name:</strong> {patientSearchResult.name}</p>
-                    <p><strong>Patient Number:</strong> {patientSearchResult.patient_number}</p>
-                    <p><strong>Email:</strong> {patientSearchResult.patient.email || 'Not provided'}</p>
-                    <p><strong>Phone:</strong> {patientSearchResult.patient.phone || 'Not provided'}</p>
-                  </div>
-                </div>
-              )}
-              
-              <p className="text-xs text-gray-500 mt-2">
-                Enter the patient number (like P123456) to verify the patient exists before uploading documents.
-              </p>
-            </div>
-
-            {/* Enhanced Document Upload Component */}
-            {selectedPatientId && (
-              <EnhancedMedicalDocumentUpload 
-                patientId={selectedPatientId}
-                onUploadComplete={(results) => {
-                  console.log('Documents uploaded:', results);
-                  // Show success message and potentially switch to history tab
-                  setMessages(prev => [...prev, {
-                    id: Date.now(),
-                    type: 'assistant',
-                    content: `✅ Successfully uploaded ${results.length} medical document(s) for patient ${patientSearchResult?.name} (${patientSearchResult?.patient_number}). ${results.map(r => `\n• ${r.fileName}: ${r.entitiesCount} entities extracted`).join('')}`,
-                    timestamp: new Date()
-                  }]);
-                }}
-              />
-            )}
-
-            {!selectedPatientId && (
-              <div className="text-center text-gray-500 py-12">
-                <Upload className="w-16 h-16 mx-auto mb-4" />
-                <p className="text-lg font-medium">Enter a Patient Number to start uploading documents</p>
-                <p className="text-sm">Search for the patient by their patient number (like P123456) before uploading medical documents.</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Medical History Tab */}
-      {activeTab === 'history' && (
-        <div className="flex-1 overflow-y-auto bg-[#1a1a1a] p-6">
-          <div className="max-w-4xl mx-auto">
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold text-white mb-2">Medical History</h2>
-              <p className="text-gray-400">View comprehensive medical history extracted from uploaded documents.</p>
-            </div>
-            
-            {/* Patient Selection for History */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                View History for Patient
-              </label>
-              <div className="flex space-x-4">
-                <input
-                  type="text"
-                  placeholder="Enter Patient Number (e.g., P123456)"
-                  value={selectedPatientNumber}
-                  onChange={(e) => setSelectedPatientNumber(e.target.value.toUpperCase())}
-                  className="flex-1 p-3 bg-[#2a2a2a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  onKeyPress={(e) => e.key === 'Enter' && verifyPatient()}
-                />
-                <button
-                  onClick={verifyPatient}
-                  disabled={searchingPatient || !selectedPatientNumber.trim()}
-                  className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-                >
-                  {searchingPatient ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                      Searching...
-                    </>
-                  ) : (
-                    'Find Patient'
-                  )}
-                </button>
-              </div>
-              
-              {/* Patient Search Result */}
-              {patientSearchResult && (
-                <div className="mt-3 p-3 bg-green-900/20 border border-green-500/30 rounded-lg">
-                  <div className="flex items-center text-green-400">
-                    <CheckCircle className="w-5 h-5 mr-2" />
-                    <span className="font-medium">Viewing history for:</span>
-                  </div>
-                  <div className="mt-1 text-sm text-gray-300">
-                    <p><strong>{patientSearchResult.name}</strong> ({patientSearchResult.patient_number})</p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Medical History Component */}
-            {selectedPatientId && (
-              <MedicalHistoryViewer patientId={selectedPatientId} />
-            )}
-
-            {!selectedPatientId && (
-              <div className="text-center text-gray-500 py-12">
-                <FileText className="w-16 h-16 mx-auto mb-4" />
-                <p className="text-lg font-medium">Enter a Patient ID to view medical history</p>
-                <p className="text-sm">Access comprehensive medical records and AI-extracted insights.</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 };
