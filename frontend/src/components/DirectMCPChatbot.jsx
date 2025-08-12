@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LogOut, User, Settings, Upload, FileText, History } from 'lucide-react';
+import { LogOut, User, Settings, Upload, FileText, History, CheckCircle } from 'lucide-react';
 import DirectHttpAIMCPService from '../services/directHttpAiMcpService.js';
 import MedicalDocumentUpload from './MedicalDocumentUpload.jsx';
 import EnhancedMedicalDocumentUpload from './EnhancedMedicalDocumentUpload.jsx';
@@ -22,7 +22,10 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   
   // Medical document features
   const [activeTab, setActiveTab] = useState('chat'); // chat, upload, history
-  const [selectedPatientId, setSelectedPatientId] = useState(null);
+  const [selectedPatientId, setSelectedPatientId] = useState(null); // This will store the UUID
+  const [selectedPatientNumber, setSelectedPatientNumber] = useState(''); // This will store the patient number (P123456)
+  const [searchingPatient, setSearchingPatient] = useState(false);
+  const [patientSearchResult, setPatientSearchResult] = useState(null);
   const [patients, setPatients] = useState([]);
   
   // Auto-scroll to bottom only when new messages are added, not on timer updates
@@ -728,6 +731,79 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
     }
   };
 
+  /**
+   * Search for patient by patient number and get UUID
+   */
+  const searchPatientByNumber = async (patientNumber) => {
+    if (!patientNumber.trim()) {
+      return null;
+    }
+
+    setSearchingPatient(true);
+    try {
+      const response = await fetch('http://localhost:8000/tools/call', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          params: {
+            name: 'search_patients',
+            arguments: {
+              patient_number: patientNumber.trim()
+            }
+          }
+        })
+      });
+
+      const result = await response.json();
+      
+      if (result.result?.content?.[0]?.text) {
+        const data = JSON.parse(result.result.content[0].text);
+        
+        if (data.success && data.result?.success && data.result.data?.length > 0) {
+          const patient = data.result.data[0]; // Get first matching patient
+          return {
+            id: patient.id,
+            patient_number: patient.patient_number,
+            name: `${patient.first_name} ${patient.last_name}`,
+            patient: patient
+          };
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('Patient search error:', error);
+      return null;
+    } finally {
+      setSearchingPatient(false);
+    }
+  };
+
+  /**
+   * Handle patient number verification
+   */
+  const verifyPatient = async () => {
+    if (!selectedPatientNumber.trim()) return;
+
+    const patient = await searchPatientByNumber(selectedPatientNumber);
+    
+    if (patient) {
+      setSelectedPatientId(patient.id);
+      setPatientSearchResult(patient);
+    } else {
+      setPatientSearchResult(null);
+      setSelectedPatientId(null);
+      // Show error message
+      setMessages(prev => [...prev, {
+        id: Date.now(),
+        text: `❌ No patient found with number: ${selectedPatientNumber}. Please check the patient number or create a new patient.`,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      }]);
+    }
+  };
+
   // Setup Panel - Dark Chatbot Style
   if (showSetup) {
     return (
@@ -1369,30 +1445,51 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
             {/* Patient Selection */}
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                Select Patient
+                Select Patient by Patient Number
               </label>
               <div className="flex space-x-4">
                 <input
                   type="text"
-                  placeholder="Enter Patient ID (e.g., P123456)"
-                  value={selectedPatientId || ''}
-                  onChange={(e) => setSelectedPatientId(e.target.value)}
+                  placeholder="Enter Patient Number (e.g., P123456)"
+                  value={selectedPatientNumber}
+                  onChange={(e) => setSelectedPatientNumber(e.target.value.toUpperCase())}
                   className="flex-1 p-3 bg-[#2a2a2a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  onKeyPress={(e) => e.key === 'Enter' && verifyPatient()}
                 />
                 <button
-                  onClick={async () => {
-                    // You could add a patient search function here
-                    if (selectedPatientId) {
-                      setInputMessage(`Search for patient ${selectedPatientId}`);
-                    }
-                  }}
-                  className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+                  onClick={verifyPatient}
+                  disabled={searchingPatient || !selectedPatientNumber.trim()}
+                  className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                 >
-                  Verify
+                  {searchingPatient ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                      Searching...
+                    </>
+                  ) : (
+                    'Verify Patient'
+                  )}
                 </button>
               </div>
+              
+              {/* Patient Search Result */}
+              {patientSearchResult && (
+                <div className="mt-3 p-3 bg-green-900/20 border border-green-500/30 rounded-lg">
+                  <div className="flex items-center text-green-400">
+                    <CheckCircle className="w-5 h-5 mr-2" />
+                    <span className="font-medium">Patient Found:</span>
+                  </div>
+                  <div className="mt-1 text-sm text-gray-300">
+                    <p><strong>Name:</strong> {patientSearchResult.name}</p>
+                    <p><strong>Patient Number:</strong> {patientSearchResult.patient_number}</p>
+                    <p><strong>Email:</strong> {patientSearchResult.patient.email || 'Not provided'}</p>
+                    <p><strong>Phone:</strong> {patientSearchResult.patient.phone || 'Not provided'}</p>
+                  </div>
+                </div>
+              )}
+              
               <p className="text-xs text-gray-500 mt-2">
-                You can ask the AI assistant to help find patient IDs or create new patients.
+                Enter the patient number (like P123456) to verify the patient exists before uploading documents.
               </p>
             </div>
 
@@ -1406,7 +1503,7 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
                   setMessages(prev => [...prev, {
                     id: Date.now(),
                     type: 'assistant',
-                    content: `✅ Successfully uploaded ${results.length} medical document(s) for patient ${selectedPatientId}. ${results.map(r => `\n• ${r.fileName}: ${r.entitiesCount} entities extracted`).join('')}`,
+                    content: `✅ Successfully uploaded ${results.length} medical document(s) for patient ${patientSearchResult?.name} (${patientSearchResult?.patient_number}). ${results.map(r => `\n• ${r.fileName}: ${r.entitiesCount} entities extracted`).join('')}`,
                     timestamp: new Date()
                   }]);
                 }}
@@ -1416,8 +1513,8 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
             {!selectedPatientId && (
               <div className="text-center text-gray-500 py-12">
                 <Upload className="w-16 h-16 mx-auto mb-4" />
-                <p className="text-lg font-medium">Enter a Patient ID to start uploading documents</p>
-                <p className="text-sm">Make sure you have the correct patient identifier before uploading medical documents.</p>
+                <p className="text-lg font-medium">Enter a Patient Number to start uploading documents</p>
+                <p className="text-sm">Search for the patient by their patient number (like P123456) before uploading medical documents.</p>
               </div>
             )}
           </div>
@@ -1441,12 +1538,40 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
               <div className="flex space-x-4">
                 <input
                   type="text"
-                  placeholder="Enter Patient ID to view medical history"
-                  value={selectedPatientId || ''}
-                  onChange={(e) => setSelectedPatientId(e.target.value)}
+                  placeholder="Enter Patient Number (e.g., P123456)"
+                  value={selectedPatientNumber}
+                  onChange={(e) => setSelectedPatientNumber(e.target.value.toUpperCase())}
                   className="flex-1 p-3 bg-[#2a2a2a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  onKeyPress={(e) => e.key === 'Enter' && verifyPatient()}
                 />
+                <button
+                  onClick={verifyPatient}
+                  disabled={searchingPatient || !selectedPatientNumber.trim()}
+                  className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                >
+                  {searchingPatient ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                      Searching...
+                    </>
+                  ) : (
+                    'Find Patient'
+                  )}
+                </button>
               </div>
+              
+              {/* Patient Search Result */}
+              {patientSearchResult && (
+                <div className="mt-3 p-3 bg-green-900/20 border border-green-500/30 rounded-lg">
+                  <div className="flex items-center text-green-400">
+                    <CheckCircle className="w-5 h-5 mr-2" />
+                    <span className="font-medium">Viewing history for:</span>
+                  </div>
+                  <div className="mt-1 text-sm text-gray-300">
+                    <p><strong>{patientSearchResult.name}</strong> ({patientSearchResult.patient_number})</p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Medical History Component */}
