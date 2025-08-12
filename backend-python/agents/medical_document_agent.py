@@ -1,4 +1,38 @@
-"""Medical Document Agent - Handles medical document upload, processing, and RAG queries"""
+"""
+Medical Document Agent - Handles medical document upload, processing, and RAG queries
+
+DEPLOYMENT NOTE: AI/ML models temporarily disabled for deployment
+=================================================================
+The following features are temporarily commented out to reduce deployment size:
+1. Sentence Transformers (sentence-transformers) - for document embeddings
+2. Transformers/BERT models (transformers) - for Named Entity Recognition
+3. PyTorch (torch) - deep learning backend
+
+To re-enable AI features after deployment:
+1. Uncomment lines in pyproject.toml:
+   - "sentence-transformers>=2.2.0"
+   - "transformers>=4.35.0" 
+   - "torch>=2.1.0"
+
+2. Uncomment imports in this file:
+   - from sentence_transformers import SentenceTransformer
+   - from transformers import pipeline
+   - import torch
+
+3. Set feature flags to True:
+   - EMBEDDINGS_AVAILABLE = True
+   - NER_AVAILABLE = True
+
+4. Uncomment model initialization and usage throughout this file
+   (search for "Temporarily commented out for deployment")
+
+Current functionality available without AI models:
+- Document upload and basic text extraction
+- Pattern-based medical entity extraction
+- Document storage and basic search
+- Medical history compilation
+=================================================================
+"""
 
 import os
 import json
@@ -38,12 +72,18 @@ except ImportError:
 # Import AI/ML libraries
 try:
     import chromadb
-    from sentence_transformers import SentenceTransformer
-    import torch
-    from transformers import pipeline
+    # Temporarily commented out for deployment - large model size
+    # from sentence_transformers import SentenceTransformer
+    # import torch
+    # from transformers import pipeline
     AI_AVAILABLE = True
+    # Set flags for temporarily disabled AI features
+    EMBEDDINGS_AVAILABLE = False  # Will be True when sentence_transformers is enabled
+    NER_AVAILABLE = False  # Will be True when transformers is enabled
 except ImportError:
     AI_AVAILABLE = False
+    EMBEDDINGS_AVAILABLE = False
+    NER_AVAILABLE = False
     print("WARNING: AI/ML libraries not available")
 
 # Import database models
@@ -74,20 +114,24 @@ class MedicalDocumentAgent(BaseAgent):
         if AI_AVAILABLE:
             try:
                 # Initialize sentence transformer for embeddings
-                self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
-                print("✅ Embedding model initialized")
+                # Temporarily commented out for deployment - large model size
+                # self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+                # print("✅ Embedding model initialized")
+                print("⚠️ Embedding model disabled for deployment")
                 
                 # Initialize NER pipeline for medical entity extraction
-                try:
-                    self.ner_pipeline = pipeline(
-                        "ner", 
-                        model="dbmdz/bert-large-cased-finetuned-conll03-english",
-                        aggregation_strategy="simple",
-                        device=0 if torch.cuda.is_available() else -1
-                    )
-                    print("✅ NER pipeline initialized")
-                except Exception as e:
-                    print(f"⚠️ NER pipeline failed, using fallback: {e}")
+                # Temporarily commented out for deployment - large model size
+                # try:
+                #     self.ner_pipeline = pipeline(
+                #         "ner", 
+                #         model="dbmdz/bert-large-cased-finetuned-conll03-english",
+                #         aggregation_strategy="simple",
+                #         device=0 if torch.cuda.is_available() else -1
+                #     )
+                #     print("✅ NER pipeline initialized")
+                # except Exception as e:
+                #     print(f"⚠️ NER pipeline failed, using fallback: {e}")
+                print("⚠️ NER pipeline disabled for deployment")
                 
                 # Initialize ChromaDB for RAG
                 self.chroma_client = chromadb.PersistentClient(
@@ -246,11 +290,17 @@ class MedicalDocumentAgent(BaseAgent):
                 
                 # Store extracted entities
                 for entity in medical_entities:
+                    # Extract additional fields
+                    entity_value = entity.get('dosage', entity.get('value'))
+                    doctor_name = entity.get('doctor')
+                    
                     extracted_data = ExtractedMedicalData(
                         document_id=document.id,
                         patient_id=document.patient_id,
                         data_type=entity.get('entity_group', 'unknown').lower(),
                         entity_name=entity.get('word', ''),
+                        entity_value=entity_value,
+                        doctor_name=doctor_name,
                         extraction_confidence=float(entity.get('score', 0.0)),
                         extraction_method='AI_PARSING'
                     )
@@ -321,18 +371,49 @@ class MedicalDocumentAgent(BaseAgent):
                 ExtractedMedicalData.patient_id == uuid.UUID(patient_id)
             ).order_by(ExtractedMedicalData.date_prescribed.desc()).all()
             
-            # Organize by data type
+            # Organize by data type with proper mapping
             history = {
                 "medications": [],
                 "conditions": [],
                 "procedures": [],
                 "allergies": [],
                 "vital_signs": [],
+                "instructions": [],
                 "documents": []
             }
             
+            # Map data types to categories
+            type_mapping = {
+                "medication": "medications",
+                "medicine": "medications",
+                "drug": "medications",
+                "diagnosis": "conditions",
+                "condition": "conditions",
+                "disease": "conditions",
+                "symptom": "conditions",
+                "allergy": "allergies",
+                "allergic": "allergies",
+                "procedure": "procedures",
+                "surgery": "procedures",
+                "operation": "procedures",
+                "instruction": "instructions",
+                "directions": "instructions",
+                "vital": "vital_signs",
+                "vitals": "vital_signs",
+                "per": "conditions",  # Person names often get mixed with conditions
+                "misc": "conditions"
+            }
+            
             for data in medical_data:
-                category = data.data_type if data.data_type in history else "conditions"
+                # Map data type to appropriate category
+                data_type = data.data_type.lower() if data.data_type else "misc"
+                category = type_mapping.get(data_type, "conditions")
+                
+                # Skip person names unless they're clearly medical entities
+                if data_type == "per" and len(data.entity_name.split()) <= 2:
+                    # Skip simple person names
+                    continue
+                
                 history[category].append({
                     "id": str(data.id),
                     "name": data.entity_name,
@@ -415,12 +496,14 @@ class MedicalDocumentAgent(BaseAgent):
     
     def query_medical_knowledge(self, query: str, patient_id: str = None) -> Dict[str, Any]:
         """Query medical documents using RAG system."""
-        if not AI_AVAILABLE:
-            return {"success": False, "message": "AI/RAG system not available"}
+        if not AI_AVAILABLE or not EMBEDDINGS_AVAILABLE:
+            return {"success": False, "message": "AI/RAG system not available - embeddings disabled for deployment"}
         
         try:
             # Create query embedding
-            query_embedding = self.embedding_model.encode([query])[0].tolist()
+            # Temporarily commented out for deployment - requires sentence_transformers
+            # query_embedding = self.embedding_model.encode([query])[0].tolist()
+            return {"success": False, "message": "Embedding functionality disabled for deployment"}
             
             # Search in ChromaDB
             search_filter = {}
@@ -620,43 +703,149 @@ class MedicalDocumentAgent(BaseAgent):
             return ""
     
     def _extract_medical_entities(self, text: str) -> List[Dict[str, Any]]:
-        """Extract medical entities using NER model."""
+        """Extract medical entities using NER model and enhanced parsing."""
         try:
-            if not self.ner_pipeline:
-                # Fallback: simple keyword extraction
-                medical_keywords = [
-                    'medication', 'dosage', 'prescription', 'diagnosis', 'treatment',
-                    'allergy', 'symptom', 'condition', 'disease', 'procedure'
-                ]
-                entities = []
-                for keyword in medical_keywords:
-                    if keyword.lower() in text.lower():
-                        entities.append({
-                            'entity_group': 'MEDICAL',
-                            'word': keyword,
-                            'score': 0.5
-                        })
-                return entities
+            entities = []
             
-            # Use NER pipeline
-            entities = self.ner_pipeline(text)
+            # Use NER pipeline first
+            # Temporarily commented out for deployment - requires transformers models
+            # if self.ner_pipeline:
+            #     ner_entities = self.ner_pipeline(text)
+            #     entities.extend(ner_entities)
+            
+            # Enhanced medical content extraction (pattern-based, no AI models)
+            enhanced_entities = self._extract_structured_medical_data(text)
+            entities.extend(enhanced_entities)
+            
             return entities
             
         except Exception as e:
             print(f"Entity extraction failed: {e}")
             return []
     
+    def _extract_structured_medical_data(self, text: str) -> List[Dict[str, Any]]:
+        """Extract structured medical data from text using patterns and keywords."""
+        import re
+        entities = []
+        
+        # Extract medications and dosages
+        medication_patterns = [
+            r'(\w+(?:\s+\w+)*)\s+(\d+\s*mg|mg|\d+\s*ml|ml|\d+\s*tablets?|\d+\s*capsules?)',
+            r'(\w+(?:\s+\w+)*)\s+(\d+\s*mg)',
+            r'(\d+\s*mg|\d+\s*ml)\s+(\w+(?:\s+\w+)*)',
+        ]
+        
+        for pattern in medication_patterns:
+            matches = re.finditer(pattern, text, re.IGNORECASE)
+            for match in matches:
+                if len(match.groups()) >= 2:
+                    med_name = match.group(1).strip()
+                    dosage = match.group(2).strip()
+                    
+                    # Filter out common non-medication words
+                    non_medications = ['patient', 'name', 'date', 'birth', 'gender', 'male', 'female', 'return', 'review']
+                    if med_name.lower() not in non_medications and len(med_name) > 2:
+                        entities.append({
+                            'entity_group': 'medication',
+                            'word': med_name,
+                            'dosage': dosage,
+                            'score': 0.8,
+                            'start': match.start(),
+                            'end': match.end()
+                        })
+        
+        # Extract diagnoses
+        diagnosis_keywords = ['diagnosis:', 'diagnosed with', 'condition:', 'symptoms:', 'presents with']
+        for keyword in diagnosis_keywords:
+            pattern = rf'{keyword}\s*([^.]*\.?)'
+            matches = re.finditer(pattern, text, re.IGNORECASE)
+            for match in matches:
+                diagnosis = match.group(1).strip()
+                if diagnosis and len(diagnosis) > 5:
+                    entities.append({
+                        'entity_group': 'diagnosis',
+                        'word': diagnosis,
+                        'score': 0.85,
+                        'start': match.start(),
+                        'end': match.end()
+                    })
+        
+        # Extract allergies
+        allergy_patterns = [
+            r'allerg(?:y|ies)(?:\s+to)?\s*:?\s*([^.,;]+)',
+            r'allergic\s+to\s+([^.,;]+)'
+        ]
+        
+        for pattern in allergy_patterns:
+            matches = re.finditer(pattern, text, re.IGNORECASE)
+            for match in matches:
+                allergy = match.group(1).strip()
+                if allergy and len(allergy) > 2:
+                    entities.append({
+                        'entity_group': 'allergy',
+                        'word': allergy,
+                        'score': 0.9,
+                        'start': match.start(),
+                        'end': match.end()
+                    })
+        
+        # Extract instructions
+        instruction_patterns = [
+            r'instructions?:\s*([^.]*\.?)',
+            r'take\s+([^.]*\.?)',
+            r'avoid\s+([^.]*\.?)',
+            r'(\d+\s+(?:tablet|capsule|spray)s?\s+[^.]*\.?)'
+        ]
+        
+        for pattern in instruction_patterns:
+            matches = re.finditer(pattern, text, re.IGNORECASE)
+            for match in matches:
+                instruction = match.group(1).strip()
+                if instruction and len(instruction) > 5:
+                    entities.append({
+                        'entity_group': 'instruction',
+                        'word': instruction,
+                        'score': 0.75,
+                        'start': match.start(),
+                        'end': match.end()
+                    })
+        
+        # Extract doctor names
+        doctor_patterns = [
+            r'Dr\.?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
+            r'Doctor\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)'
+        ]
+        
+        for pattern in doctor_patterns:
+            matches = re.finditer(pattern, text, re.IGNORECASE)
+            for match in matches:
+                doctor = match.group(1).strip()
+                if doctor:
+                    entities.append({
+                        'entity_group': 'doctor',
+                        'word': doctor,
+                        'score': 0.85,
+                        'start': match.start(),
+                        'end': match.end()
+                    })
+        
+        return entities
+    
     def _create_document_embeddings(self, document_id: uuid.UUID, text: str):
         """Create and store document embeddings for RAG."""
         try:
-            if not AI_AVAILABLE or not text.strip():
+            if not AI_AVAILABLE or not EMBEDDINGS_AVAILABLE or not text.strip():
+                print("⚠️ Skipping embeddings creation - disabled for deployment")
                 return
             
             # Split text into chunks
             chunks = self._split_text_into_chunks(text, max_length=500)
             
             # Create embeddings for each chunk
-            embeddings = self.embedding_model.encode(chunks)
+            # Temporarily commented out for deployment - requires sentence_transformers
+            # embeddings = self.embedding_model.encode(chunks)
+            print("⚠️ Embeddings creation skipped - disabled for deployment")
+            return
             
             # Store in ChromaDB
             chunk_ids = [f"{document_id}_{i}" for i in range(len(chunks))]

@@ -1,5 +1,6 @@
 """Hospital Management System Multi-Agent MCP Server"""
 
+import json
 import random
 import uuid
 from datetime import datetime, date
@@ -580,7 +581,7 @@ async def call_tool_http(request: Request):
             "jsonrpc": "2.0",
             "id": data.get("id", 1),
             "result": {
-                "content": [{"type": "text", "text": str(result) if not isinstance(result, str) else result}]
+                "content": [{"type": "text", "text": json.dumps(result) if not isinstance(result, str) else result}]
             }
         })
         
