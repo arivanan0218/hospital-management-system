@@ -6,6 +6,27 @@ const { spawn } = require('child_process');
 const express = require('express');
 const cors = require('cors');
 const WebSocket = require('ws');
+const fs = require('fs');
+const path = require('path');
+// Add reports dir reference
+const reportsDir = path.join(__dirname, '../backend-python/reports');
+
+// Helper: detect usable python interpreter (prefers project venv)
+function detectPython() {
+  const candidates = [
+    process.env.VENV_PYTHON,
+    path.join(process.cwd(), '.venv-py312', 'Scripts', 'python.exe'),
+    path.join(__dirname, '..', '.venv-py312', 'Scripts', 'python.exe'),
+    path.join(process.cwd(), '.venv', 'Scripts', 'python.exe')
+  ].filter(Boolean);
+  for (const c of candidates) {
+    if (c && fs.existsSync(c)) return c;
+  }
+  return null; // fallback handled later
+}
+
+const resolvedBackendCwd = path.join(__dirname, '../backend-python');
+const resolvedPython = detectPython();
 
 class MCPProcessManager {
   constructor() {
@@ -277,6 +298,11 @@ const wss = new WebSocket.Server({ server });
 
 app.use(cors());
 app.use(express.json());
+// NEW: serve reports directory statically so frontend can fetch files directly if needed
+if (fs.existsSync(reportsDir)) {
+  console.log('📂 Serving reports directory at /reports from', reportsDir);
+  app.use('/reports', express.static(reportsDir));
+}
 
 const mcpManager = new MCPProcessManager();
 
@@ -293,26 +319,48 @@ wss.on('connection', (ws) => {
 // API Routes
 app.post('/mcp/start', async (req, res) => {
   try {
-    const config = req.body;
+    // If already running, don't start again – prevents second failing spawn
+    if (mcpManager.mcpProcess) {
+      return res.json({
+        success: true,
+        message: 'MCP server already running',
+        serverInfo: mcpManager.getServerInfo()
+      });
+    }
+
+    let config = req.body || {};
+
+    // Normalize cwd
+    config.cwd = resolvedBackendCwd;
+
+    // If command missing or just 'python', replace with detected venv interpreter
+    if (!config.command || config.command.toLowerCase() === 'python') {
+      if (resolvedPython) {
+        config.command = resolvedPython;
+      } else {
+        // Last resort: try 'python' but warn
+        console.warn('⚠️ No virtual env python found, falling back to system python');
+        config.command = 'python';
+      }
+    }
+
+    // Default args if not supplied
+    if (!config.args || !Array.isArray(config.args) || config.args.length === 0) {
+      config.args = ['comprehensive_server.py'];
+    }
+
     const started = await mcpManager.startMCPServer(config);
-    
     if (started) {
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         message: 'MCP server started',
         serverInfo: mcpManager.getServerInfo()
       });
     } else {
-      res.status(500).json({ 
-        success: false, 
-        error: 'Failed to start MCP server' 
-      });
+      res.status(500).json({ success: false, error: 'Failed to start MCP server' });
     }
   } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
-    });
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -371,9 +419,149 @@ app.post('/mcp/stop', async (req, res) => {
   }
 });
 
+app.get('/reports/discharge/download/:reportNumber.pdf', async (req, res) => {
+  const reportNumber = req.params.reportNumber;
+  console.log('📥 PDF download request received for', reportNumber);
+  if (!reportNumber) {
+    return res.status(400).json({ success: false, error: 'Missing report number' });
+  }
+  try {
+    // Verify underlying markdown exists – prevents fake/simulated report numbers
+    const markdownPath = findMarkdownForReport(reportNumber);
+    if (!markdownPath) {
+      return res.status(404).json({ success: false, error: 'Base markdown for this report number not found. Generate the report first.' });
+    }
+    if (!mcpManager.mcpProcess) {
+      console.log('❌ MCP process not running');
+      return res.status(503).json({ success: false, error: 'MCP server not running' });
+    }
+    let toolName = 'mcp_hospital-mana_download_discharge_report'; // use the full prefixed name
+    if (!mcpManager.tools.has(toolName)) {
+      // Try suffix strategy as fallback
+      const alt = findToolBySuffix('download_discharge_report');
+      if (alt) {
+        console.log('🔁 Adjusted tool name to', alt);
+        toolName = alt;
+      } else {
+        console.log('⚠️ download_discharge_report tool not in list. Available:', Array.from(mcpManager.tools.keys()));
+        return res.status(500).json({ success: false, error: 'download_discharge_report tool not registered', available_tools: Array.from(mcpManager.tools.keys()) });
+      }
+    }
+    console.log('🔧 Calling tool', toolName, 'with report_number', reportNumber);
+    const toolResult = await mcpManager.callTool(toolName, { report_number: reportNumber, download_format: 'pdf' });
+    console.log('🔧 Tool raw result:', JSON.stringify(toolResult));
+    
+    // Handle the nested structure returned by the MCP tool
+    if (!toolResult || !toolResult.content || !Array.isArray(toolResult.content)) {
+      return res.status(500).json({ success: false, error: 'Invalid tool response format', toolResult });
+    }
+    
+    // Extract the actual result from MCP response
+    const mcpContent = toolResult.content[0];
+    if (!mcpContent || mcpContent.type !== 'text') {
+      return res.status(500).json({ success: false, error: 'Invalid MCP content format', toolResult });
+    }
+    
+    let actualResult;
+    try {
+      actualResult = JSON.parse(mcpContent.text);
+    } catch (parseError) {
+      return res.status(500).json({ success: false, error: 'Failed to parse tool result JSON', parseError: parseError.message });
+    }
+    
+    if (!actualResult.success || !actualResult.data) {
+      return res.status(500).json({ success: false, error: 'Tool failed or returned no data', actualResult });
+    }
+    
+    let filePath = actualResult.data.download_path || actualResult.data.path || actualResult.data.file_path;
+    console.log('📄 Reported download_path:', filePath);
+    if (!filePath) {
+      return res.status(500).json({ success: false, error: 'No download path in tool result', toolResult });
+    }
+    if (!path.isAbsolute(filePath)) {
+      filePath = path.join(resolvedBackendCwd, filePath);
+      console.log('🛠 Resolved relative path to', filePath);
+    }
+    if (!fs.existsSync(filePath)) {
+      console.log('❌ File does not exist on disk at', filePath);
+      return res.status(404).json({ success: false, error: 'PDF file not found on disk after generation', resolved_path: filePath });
+    }
+    console.log('✅ Streaming PDF', filePath);
+    const filename = path.basename(filePath);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    fs.createReadStream(filePath)
+      .on('error', e => { console.error('Stream error:', e); if (!res.headersSent) res.status(500).end('File stream error'); })
+      .pipe(res);
+  } catch (e) {
+    console.error('Download endpoint error:', e);
+    res.status(500).json({ success: false, error: e.message, stack: e.stack });
+  }
+});
+
+// New: simple endpoint to list current & download files for debugging
+app.get('/reports/debug/list', (req, res) => {
+  try {
+    const current = [];
+    const downloads = [];
+    const currentDir = path.join(resolvedBackendCwd, 'reports', 'discharge', 'current');
+    const downloadsDir = path.join(resolvedBackendCwd, 'reports', 'discharge', 'downloads');
+    if (fs.existsSync(currentDir)) {
+      for (const f of fs.readdirSync(currentDir)) current.push(f);
+    }
+    if (fs.existsSync(downloadsDir)) {
+      for (const f of fs.readdirSync(downloadsDir)) downloads.push(f);
+    }
+    res.json({ success: true, current, downloads, toolNames: Array.from(mcpManager.tools.keys()) });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
   console.log(`🌐 MCP Process Manager server running on port ${PORT}`);
+
+  // Auto-start only if not already running
+  if (!mcpManager.mcpProcess) {
+    try {
+      console.log('🚀 Auto-starting MCP server...');
+      const autoConfig = {
+        command: resolvedPython || 'python',
+        args: ['comprehensive_server.py'],
+        cwd: resolvedBackendCwd,
+        env: {}
+      };
+      await mcpManager.startMCPServer(autoConfig);
+      console.log('✅ MCP server auto-started successfully');
+    } catch (error) {
+      console.error('❌ Failed to auto-start MCP server:', error.message);
+      console.log('💡 You can manually start it via POST /mcp/start');
+    }
+  }
 });
 
 module.exports = MCPProcessManager;
+
+// Utility: find tool by suffix (handles possible name prefix differences)
+function findToolBySuffix(suffix) {
+  for (const name of mcpManager.tools.keys()) {
+    if (name.endsWith(suffix)) return name;
+  }
+  return null;
+}
+
+// Utility: find markdown file for report
+function findMarkdownForReport(reportNumber) {
+  const currentDir = path.join(resolvedBackendCwd, 'reports', 'discharge', 'current');
+  const archiveDir = path.join(resolvedBackendCwd, 'reports', 'discharge', 'archive');
+  const patterns = [currentDir, archiveDir];
+  for (const dir of patterns) {
+    if (!fs.existsSync(dir)) continue;
+    const files = fs.readdirSync(dir).filter(f => f.startsWith(reportNumber + '_') && f.endsWith('.md'));
+    if (files.length) {
+      return path.join(dir, files[0]);
+    }
+  }
+  return null;
+}

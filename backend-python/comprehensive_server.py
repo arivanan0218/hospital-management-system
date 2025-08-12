@@ -18,9 +18,11 @@ try:
     from database import (
         User, Department, Patient, Room, Bed, Staff, Equipment, EquipmentCategory,
         Supply, SupplyCategory, InventoryTransaction, AgentInteraction, Appointment,
-        LegacyUser, SessionLocal
+        LegacyUser, TreatmentRecord, EquipmentUsage, StaffAssignment, DischargeReport,
+        SessionLocal
     )
     from staff_meetings import StaffMeeting, staff_meeting_participants
+    from discharge_service import PatientDischargeReportGenerator
     DATABASE_AVAILABLE = True
 except ImportError:
     DATABASE_AVAILABLE = False
@@ -1471,6 +1473,586 @@ def search_meetings(search_query: str) -> Dict[str, Any]:
         
     except Exception as e:
         return {"success": False, "message": f"Error searching meetings: {str(e)}"}
+
+# ================================
+# DISCHARGE REPORT MANAGEMENT TOOLS
+# ================================
+
+@mcp.tool()
+def generate_discharge_report(bed_id: str,
+                            discharge_condition: str = "stable",
+                            discharge_destination: str = "home",
+                            discharge_instructions: str = "",
+                            follow_up_required: str = "",
+                            generated_by_user_id: str = None) -> Dict[str, Any]:
+    """Generate a comprehensive discharge report for a patient being discharged from a bed."""
+    if not DATABASE_AVAILABLE:
+        return {"success": False, "message": "Database not available"}
+    
+    try:
+        # If no user ID provided, get the first available user (for system-generated reports)
+        if not generated_by_user_id:
+            from database import SessionLocal, User
+            db = SessionLocal()
+            user = db.query(User).first()
+            generated_by_user_id = str(user.id) if user else None
+            db.close()
+            
+            if not generated_by_user_id:
+                return {"success": False, "message": "No users available to generate report"}
+        
+        generator = PatientDischargeReportGenerator()
+        result = generator.generate_discharge_report(
+            bed_id=bed_id,
+            discharge_condition=discharge_condition,
+            discharge_destination=discharge_destination,
+            discharge_instructions=discharge_instructions,
+            follow_up_required=follow_up_required,
+            generated_by_user_id=generated_by_user_id
+        )
+        
+        # If successful, automatically save the report to file system
+        if result.get('success'):
+            from report_manager import save_discharge_report
+            save_result = save_discharge_report(result, result.get('formatted_report', ''))
+            # Add save status to result for debugging
+            result['file_saved'] = save_result.get('success', False)
+        
+        return result
+    except Exception as e:
+        return {"success": False, "message": f"Failed to generate discharge report: {str(e)}"}
+
+@mcp.tool()
+def add_treatment_record(patient_id: str,
+                        doctor_id: str,
+                        treatment_type: str,
+                        treatment_name: str,
+                        description: str = "",
+                        dosage: str = "",
+                        frequency: str = "",
+                        duration: str = "",
+                        appointment_id: str = None,
+                        bed_id: str = None) -> Dict[str, Any]:
+    """Add a treatment record for a patient."""
+    if not DATABASE_AVAILABLE:
+        return {"success": False, "message": "Database not available"}
+    
+    try:
+        db = get_db_session()
+        
+        treatment = TreatmentRecord(
+            patient_id=uuid.UUID(patient_id),
+            doctor_id=uuid.UUID(doctor_id),
+            treatment_type=treatment_type,
+            treatment_name=treatment_name,
+            description=description,
+            dosage=dosage,
+            frequency=frequency,
+            duration=duration,
+            start_date=datetime.now(),
+            appointment_id=uuid.UUID(appointment_id) if appointment_id else None,
+            bed_id=uuid.UUID(bed_id) if bed_id else None
+        )
+        
+        db.add(treatment)
+        db.commit()
+        db.refresh(treatment)
+        
+        result = {
+            "id": str(treatment.id),
+            "patient_id": patient_id,
+            "doctor_id": doctor_id,
+            "treatment_type": treatment_type,
+            "treatment_name": treatment_name,
+            "start_date": treatment.start_date.isoformat()
+        }
+        
+        db.close()
+        return {"success": True, "message": "Treatment record added successfully", "data": result}
+        
+    except Exception as e:
+        return {"success": False, "message": f"Failed to add treatment record: {str(e)}"}
+
+@mcp.tool()
+def add_equipment_usage(patient_id: str,
+                       equipment_id: str,
+                       staff_id: str,
+                       purpose: str,
+                       duration_minutes: int = None,
+                       settings: str = "",
+                       readings: str = "",
+                       bed_id: str = None) -> Dict[str, Any]:
+    """Record equipment usage for a patient."""
+    if not DATABASE_AVAILABLE:
+        return {"success": False, "message": "Database not available"}
+    
+    try:
+        db = get_db_session()
+        
+        equipment_usage = EquipmentUsage(
+            patient_id=uuid.UUID(patient_id),
+            equipment_id=uuid.UUID(equipment_id),
+            staff_id=uuid.UUID(staff_id),
+            purpose=purpose,
+            start_time=datetime.now(),
+            duration_minutes=duration_minutes,
+            settings=settings,
+            readings=readings,
+            bed_id=uuid.UUID(bed_id) if bed_id else None
+        )
+        
+        if duration_minutes:
+            equipment_usage.end_time = datetime.now()
+            equipment_usage.status = "completed"
+        
+        db.add(equipment_usage)
+        db.commit()
+        db.refresh(equipment_usage)
+        
+        result = {
+            "id": str(equipment_usage.id),
+            "patient_id": patient_id,
+            "equipment_id": equipment_id,
+            "staff_id": staff_id,
+            "purpose": purpose,
+            "start_time": equipment_usage.start_time.isoformat()
+        }
+        
+        db.close()
+        return {"success": True, "message": "Equipment usage recorded successfully", "data": result}
+        
+    except Exception as e:
+        return {"success": False, "message": f"Failed to record equipment usage: {str(e)}"}
+
+@mcp.tool()
+def assign_staff_to_patient(patient_id: str,
+                           staff_id: str,
+                           assignment_type: str,
+                           shift: str = "",
+                           responsibilities: str = "",
+                           bed_id: str = None) -> Dict[str, Any]:
+    """Assign staff member to a patient."""
+    if not DATABASE_AVAILABLE:
+        return {"success": False, "message": "Database not available"}
+    
+    try:
+        db = get_db_session()
+        
+        staff_assignment = StaffAssignment(
+            patient_id=uuid.UUID(patient_id),
+            staff_id=uuid.UUID(staff_id),
+            assignment_type=assignment_type,
+            start_date=datetime.now(),
+            shift=shift,
+            responsibilities=responsibilities,
+            bed_id=uuid.UUID(bed_id) if bed_id else None
+        )
+        
+        db.add(staff_assignment)
+        db.commit()
+        db.refresh(staff_assignment)
+        
+        result = {
+            "id": str(staff_assignment.id),
+            "patient_id": patient_id,
+            "staff_id": staff_id,
+            "assignment_type": assignment_type,
+            "start_date": staff_assignment.start_date.isoformat()
+        }
+        
+        db.close()
+        return {"success": True, "message": "Staff assigned successfully", "data": result}
+        
+    except Exception as e:
+        return {"success": False, "message": f"Failed to assign staff: {str(e)}"}
+
+@mcp.tool()
+def complete_equipment_usage(usage_id: str, readings: str = "", notes: str = "") -> Dict[str, Any]:
+    """Mark equipment usage as completed and record final readings."""
+    if not DATABASE_AVAILABLE:
+        return {"success": False, "message": "Database not available"}
+    
+    try:
+        db = get_db_session()
+        
+        usage = db.query(EquipmentUsage).filter(EquipmentUsage.id == uuid.UUID(usage_id)).first()
+        if not usage:
+            db.close()
+            return {"success": False, "message": "Equipment usage record not found"}
+        
+        usage.end_time = datetime.now()
+        usage.status = "completed"
+        usage.duration_minutes = int((usage.end_time - usage.start_time).total_seconds() / 60)
+        
+        if readings:
+            usage.readings = readings
+        if notes:
+            usage.notes = notes
+        
+        db.commit()
+        db.refresh(usage)
+        
+        result = {
+            "id": str(usage.id),
+            "end_time": usage.end_time.isoformat(),
+            "duration_minutes": usage.duration_minutes,
+            "status": usage.status
+        }
+        
+        db.close()
+        return {"success": True, "message": "Equipment usage completed", "data": result}
+        
+    except Exception as e:
+        return {"success": False, "message": f"Failed to complete equipment usage: {str(e)}"}
+
+@mcp.tool()
+def update_treatment_status(treatment_id: str, 
+                           status: str, 
+                           effectiveness: str = "",
+                           notes: str = "",
+                           side_effects: str = "") -> Dict[str, Any]:
+    """Update the status and effectiveness of a treatment."""
+    if not DATABASE_AVAILABLE:
+        return {"success": False, "message": "Database not available"}
+    
+    try:
+        db = get_db_session()
+        
+        treatment = db.query(TreatmentRecord).filter(TreatmentRecord.id == uuid.UUID(treatment_id)).first()
+        if not treatment:
+            db.close()
+            return {"success": False, "message": "Treatment record not found"}
+        
+        treatment.status = status
+        if effectiveness:
+            treatment.effectiveness = effectiveness
+        if notes:
+            treatment.notes = notes
+        if side_effects:
+            treatment.side_effects = side_effects
+        
+        if status in ["completed", "discontinued"]:
+            treatment.end_date = datetime.now()
+        
+        db.commit()
+        db.refresh(treatment)
+        
+        result = {
+            "id": str(treatment.id),
+            "status": treatment.status,
+            "effectiveness": treatment.effectiveness,
+            "end_date": treatment.end_date.isoformat() if treatment.end_date else None
+        }
+        
+        db.close()
+        return {"success": True, "message": "Treatment status updated", "data": result}
+        
+    except Exception as e:
+        return {"success": False, "message": f"Failed to update treatment: {str(e)}"}
+
+@mcp.tool()
+def get_patient_treatment_history(patient_id: str, 
+                                 from_date: str = None, 
+                                 to_date: str = None) -> Dict[str, Any]:
+    """Get complete treatment history for a patient."""
+    if not DATABASE_AVAILABLE:
+        return {"success": False, "message": "Database not available"}
+    
+    try:
+        db = get_db_session()
+        
+        query = db.query(TreatmentRecord).filter(TreatmentRecord.patient_id == uuid.UUID(patient_id))
+        
+        if from_date:
+            query = query.filter(TreatmentRecord.start_date >= datetime.fromisoformat(from_date))
+        if to_date:
+            query = query.filter(TreatmentRecord.start_date <= datetime.fromisoformat(to_date))
+        
+        treatments = query.order_by(TreatmentRecord.start_date.desc()).all()
+        
+        result = [{
+            "id": str(t.id),
+            "treatment_type": t.treatment_type,
+            "treatment_name": t.treatment_name,
+            "description": t.description,
+            "dosage": t.dosage,
+            "frequency": t.frequency,
+            "duration": t.duration,
+            "start_date": t.start_date.isoformat(),
+            "end_date": t.end_date.isoformat() if t.end_date else None,
+            "status": t.status,
+            "effectiveness": t.effectiveness,
+            "doctor_name": f"{t.doctor.first_name} {t.doctor.last_name}" if t.doctor else "Unknown",
+            "notes": t.notes,
+            "side_effects": t.side_effects
+        } for t in treatments]
+        
+        db.close()
+        return {"success": True, "data": result, "count": len(result)}
+        
+    except Exception as e:
+        return {"success": False, "message": f"Failed to get treatment history: {str(e)}"}
+
+@mcp.tool()
+def get_discharge_report(report_id: str) -> Dict[str, Any]:
+    """Retrieve a previously generated discharge report."""
+    if not DATABASE_AVAILABLE:
+        return {"success": False, "message": "Database not available"}
+    
+    try:
+        db = get_db_session()
+        
+        report = db.query(DischargeReport).filter(DischargeReport.id == uuid.UUID(report_id)).first()
+        if not report:
+            db.close()
+            return {"success": False, "message": "Discharge report not found"}
+        
+        result = {
+            "id": str(report.id),
+            "report_number": report.report_number,
+            "patient_name": f"{report.patient.first_name} {report.patient.last_name}" if report.patient else "Unknown",
+            "admission_date": report.admission_date.isoformat(),
+            "discharge_date": report.discharge_date.isoformat(),
+            "length_of_stay_days": report.length_of_stay_days,
+            "discharge_condition": report.discharge_condition,
+            "discharge_destination": report.discharge_destination,
+            "discharge_instructions": report.discharge_instructions,
+            "follow_up_required": report.follow_up_required,
+            "generated_at": report.created_at.isoformat(),
+            "generated_by": f"{report.generated_by_user.first_name} {report.generated_by_user.last_name}" if report.generated_by_user else "System"
+        }
+        
+        db.close()
+        return {"success": True, "data": result}
+        
+    except Exception as e:
+        return {"success": False, "message": f"Failed to retrieve discharge report: {str(e)}"}
+
+# ====================================
+# REPORT MANAGEMENT TOOLS
+# ====================================
+
+@mcp.tool()
+def save_discharge_report(
+    report_data: dict,
+    report_content: str
+) -> dict:
+    """
+    Save a discharge report to the file system and database.
+    
+    Args:
+        report_data: Report metadata including patient info, report number, etc.
+        report_content: The actual report content in markdown format
+    
+    Returns:
+        Dictionary with save result and file paths
+    """
+    try:
+        from report_manager import ReportManager
+        
+        manager = ReportManager()
+        result = manager.save_report(report_data, report_content)
+        
+        return {
+            "success": result["success"],
+            "data": result if result["success"] else None,
+            "message": result.get("message", "Report saved successfully" if result["success"] else "Failed to save report"),
+            "error": result.get("error") if not result["success"] else None
+        }
+        
+    except Exception as e:
+        return {"success": False, "message": f"Failed to save report: {str(e)}"}
+
+@mcp.tool()
+def get_report_by_number(report_number: str) -> dict:
+    """
+    Retrieve a discharge report by its report number.
+    
+    Args:
+        report_number: The report number to search for
+    
+    Returns:
+        Dictionary with report data if found, None otherwise
+    """
+    try:
+        from report_manager import ReportManager
+        
+        manager = ReportManager()
+        report_data = manager.get_report_by_number(report_number)
+        
+        if report_data:
+            return {
+                "success": True,
+                "data": report_data,
+                "message": "Report retrieved successfully"
+            }
+        else:
+            return {
+                "success": False,
+                "data": None,
+                "message": f"Report {report_number} not found"
+            }
+        
+    except Exception as e:
+        return {"success": False, "message": f"Failed to retrieve report: {str(e)}"}
+
+@mcp.tool()
+def list_discharge_reports(
+    status: str = "all",
+    patient_name: str = None,
+    from_date: str = None,
+    to_date: str = None,
+    limit: int = 50
+) -> dict:
+    """
+    List discharge reports with optional filtering.
+    
+    Args:
+        status: "current", "archived", or "all"
+        patient_name: Filter by patient name (partial match)
+        from_date: Start date filter (YYYY-MM-DD)
+        to_date: End date filter (YYYY-MM-DD) 
+        limit: Maximum number of reports to return
+    
+    Returns:
+        Dictionary with list of report metadata
+    """
+    try:
+        from report_manager import ReportManager
+        
+        manager = ReportManager()
+        reports = manager.list_reports(
+            status=status,
+            patient_name=patient_name,
+            from_date=from_date,
+            to_date=to_date,
+            limit=limit
+        )
+        
+        return {
+            "success": True,
+            "data": reports,
+            "count": len(reports),
+            "message": f"Found {len(reports)} reports"
+        }
+        
+    except Exception as e:
+        return {"success": False, "message": f"Failed to list reports: {str(e)}"}
+
+@mcp.tool()
+def download_discharge_report(
+    report_number: str,
+    download_format: str = "pdf"
+) -> dict:
+    """
+    Prepare a discharge report for download in specified format.
+    
+    Args:
+        report_number: The report number to download
+        download_format: "pdf", "markdown", or "zip"
+    
+    Returns:
+        Dictionary with download information including file path
+    """
+    try:
+        from report_manager import ReportManager
+        
+        manager = ReportManager()
+        result = manager.download_report(report_number, download_format)
+        
+        return {
+            "success": result["success"],
+            "data": result if result["success"] else None,
+            "message": result.get("message", "Report prepared for download" if result["success"] else "Failed to prepare download"),
+            "error": result.get("error") if not result["success"] else None
+        }
+        
+    except Exception as e:
+        return {"success": False, "message": f"Failed to prepare download: {str(e)}"}
+
+@mcp.tool()
+def get_report_storage_stats() -> dict:
+    """
+    Get storage statistics for the report system.
+    
+    Returns:
+        Dictionary with storage statistics
+    """
+    try:
+        from report_manager import ReportManager
+        
+        manager = ReportManager()
+        result = manager.get_storage_stats()
+        
+        return {
+            "success": result["success"],
+            "data": result.get("stats") if result["success"] else None,
+            "message": "Storage stats retrieved successfully" if result["success"] else "Failed to get storage stats",
+            "error": result.get("error") if not result["success"] else None
+        }
+        
+    except Exception as e:
+        return {"success": False, "message": f"Failed to get storage stats: {str(e)}"}
+
+@mcp.tool()
+def archive_old_reports(days_old: int = 30) -> dict:
+    """
+    Archive reports older than specified days.
+    
+    Args:
+        days_old: Reports older than this many days will be archived
+    
+    Returns:
+        Dictionary with archive operation result
+    """
+    try:
+        from report_manager import ReportManager
+        
+        manager = ReportManager()
+        result = manager.archive_old_reports(days_old)
+        
+        return {
+            "success": result["success"],
+            "data": {
+                "archived_count": result.get("archived_count", 0),
+                "cutoff_date": result.get("cutoff_date")
+            } if result["success"] else None,
+            "message": result.get("message", "Archive operation completed" if result["success"] else "Failed to archive reports"),
+            "error": result.get("error") if not result["success"] else None
+        }
+        
+    except Exception as e:
+        return {"success": False, "message": f"Failed to archive reports: {str(e)}"}
+
+@mcp.tool()
+def cleanup_download_files(hours_old: int = 24) -> dict:
+    """
+    Clean up old download files.
+    
+    Args:
+        hours_old: Delete download files older than this many hours
+    
+    Returns:
+        Dictionary with cleanup operation result
+    """
+    try:
+        from report_manager import ReportManager
+        
+        manager = ReportManager()
+        result = manager.cleanup_downloads(hours_old)
+        
+        return {
+            "success": result["success"],
+            "data": {
+                "cleaned_count": result.get("cleaned_count", 0),
+                "cutoff_time": result.get("cutoff_time")
+            } if result["success"] else None,
+            "message": result.get("message", "Cleanup completed" if result["success"] else "Failed to cleanup downloads"),
+            "error": result.get("error") if not result["success"] else None
+        }
+        
+    except Exception as e:
+        return {"success": False, "message": f"Failed to cleanup downloads: {str(e)}"}
 
 if __name__ == "__main__":
     try:

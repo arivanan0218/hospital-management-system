@@ -408,6 +408,106 @@ Optional: patient_number (auto-generated if not provided), phone, email, address
   }
 
   /**
+   * Download discharge report as PDF
+   * @param {string} reportNumber - The report number to download
+   * @returns {Promise<Object>} Download result
+   */
+  async downloadDischargeReportPDF(reportNumber) {
+    if (!this.isConnected) {
+      throw new Error('Service not initialized');
+    }
+
+    try {
+      console.log('📥 Downloading discharge report PDF via MCP:', reportNumber);
+      
+      // Call the MCP tool directly
+      const toolCall = {
+        name: 'mcp_hospital-mana_download_discharge_report',
+        arguments: {
+          report_number: reportNumber,
+          download_format: 'pdf'
+        }
+      };
+
+      const result = await this.mcpClient.callTool(toolCall.name, toolCall.arguments);
+      
+      if (result.success && result.data?.success) {
+        return {
+          success: true,
+          data: result.data,
+          message: 'PDF download prepared successfully'
+        };
+      } else {
+        throw new Error(result.error || 'Failed to prepare PDF download');
+      }
+
+    } catch (error) {
+      console.error('❌ PDF download error:', error);
+      return {
+        success: false,
+        error: error.message,
+        message: 'Failed to download PDF'
+      };
+    }
+  }
+
+  /**
+   * Generate and download discharge report
+   * @param {string} bedId - Bed ID for discharge
+   * @param {Object} dischargeData - Discharge information
+   * @returns {Promise<Object>} Result with report info
+   */
+  async generateAndDownloadDischargeReport(bedId, dischargeData = {}) {
+    if (!this.isConnected) {
+      throw new Error('Service not initialized');
+    }
+
+    try {
+      console.log('📋 Generating discharge report for bed:', bedId);
+      
+      // First generate the report
+      const generateResult = await this.mcpClient.callTool(
+        'mcp_hospital-mana_generate_discharge_report',
+        {
+          bed_id: bedId,
+          discharge_condition: dischargeData.condition || 'stable',
+          discharge_destination: dischargeData.destination || 'home',
+          discharge_instructions: dischargeData.instructions || '',
+          follow_up_required: dischargeData.followUp || '',
+          generated_by_user_id: dischargeData.userId
+        }
+      );
+
+      if (!generateResult.success) {
+        throw new Error('Failed to generate discharge report');
+      }
+
+      const reportNumber = generateResult.report_number;
+      console.log('✅ Report generated:', reportNumber);
+
+      // Then download as PDF
+      const downloadResult = await this.downloadDischargeReportPDF(reportNumber);
+
+      return {
+        success: true,
+        reportNumber,
+        patientName: generateResult.patient_name,
+        downloadResult,
+        reportData: generateResult,
+        message: 'Discharge report generated and ready for download'
+      };
+
+    } catch (error) {
+      console.error('❌ Generate and download error:', error);
+      return {
+        success: false,
+        error: error.message,
+        message: 'Failed to generate and download discharge report'
+      };
+    }
+  }
+
+  /**
    * Disconnect
    */
   async disconnect() {

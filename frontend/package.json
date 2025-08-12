@@ -7,14 +7,19 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "pdf-server": "node pdf-server.cjs",
+    "start-full": "concurrently \"npm run pdf-server\" \"npm run dev\""
   },
   "dependencies": {
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
     "@google/generative-ai": "^0.21.0",
     "axios": "^1.7.0",
+    "concurrently": "^7.6.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
     "lucide-react": "^0.460.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
     "react-markdown": "^9.0.1",
     "react-syntax-highlighter": "^15.5.0",
     "uuid": "^10.0.0"
