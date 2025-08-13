@@ -209,6 +209,12 @@ jobs:
         # Start PostgreSQL database if not running
         echo "🗄️ Starting PostgreSQL database..."
         if ! sudo docker ps | grep -q hospital-postgres; then
+          # Remove any existing container first
+          sudo docker stop hospital-postgres 2>/dev/null || true
+          sudo docker rm hospital-postgres 2>/dev/null || true
+          sudo docker volume rm hospital-postgres-data 2>/dev/null || true
+          
+          echo "🔄 Creating fresh PostgreSQL container..."
           sudo docker run -d \
             --name hospital-postgres \
             --network hospital-network \
@@ -217,19 +223,19 @@ jobs:
             -e POSTGRES_DB=hospital_db \
             -e POSTGRES_USER=postgres \
             -e POSTGRES_PASSWORD=postgres \
-            -v hospital-postgres-data:/var/lib/postgresql/data \
             postgres:13
+            
           echo "⏳ Waiting for PostgreSQL to initialize..."
           sleep 30
           
           # Wait for PostgreSQL to be ready
           echo "🔍 Checking PostgreSQL readiness..."
-          for i in {1..10}; do
+          for i in {1..15}; do
             if sudo docker exec hospital-postgres pg_isready -U postgres -d hospital_db > /dev/null 2>&1; then
               echo "✅ PostgreSQL is ready"
               break
             fi
-            echo "⏳ Waiting for PostgreSQL... (attempt $i/10)"
+            echo "⏳ Waiting for PostgreSQL... (attempt $i/15)"
             sleep 5
           done
         else
@@ -300,6 +306,15 @@ jobs:
                     proxy_set_header X-Forwarded-Proto $scheme;
                 }
                 
+                # Tools routes (route to backend) - CRITICAL for MCP server
+                location /tools/ {
+                    proxy_pass http://backend;
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto $scheme;
+                }
+                
                 # Docs routes (route to backend)
                 location /docs {
                     proxy_pass http://backend;
@@ -352,6 +367,70 @@ jobs:
         # Wait for containers to be healthy
         echo "⏳ Waiting for containers to be healthy..."
         sleep 30
+        
+        # Verify deployment health
+        echo "🔍 Verifying deployment health..."
+        
+        # Check container status
+        echo "📋 Container status:"
+        sudo docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+        
+        # Test database connection
+        echo "🗄️ Testing database connection..."
+        sudo docker exec hospital-backend python -c "
+        import psycopg2
+        try:
+            conn = psycopg2.connect('postgresql://postgres:postgres@postgres:5432/hospital_db')
+            print('✅ Database connection successful')
+            conn.close()
+        except Exception as e:
+            print(f'❌ Database connection failed: {e}')
+            exit(1)
+        " || exit 1
+        
+        # Test backend health
+        echo "🔧 Testing backend health..."
+        for i in {1..10}; do
+            if sudo docker exec nginx-proxy wget -q --spider http://hospital-backend:8000/health; then
+                echo "✅ Backend health check passed"
+                break
+            else
+                echo "⏳ Backend not ready, attempt $i/10..."
+                sleep 5
+                if [ $i -eq 10 ]; then
+                    echo "❌ Backend health check failed after 10 attempts"
+                    exit 1
+                fi
+            fi
+        done
+        
+        # Test frontend
+        echo "🌐 Testing frontend..."
+        for i in {1..10}; do
+            if sudo docker exec nginx-proxy wget -q --spider http://hospital-frontend:3000; then
+                echo "✅ Frontend health check passed"
+                break
+            else
+                echo "⏳ Frontend not ready, attempt $i/10..."
+                sleep 5
+                if [ $i -eq 10 ]; then
+                    echo "❌ Frontend health check failed after 10 attempts"
+                    exit 1
+                fi
+            fi
+        done
+        
+        # Test API endpoints through nginx
+        echo "🚀 Testing API endpoints through nginx..."
+        if sudo docker exec nginx-proxy wget -q -O- http://localhost/health | grep -q "status"; then
+            echo "✅ API health endpoint accessible through nginx"
+        else
+            echo "❌ API health endpoint not accessible through nginx"
+            exit 1
+        fi
+        
+        echo "🎉 Deployment completed successfully!"
+        echo "🌍 Application is accessible at: http://$(curl -s http://checkip.amazonaws.com/)"
         
         # Check container status first
         echo "📋 Container status:"
