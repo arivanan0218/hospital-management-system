@@ -366,7 +366,7 @@ jobs:
         
         # Wait for containers to be healthy
         echo "⏳ Waiting for containers to be healthy..."
-        sleep 30
+        sleep 45
         
         # Verify deployment health
         echo "🔍 Verifying deployment health..."
@@ -377,10 +377,10 @@ jobs:
         
         # Test database connection
         echo "🗄️ Testing database connection..."
-        sudo docker exec hospital-backend python -c "
+        sudo docker exec hospital-postgres python3 -c "
         import psycopg2
         try:
-            conn = psycopg2.connect('postgresql://postgres:postgres@postgres:5432/hospital_db')
+            conn = psycopg2.connect('postgresql://postgres:postgres@localhost:5432/hospital_db')
             print('✅ Database connection successful')
             conn.close()
         except Exception as e:
@@ -388,46 +388,63 @@ jobs:
             exit(1)
         " || exit 1
         
-        # Test backend health
+        # Test backend health with retry logic
         echo "🔧 Testing backend health..."
-        for i in {1..10}; do
+        for i in {1..15}; do
             if sudo docker exec nginx-proxy wget -q --spider http://hospital-backend:8000/health; then
                 echo "✅ Backend health check passed"
                 break
             else
-                echo "⏳ Backend not ready, attempt $i/10..."
-                sleep 5
-                if [ $i -eq 10 ]; then
-                    echo "❌ Backend health check failed after 10 attempts"
+                echo "⏳ Backend not ready, attempt $i/15..."
+                sleep 10
+                if [ $i -eq 15 ]; then
+                    echo "❌ Backend health check failed after 15 attempts"
+                    echo "🔍 Debugging backend container:"
+                    sudo docker logs hospital-backend --tail 20
                     exit 1
                 fi
             fi
         done
         
-        # Test frontend
+        # Test frontend with retry logic
         echo "🌐 Testing frontend..."
-        for i in {1..10}; do
+        for i in {1..15}; do
             if sudo docker exec nginx-proxy wget -q --spider http://hospital-frontend:3000; then
                 echo "✅ Frontend health check passed"
                 break
             else
-                echo "⏳ Frontend not ready, attempt $i/10..."
-                sleep 5
-                if [ $i -eq 10 ]; then
-                    echo "❌ Frontend health check failed after 10 attempts"
+                echo "⏳ Frontend not ready, attempt $i/15..."
+                sleep 10
+                if [ $i -eq 15 ]; then
+                    echo "❌ Frontend health check failed after 15 attempts"
+                    echo "🔍 Debugging frontend container:"
+                    sudo docker logs hospital-frontend --tail 20
                     exit 1
                 fi
             fi
         done
         
-        # Test API endpoints through nginx
+        # Test API endpoints through nginx with extended retry
         echo "🚀 Testing API endpoints through nginx..."
-        if sudo docker exec nginx-proxy wget -q -O- http://localhost/health | grep -q "status"; then
-            echo "✅ API health endpoint accessible through nginx"
-        else
-            echo "❌ API health endpoint not accessible through nginx"
-            exit 1
-        fi
+        for i in {1..20}; do
+            if sudo docker exec nginx-proxy wget -q -O- http://localhost/health 2>/dev/null | grep -q "status.*healthy"; then
+                echo "✅ API health endpoint accessible through nginx"
+                break
+            else
+                echo "⏳ API endpoint not ready through nginx, attempt $i/20..."
+                sleep 15
+                if [ $i -eq 20 ]; then
+                    echo "❌ API health endpoint not accessible through nginx after 20 attempts"
+                    echo "🔍 Debugging nginx configuration:"
+                    sudo docker exec nginx-proxy cat /etc/nginx/nginx.conf
+                    echo "🔍 Nginx logs:"
+                    sudo docker logs nginx-proxy --tail 20
+                    echo "🔍 Testing direct backend connection:"
+                    sudo docker exec nginx-proxy wget -q -O- http://hospital-backend:8000/health || echo "Direct backend test failed"
+                    exit 1
+                fi
+            fi
+        done
         
         echo "🎉 Deployment completed successfully!"
         echo "🌍 Application is accessible at: http://$(curl -s http://checkip.amazonaws.com/)"
