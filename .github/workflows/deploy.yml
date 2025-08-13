@@ -227,18 +227,46 @@ jobs:
         echo "⏳ Waiting for containers to be healthy..."
         sleep 30
         
-        # Test health endpoint
-        echo "🧪 Testing application health..."
-        if curl -f http://localhost/health >/dev/null 2>&1; then
-          echo "✅ Deployment successful! Application is healthy."
-        else
-          echo "❌ Deployment failed! Health check failed."
-          exit 1
-        fi
-        
-        # Show container status
+        # Check container status first
         echo "📋 Container status:"
         sudo docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+        
+        # Check container logs for any immediate issues
+        echo "📝 Backend container logs (last 10 lines):"
+        sudo docker logs --tail 10 hospital-backend 2>/dev/null || echo "No backend logs available"
+        
+        echo "📝 Frontend container logs (last 10 lines):"
+        sudo docker logs --tail 10 hospital-frontend 2>/dev/null || echo "No frontend logs available"
+        
+        # Test health endpoints directly
+        echo "🧪 Testing backend health..."
+        backend_health=false
+        if sudo docker exec hospital-backend curl -f http://localhost:8000/health 2>/dev/null; then
+          echo "✅ Backend is healthy"
+          backend_health=true
+        else
+          echo "⚠️ Backend health check failed"
+        fi
+        
+        echo "🧪 Testing frontend availability..."
+        frontend_health=false
+        if sudo docker exec hospital-frontend ls /usr/share/nginx/html/index.html 2>/dev/null; then
+          echo "✅ Frontend files are present"
+          frontend_health=true
+        else
+          echo "⚠️ Frontend files not found"
+        fi
+        
+        # Overall health check
+        if [ "$backend_health" = true ] && [ "$frontend_health" = true ]; then
+          echo "✅ Deployment successful! Both services are healthy."
+        else
+          echo "❌ Deployment failed! Health check failed."
+          echo "🔍 Debugging information:"
+          echo "Backend health: $backend_health"
+          echo "Frontend health: $frontend_health"
+          exit 1
+        fi
         
         echo "🎉 Deployment completed successfully!"
         echo "🌐 Application URL: http://${{ env.EC2_HOST }}/"
