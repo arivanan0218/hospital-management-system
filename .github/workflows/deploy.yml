@@ -106,16 +106,68 @@ jobs:
         
         echo "🚀 Starting deployment to EC2..."
         
-        # Clean up disk space first
-        echo "🧹 Cleaning up disk space..."
-        sudo docker system prune -af --volumes || true
-        sudo docker image prune -af || true
-        sudo apt-get clean || true
-        sudo rm -rf /var/lib/apt/lists/* || true
-        sudo rm -rf /tmp/* || true
+        # More aggressive disk space cleanup
+        echo "🧹 Performing aggressive disk space cleanup..."
         
-        echo "💾 Disk space after cleanup:"
+        # Stop all containers first to free up resources
+        echo "🛑 Stopping all Docker containers..."
+        sudo docker stop $(sudo docker ps -aq) 2>/dev/null || true
+        
+        # Remove all stopped containers
+        echo "🗑️ Removing stopped containers..."
+        sudo docker container prune -f || true
+        
+        # Remove all unused images (not just dangling ones)
+        echo "🗑️ Removing unused Docker images..."
+        sudo docker image prune -af || true
+        
+        # Remove all unused networks
+        echo "🗑️ Removing unused Docker networks..."
+        sudo docker network prune -f || true
+        
+        # Remove all unused volumes
+        echo "🗑️ Removing unused Docker volumes..."
+        sudo docker volume prune -f || true
+        
+        # Complete system prune with volumes
+        echo "🗑️ Performing complete Docker system cleanup..."
+        sudo docker system prune -af --volumes || true
+        
+        # Clean package manager cache
+        echo "🗑️ Cleaning package manager cache..."
+        sudo apt-get clean || true
+        sudo apt-get autoclean || true
+        sudo apt-get autoremove -y || true
+        
+        # Clean temporary files and logs
+        echo "🗑️ Cleaning temporary files..."
+        sudo rm -rf /tmp/* || true
+        sudo rm -rf /var/tmp/* || true
+        sudo rm -rf /var/lib/apt/lists/* || true
+        sudo rm -rf /var/cache/apt/* || true
+        
+        # Clean log files older than 7 days
+        echo "🗑️ Cleaning old log files..."
+        sudo find /var/log -type f -name "*.log" -mtime +7 -delete 2>/dev/null || true
+        sudo find /var/log -type f -name "*.gz" -mtime +7 -delete 2>/dev/null || true
+        
+        # Clean up any node_modules or build artifacts that might be left
+        echo "🗑️ Cleaning build artifacts..."
+        sudo find /home -name "node_modules" -type d -exec rm -rf {} + 2>/dev/null || true
+        sudo find /home -name "dist" -type d -exec rm -rf {} + 2>/dev/null || true
+        sudo find /home -name ".cache" -type d -exec rm -rf {} + 2>/dev/null || true
+        
+        echo "💾 Disk space after aggressive cleanup:"
         df -h
+        
+        # Check if we have enough space (at least 2GB free)
+        available_space=$(df / | tail -1 | awk '{print $4}')
+        if [ "$available_space" -lt 2097152 ]; then
+          echo "⚠️ Warning: Less than 2GB free space available. Consider increasing disk size."
+          echo "Available space: ${available_space}KB"
+        else
+          echo "✅ Sufficient disk space available: ${available_space}KB"
+        fi
         
         # Configure AWS CLI on EC2
         aws configure set region us-east-1
@@ -124,15 +176,31 @@ jobs:
         echo "🔐 Logging into ECR..."
         aws ecr get-login-password --region us-east-1 | sudo docker login --username AWS --password-stdin 324037286635.dkr.ecr.us-east-1.amazonaws.com
         
-        # Pull latest images
-        echo "📥 Pulling latest images..."
-        sudo docker pull 324037286635.dkr.ecr.us-east-1.amazonaws.com/hospital-backend:latest
-        sudo docker pull 324037286635.dkr.ecr.us-east-1.amazonaws.com/hospital-frontend:latest
+        # Pull latest images one at a time to reduce memory pressure
+        echo "📥 Pulling backend image..."
+        if ! sudo docker pull 324037286635.dkr.ecr.us-east-1.amazonaws.com/hospital-backend:latest; then
+          echo "❌ Failed to pull backend image. Checking disk space..."
+          df -h
+          exit 1
+        fi
+        
+        echo "📥 Pulling frontend image..."
+        if ! sudo docker pull 324037286635.dkr.ecr.us-east-1.amazonaws.com/hospital-frontend:latest; then
+          echo "❌ Failed to pull frontend image. Checking disk space..."
+          df -h
+          exit 1
+        fi
+        
+        echo "✅ All images pulled successfully"
         
         # Stop and remove old containers (except database and nginx)
         echo "🛑 Stopping old containers..."
         sudo docker stop hospital-backend hospital-frontend 2>/dev/null || true
         sudo docker rm hospital-backend hospital-frontend 2>/dev/null || true
+        
+        # Clean up any orphaned containers after stopping
+        echo "🗑️ Cleaning up orphaned containers..."
+        sudo docker container prune -f || true
         
         # Start new backend container
         echo "🔄 Starting new backend container..."
