@@ -193,10 +193,10 @@ jobs:
         
         echo "✅ All images pulled successfully"
         
-        # Stop and remove old containers (except database and nginx)
+        # Stop and remove old containers (except database)
         echo "🛑 Stopping old containers..."
-        sudo docker stop hospital-backend hospital-frontend 2>/dev/null || true
-        sudo docker rm hospital-backend hospital-frontend 2>/dev/null || true
+        sudo docker stop hospital-backend hospital-frontend nginx-proxy 2>/dev/null || true
+        sudo docker rm hospital-backend hospital-frontend nginx-proxy 2>/dev/null || true
         
         # Clean up any orphaned containers after stopping
         echo "🗑️ Cleaning up orphaned containers..."
@@ -212,10 +212,11 @@ jobs:
           sudo docker run -d \
             --name hospital-postgres \
             --network hospital-network \
+            --network-alias postgres \
             --restart unless-stopped \
             -e POSTGRES_DB=hospital_db \
-            -e POSTGRES_USER=hospital_user \
-            -e POSTGRES_PASSWORD=hospital_pass \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD=postgres \
             -v hospital-postgres-data:/var/lib/postgresql/data \
             postgres:13
           echo "⏳ Waiting for PostgreSQL to initialize..."
@@ -224,7 +225,7 @@ jobs:
           # Wait for PostgreSQL to be ready
           echo "🔍 Checking PostgreSQL readiness..."
           for i in {1..10}; do
-            if sudo docker exec hospital-postgres pg_isready -U hospital_user -d hospital_db > /dev/null 2>&1; then
+            if sudo docker exec hospital-postgres pg_isready -U postgres -d hospital_db > /dev/null 2>&1; then
               echo "✅ PostgreSQL is ready"
               break
             fi
@@ -233,6 +234,9 @@ jobs:
           done
         else
           echo "✅ PostgreSQL is already running"
+          # Ensure existing container has the postgres alias
+          sudo docker network disconnect hospital-network hospital-postgres 2>/dev/null || true
+          sudo docker network connect --alias postgres hospital-network hospital-postgres 2>/dev/null || true
         fi
         
         # Start new backend container
@@ -241,8 +245,7 @@ jobs:
           --name hospital-backend \
           --network hospital-network \
           --restart unless-stopped \
-          -p 8000:8000 \
-          -e DATABASE_URL="postgresql://hospital_user:hospital_pass@hospital-postgres:5432/hospital_db" \
+          -e DATABASE_URL="postgresql://postgres:postgres@postgres:5432/hospital_db" \
           324037286635.dkr.ecr.us-east-1.amazonaws.com/hospital-backend:latest
         
         # Start new frontend container
@@ -251,8 +254,100 @@ jobs:
           --name hospital-frontend \
           --network hospital-network \
           --restart unless-stopped \
-          -p 3000:3000 \
           324037286635.dkr.ecr.us-east-1.amazonaws.com/hospital-frontend:latest
+        
+        # Setup nginx proxy for routing
+        echo "🌐 Setting up nginx proxy..."
+        
+        # Create nginx configuration
+        cat > /tmp/nginx.conf << 'NGINXEOF'
+        events {
+            worker_connections 1024;
+        }
+        
+        http {
+            upstream frontend {
+                server hospital-frontend:3000;
+            }
+            
+            upstream backend {
+                server hospital-backend:8000;
+            }
+            
+            server {
+                listen 80;
+                
+                # Add CORS headers
+                add_header 'Access-Control-Allow-Origin' '*' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization' always;
+                
+                # Health endpoint (route to backend)
+                location /health {
+                    proxy_pass http://backend;
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto $scheme;
+                }
+                
+                # API routes (route to backend)
+                location /api/ {
+                    proxy_pass http://backend;
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto $scheme;
+                }
+                
+                # Docs routes (route to backend)
+                location /docs {
+                    proxy_pass http://backend;
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto $scheme;
+                }
+                
+                # OpenAPI JSON (route to backend)
+                location /openapi.json {
+                    proxy_pass http://backend;
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto $scheme;
+                }
+                
+                # All other routes (route to frontend)
+                location / {
+                    proxy_pass http://frontend;
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto $scheme;
+                }
+            }
+        }
+        NGINXEOF
+        
+        # Stop and remove existing nginx proxy if it exists
+        sudo docker stop nginx-proxy 2>/dev/null || true
+        sudo docker rm nginx-proxy 2>/dev/null || true
+        
+        # Start nginx proxy container
+        echo "🔄 Starting nginx proxy..."
+        sudo docker run -d \
+          --name nginx-proxy \
+          --network hospital-network \
+          --restart unless-stopped \
+          -p 80:80 \
+          nginx:alpine
+        
+        # Copy nginx configuration to container
+        sudo docker cp /tmp/nginx.conf nginx-proxy:/etc/nginx/nginx.conf
+        
+        # Reload nginx configuration
+        sudo docker exec nginx-proxy nginx -s reload
         
         # Wait for containers to be healthy
         echo "⏳ Waiting for containers to be healthy..."
@@ -269,27 +364,31 @@ jobs:
         echo "📝 Frontend container logs (last 10 lines):"
         sudo docker logs --tail 10 hospital-frontend 2>/dev/null || echo "No frontend logs available"
         
-        # Test health endpoints directly
-        echo "🧪 Testing backend health..."
+        # Test health endpoints through nginx proxy
+        echo "🧪 Testing backend health through nginx proxy..."
         backend_health=false
-        if curl -f http://localhost:8000/health 2>/dev/null; then
-          echo "✅ Backend is healthy"
+        if curl -f http://localhost/health 2>/dev/null; then
+          echo "✅ Backend is healthy (through nginx proxy)"
           backend_health=true
         else
-          echo "⚠️ Backend health check failed, checking if container is running..."
-          if sudo docker ps | grep -q hospital-backend; then
+          echo "⚠️ Backend health check failed through nginx proxy, checking direct access..."
+          if curl -f http://hospital-backend:8000/health 2>/dev/null; then
+            echo "Backend is healthy directly but nginx routing may have issues"
+          elif sudo docker ps | grep -q hospital-backend; then
             echo "Backend container is running but health endpoint not responding"
           fi
         fi
         
-        echo "🧪 Testing frontend availability..."
+        echo "🧪 Testing frontend availability through nginx proxy..."
         frontend_health=false
-        if curl -f http://localhost:3000 2>/dev/null; then
-          echo "✅ Frontend is healthy"
+        if curl -f http://localhost/ 2>/dev/null; then
+          echo "✅ Frontend is healthy (through nginx proxy)"
           frontend_health=true
         else
-          echo "⚠️ Frontend health check failed, checking if container is running..."
-          if sudo docker ps | grep -q hospital-frontend; then
+          echo "⚠️ Frontend health check failed through nginx proxy, checking direct access..."
+          if curl -f http://hospital-frontend:3000 2>/dev/null; then
+            echo "Frontend is healthy directly but nginx routing may have issues"
+          elif sudo docker ps | grep -q hospital-frontend; then
             echo "Frontend container is running but not responding on port 3000"
           fi
         fi
