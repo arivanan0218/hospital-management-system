@@ -969,7 +969,7 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
               H
             </div>
             <div className="min-w-0 flex-1">
-              <h1 className="text-sm font-medium text-white truncate">Hospital Assistant</h1>
+              <h1 className="text-sm font-medium text-white truncate">Hospital Agent</h1>
               {serverInfo && (
                 <p className="text-xs text-gray-400 hidden sm:block">
                   Connected • {serverInfo.toolCount} tools • {aiMcpServiceRef.current?.getConversationSummary?.()?.messageCount || 0} messages in memory
@@ -1447,7 +1447,7 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
                   </div>
                   
                   {/* Tools Button */}
-                  <button
+                  {/* <button
                     className="text-gray-400 hover:text-white transition-colors p-1 flex items-center space-x-1 sm:space-x-2"
                     title="Tools"
                   >
@@ -1455,7 +1455,7 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
                     </svg>
                     <span className="text-xs sm:text-sm">MCP</span>
-                  </button>
+                  </button> */}
                 </div>
                 
                 {/* Right Side - Microphone and Send Icons */}

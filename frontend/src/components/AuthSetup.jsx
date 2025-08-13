@@ -274,11 +274,44 @@ const AuthSetup = ({ onComplete }) => {
         {/* Demo Credentials Info */}
         {authMode === 'signin' && (
           <div className="bg-blue-900/20 border border-blue-800 rounded-lg p-3">
-            <p className="text-blue-400 text-xs font-medium mb-2">💡 Demo Credentials:</p>
-            <div className="text-xs text-blue-300 space-y-1">
-              <div><strong>Admin:</strong> admin@hospital.com / admin123</div>
-              <div><strong>Doctor:</strong> doctor@hospital.com / doctor123</div>
-              <div><strong>Nurse:</strong> nurse@hospital.com / nurse123</div>
+            <p className="text-blue-400 text-xs font-medium mb-3">💡 Quick Login:</p>
+            <div className="flex space-x-2">
+              <button
+                onClick={() => {
+                  setFormData(prev => ({
+                    ...prev,
+                    email: 'admin@hospital.com',
+                    password: 'admin123'
+                  }));
+                }}
+                className="flex-1 px-3 py-2 bg-blue-800/30 hover:bg-blue-700/40 border border-blue-700 rounded-md transition-colors text-xs text-blue-200 hover:text-blue-100 text-center"
+              >
+                Admin
+              </button>
+              <button
+                onClick={() => {
+                  setFormData(prev => ({
+                    ...prev,
+                    email: 'doctor@hospital.com',
+                    password: 'doctor123'
+                  }));
+                }}
+                className="flex-1 px-3 py-2 bg-green-800/30 hover:bg-green-700/40 border border-green-700 rounded-md transition-colors text-xs text-green-200 hover:text-green-100 text-center"
+              >
+                Doctor
+              </button>
+              <button
+                onClick={() => {
+                  setFormData(prev => ({
+                    ...prev,
+                    email: 'nurse@hospital.com',
+                    password: 'nurse123'
+                  }));
+                }}
+                className="flex-1 px-3 py-2 bg-purple-800/30 hover:bg-purple-700/40 border border-purple-700 rounded-md transition-colors text-xs text-purple-200 hover:text-purple-100 text-center"
+              >
+                Nurse
+              </button>
             </div>
           </div>
         )}
