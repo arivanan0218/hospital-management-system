@@ -103,6 +103,24 @@ class MeetingSchedulerAgent:
         try:
             query_lower = query.lower()
             
+            # Check for "all staff" or similar patterns first
+            all_staff_patterns = [
+                r'all\s+(?:the\s+)?staff',
+                r'all\s+(?:the\s+)?staffs',
+                r'all\s+hospital\s+staff',
+                r'everyone',
+                r'all\s+(?:hospital\s+)?employees',
+                r'all\s+(?:team\s+)?members',
+                r'entire\s+staff',
+                r'whole\s+team'
+            ]
+            
+            for pattern in all_staff_patterns:
+                if re.search(pattern, query_lower):
+                    print("Detected 'all staff' request - will get all active staff members")
+                    # Return a special marker to indicate "all staff" request
+                    return ["ALL_STAFF_REQUEST"]
+            
             # Common patterns to find participant names
             participant_patterns = [
                 r'between\s+(\w+)\s+and\s+(\w+)',  # "between shamil and nazif"
@@ -145,6 +163,16 @@ class MeetingSchedulerAgent:
         try:
             staff_ids = []
             
+            # Check for "all staff" request first
+            if participant_names == ["ALL_STAFF_REQUEST"]:
+                print("Processing 'all staff' request - getting all active staff members")
+                all_staff = self.session.query(Staff).filter(
+                    Staff.status == 'active'
+                ).all()
+                staff_ids = [str(staff.id) for staff in all_staff]
+                print(f"Found {len(staff_ids)} active staff members for meeting")
+                return staff_ids
+            
             for name in participant_names:
                 # Search for staff by first name or last name (case-insensitive)
                 staff = self.session.query(Staff).join(User).filter(
@@ -161,13 +189,14 @@ class MeetingSchedulerAgent:
                 else:
                     print(f"Warning: Could not find staff member with name: {name}")
             
-            # If no specific participants found, fall back to getting some active staff
+            # If no specific participants found, fall back to getting available staff
             if not staff_ids:
                 print("No specific participants found, getting available staff as fallback")
                 fallback_staff = self.session.query(Staff).filter(
                     Staff.status == 'active'
-                ).limit(2).all()  # Get just 2 staff members as fallback
+                ).limit(10).all()  # Get up to 10 staff members as fallback instead of just 2
                 staff_ids = [str(staff.id) for staff in fallback_staff]
+                print(f"Using fallback: found {len(staff_ids)} active staff members")
             
             return staff_ids
             

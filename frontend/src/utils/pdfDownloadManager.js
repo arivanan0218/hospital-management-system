@@ -112,7 +112,7 @@ class PDFDownloadManager {
     // Convert Windows path to URL-friendly path
     // The server serves from 'reports' directory as root, so remove 'reports\' or 'reports/'
     const urlPath = filePath.replace(/\\/g, '/').replace(/^reports\//, '');
-    const pdfUrl = `http://localhost:3000/${urlPath}`;
+    const pdfUrl = `http://localhost:8000/${urlPath}`;
     
     console.log('📡 Fetching PDF from:', pdfUrl);
     

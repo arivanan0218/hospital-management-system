@@ -15,13 +15,8 @@ class DirectAIMCPService {
     return now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   }
   constructor() {
-<<<<<<< HEAD
     this.mcpClient = new DirectHttpMCPClient();
     this.openaiApiKey = null;
-=======
-    this.mcpClient = new DirectMCPClient();
-    this.openaiApiKey = import.meta.env.VITE_OPENAI_API_KEY; // Get from environment
->>>>>>> origin/dev-aws
     this.isConnected = false;
     this.conversationHistory = []; // Add conversation memory
     this.maxHistoryLength = 5; // Keep last 20 messages to manage token usage

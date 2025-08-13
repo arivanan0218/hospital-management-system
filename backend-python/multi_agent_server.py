@@ -14,6 +14,7 @@ from mcp.server.fastmcp import FastMCP
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 # Import database modules
 try:
@@ -871,7 +872,7 @@ def archive_old_discharge_reports(days_old: int = 30) -> Dict[str, Any]:
 # Define request model for tool calls
 from pydantic import BaseModel
 from fastapi import HTTPException, Request, Response
-from starlette.routing import Route
+from starlette.routing import Route, Mount
 from starlette.responses import JSONResponse
 
 class ToolCallRequest(BaseModel):
@@ -1040,10 +1041,14 @@ if __name__ == "__main__":
         print("   Health check: http://0.0.0.0:8000/health")
         
         # Add custom routes to the Starlette app
+        import os
+        reports_dir = os.path.join(os.path.dirname(__file__), "reports", "discharge")
+        
         custom_routes = [
             Route("/tools/call", call_tool_http, methods=["POST"]),
             Route("/tools/list", list_tools_http, methods=["GET"]),
             Route("/health", health_check, methods=["GET"]),
+            Mount("/discharge", StaticFiles(directory=reports_dir), name="static"),
         ]
         
         # Add routes to existing app
