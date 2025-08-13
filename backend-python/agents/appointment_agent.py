@@ -47,14 +47,14 @@ class AppointmentAgent(BaseAgent):
         ]
     
     def create_appointment(self, patient_id: str, doctor_id: str, department_id: str, 
-                          appointment_date: str, appointment_time: str, purpose: str = None,
-                          notes: str = None, status: str = "scheduled") -> Dict[str, Any]:
+                          appointment_date: str, appointment_time: str, reason: str = None,
+                          notes: str = None, duration_minutes: int = 30, status: str = "scheduled") -> Dict[str, Any]:
         """Create a new appointment."""
         if not DATABASE_AVAILABLE:
             return {"success": False, "message": "Database not available"}
         
         try:
-            # Parse date and time
+            # Parse date and time into single datetime
             appt_date = datetime.strptime(appointment_date, "%Y-%m-%d").date()
             appt_time = datetime.strptime(appointment_time, "%H:%M").time()
             appt_datetime = datetime.combine(appt_date, appt_time)
@@ -69,9 +69,9 @@ class AppointmentAgent(BaseAgent):
                 patient_id=uuid.UUID(patient_id),
                 doctor_id=uuid.UUID(doctor_id),
                 department_id=uuid.UUID(department_id),
-                appointment_date=appt_date,
-                appointment_time=appt_time,
-                purpose=purpose,
+                appointment_date=appt_datetime,
+                duration_minutes=duration_minutes,
+                reason=reason,
                 notes=notes,
                 status=status
             )
@@ -378,15 +378,16 @@ class AppointmentAgent(BaseAgent):
             return {"conflict": False, "message": "Database not available"}
         
         try:
+            # Combine date and time into single datetime for comparison
             appt_date = datetime.strptime(appointment_date, "%Y-%m-%d").date()
             appt_time = datetime.strptime(appointment_time, "%H:%M").time()
+            appt_datetime = datetime.combine(appt_date, appt_time)
             
             db = self.get_db_session()
             query = db.query(Appointment).filter(
                 and_(
                     Appointment.doctor_id == uuid.UUID(doctor_id),
-                    Appointment.appointment_date == appt_date,
-                    Appointment.appointment_time == appt_time,
+                    Appointment.appointment_date == appt_datetime,  # Use combined datetime
                     Appointment.status.in_(["scheduled", "confirmed"])
                 )
             )

@@ -49,7 +49,7 @@ class RoomBedAgent(BaseAgent):
     # ROOM MANAGEMENT METHODS
     
     def create_room(self, room_number: str, department_id: str, room_type: str = None,
-                   capacity: int = None, status: str = "available") -> Dict[str, Any]:
+                   floor_number: int = None, capacity: int = None) -> Dict[str, Any]:
         """Create a new room."""
         if not DATABASE_AVAILABLE:
             return {"success": False, "message": "Database not available"}
@@ -60,8 +60,8 @@ class RoomBedAgent(BaseAgent):
                 room_number=room_number,
                 department_id=uuid.UUID(department_id),
                 room_type=room_type,
-                capacity=capacity,
-                status=status
+                floor_number=floor_number,
+                capacity=capacity
             )
             db.add(room)
             db.commit()
