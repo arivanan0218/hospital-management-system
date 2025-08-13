@@ -30,6 +30,7 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   const [mediaRecorder, setMediaRecorder] = useState(null); // Audio recorder instance
   const [audioChunks, setAudioChunks] = useState([]); // Recorded audio chunks
   const [currentAudio, setCurrentAudio] = useState(null); // Current playing audio
+  const [microphoneAvailable, setMicrophoneAvailable] = useState(null); // Track microphone availability
   
   // Medical document features
   const [activeTab, setActiveTab] = useState('chat'); // chat, upload, history
@@ -128,6 +129,43 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Check microphone availability on component mount
+  useEffect(() => {
+    const checkMicrophoneAvailability = async () => {
+      try {
+        // Check if microphone APIs are available
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          setMicrophoneAvailable(false);
+          console.warn('Microphone API not available - likely due to non-HTTPS connection or browser restrictions');
+          return;
+        }
+
+        // Check if we're in a secure context
+        if (!window.isSecureContext && location.hostname !== 'localhost') {
+          setMicrophoneAvailable(false);
+          console.warn('Microphone requires HTTPS connection');
+          return;
+        }
+
+        // Test microphone permissions (this won't trigger permission prompt if denied)
+        const permissions = await navigator.permissions.query({ name: 'microphone' });
+        
+        if (permissions.state === 'denied') {
+          setMicrophoneAvailable(false);
+          console.warn('Microphone permission denied');
+        } else {
+          setMicrophoneAvailable(true);
+          console.log('Microphone available');
+        }
+      } catch (error) {
+        console.warn('Error checking microphone availability:', error);
+        setMicrophoneAvailable(false);
+      }
+    };
+
+    checkMicrophoneAvailability();
   }, []);
 
   // OpenAI Text-to-Speech function for voice output
@@ -281,6 +319,16 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
     try {
       // Stop any current audio playback
       stopCurrentAudio();
+
+      // Check if microphone APIs are available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Microphone access is not available. This may be due to: 1) Non-HTTPS connection (required for microphone access), 2) Browser security restrictions, or 3) Missing microphone permissions.');
+      }
+
+      // Check if we're in a secure context (HTTPS or localhost)
+      if (!window.isSecureContext && location.hostname !== 'localhost') {
+        throw new Error('Microphone access requires HTTPS connection. Please access the site via HTTPS.');
+      }
 
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -1828,9 +1876,11 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
                   {/* Microphone Button */}
                   <button
                     onClick={toggleVoiceInput}
-                    disabled={!isConnected || isLoading || isProcessingVoice}
+                    disabled={!isConnected || isLoading || isProcessingVoice || microphoneAvailable === false}
                     className={`transition-colors duration-200 p-1 ${
-                      isListening || isRecording
+                      microphoneAvailable === false
+                        ? "text-gray-500 cursor-not-allowed opacity-50"
+                        : isListening || isRecording
                         ? "text-red-400 hover:text-red-300 animate-pulse"
                         : isProcessingVoice
                         ? "text-yellow-400 hover:text-yellow-300 animate-pulse"
@@ -1839,7 +1889,11 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
                         : "text-gray-400 hover:text-white disabled:text-gray-600"
                     }`}
                     title={
-                      isListening || isRecording
+                      microphoneAvailable === false
+                        ? "Microphone not available (requires HTTPS connection and permissions)"
+                        : microphoneAvailable === null
+                        ? "Checking microphone availability..."
+                        : isListening || isRecording
                         ? "Recording... (Click to stop)"
                         : isProcessingVoice
                         ? "Processing voice input..."
@@ -1848,7 +1902,11 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
                         : "Start voice input (OpenAI Whisper)"
                     }
                   >
-                    {isListening || isRecording ? (
+                    {microphoneAvailable === false ? (
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V4c0-1.66-1.34-3-3-3S9 2.34 9 4v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"/>
+                      </svg>
+                    ) : isListening || isRecording ? (
                       <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M6 6h12v12H6z" />
                       </svg>
