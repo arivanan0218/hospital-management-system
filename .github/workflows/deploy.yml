@@ -219,7 +219,18 @@ jobs:
             -v hospital-postgres-data:/var/lib/postgresql/data \
             postgres:13
           echo "⏳ Waiting for PostgreSQL to initialize..."
-          sleep 15
+          sleep 30
+          
+          # Wait for PostgreSQL to be ready
+          echo "🔍 Checking PostgreSQL readiness..."
+          for i in {1..10}; do
+            if sudo docker exec hospital-postgres pg_isready -U hospital_user -d hospital_db > /dev/null 2>&1; then
+              echo "✅ PostgreSQL is ready"
+              break
+            fi
+            echo "⏳ Waiting for PostgreSQL... (attempt $i/10)"
+            sleep 5
+          done
         else
           echo "✅ PostgreSQL is already running"
         fi
@@ -230,6 +241,7 @@ jobs:
           --name hospital-backend \
           --network hospital-network \
           --restart unless-stopped \
+          -p 8000:8000 \
           -e DATABASE_URL="postgresql://hospital_user:hospital_pass@hospital-postgres:5432/hospital_db" \
           324037286635.dkr.ecr.us-east-1.amazonaws.com/hospital-backend:latest
         
