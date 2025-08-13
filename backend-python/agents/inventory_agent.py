@@ -101,8 +101,8 @@ class InventoryAgent(BaseAgent):
     # SUPPLY METHODS
     
     def create_supply(self, item_code: str, name: str, category_id: str, unit_of_measure: str,
-                     current_stock: int = 0, minimum_stock: int = 10, maximum_stock: int = 1000,
-                     unit_price: float = None, supplier: str = None) -> Dict[str, Any]:
+                     current_stock: int = 0, minimum_stock_level: int = 10, maximum_stock_level: int = 1000,
+                     unit_cost: float = None, supplier: str = None) -> Dict[str, Any]:
         """Create a new supply item."""
         if not DATABASE_AVAILABLE:
             return {"success": False, "message": "Database not available"}
@@ -115,9 +115,9 @@ class InventoryAgent(BaseAgent):
                 category_id=uuid.UUID(category_id),
                 unit_of_measure=unit_of_measure,
                 current_stock=current_stock,
-                minimum_stock=minimum_stock,
-                maximum_stock=maximum_stock,
-                unit_price=unit_price,
+                minimum_stock_level=minimum_stock_level,
+                maximum_stock_level=maximum_stock_level,
+                unit_cost=unit_cost,
                 supplier=supplier
             )
             db.add(supply)
