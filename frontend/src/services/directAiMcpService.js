@@ -3,7 +3,7 @@
  * Provides Claude Desktop-like experience
  */
 
-import DirectMCPClient from './directMcpClient.js';
+import DirectHttpMCPClient from './directHttpMcpClient.js';
 
 class DirectAIMCPService {
   /**
@@ -15,7 +15,7 @@ class DirectAIMCPService {
     return now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   }
   constructor() {
-    this.mcpClient = new DirectMCPClient();
+    this.mcpClient = new DirectHttpMCPClient();
     this.openaiApiKey = null;
     this.isConnected = false;
     this.conversationHistory = []; // Add conversation memory

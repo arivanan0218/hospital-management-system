@@ -525,6 +525,278 @@ def get_medical_timeline(patient_id: str) -> Dict[str, Any]:
     return {"error": "Multi-agent system required for this operation"}
 
 # ================================
+# MEETING SCHEDULING TOOLS
+# ================================
+
+@mcp.tool()
+def schedule_meeting(query: str) -> Dict[str, Any]:
+    """Schedule a meeting using natural language.
+    
+    Args:
+        query: Natural language description of the meeting to schedule
+               (e.g., "Schedule a patient consultation with Dr. Smith tomorrow at 2 PM")
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("schedule_meeting", query=query)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for meeting scheduling"}
+
+@mcp.tool()
+def list_meetings(date_str: str = None, days_ahead: int = 7) -> Dict[str, Any]:
+    """List meetings with optional date filter.
+    
+    Args:
+        date_str: Specific date in YYYY-MM-DD format (optional)
+        days_ahead: Number of days ahead to look for upcoming meetings (default 7)
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("list_meetings",
+                                           date_str=date_str,
+                                           days_ahead=days_ahead)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for listing meetings"}
+
+@mcp.tool()
+def get_meeting_by_id(meeting_id: str) -> Dict[str, Any]:
+    """Get detailed information about a specific meeting.
+    
+    Args:
+        meeting_id: The ID of the meeting to retrieve
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("get_meeting_by_id", meeting_id=meeting_id)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for meeting retrieval"}
+
+@mcp.tool()
+def update_meeting_status(meeting_id: str, status: str) -> Dict[str, Any]:
+    """Update the status of a meeting.
+    
+    Args:
+        meeting_id: The ID of the meeting to update
+        status: New status (scheduled, in_progress, completed, cancelled)
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("update_meeting_status",
+                                           meeting_id=meeting_id,
+                                           status=status)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for meeting updates"}
+
+@mcp.tool()
+def add_meeting_notes(meeting_id: str, notes: str, action_items: str = None) -> Dict[str, Any]:
+    """Add notes to a meeting.
+    
+    Args:
+        meeting_id: The ID of the meeting
+        notes: The notes to add
+        action_items: Optional action items from the meeting
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("add_meeting_notes",
+                                           meeting_id=meeting_id,
+                                           notes=notes,
+                                           action_items=action_items)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for adding meeting notes"}
+
+@mcp.tool()
+def send_email(to_emails: str, subject: str, message: str, from_name: str = "Hospital Management System") -> Dict[str, Any]:
+    """Send email notifications to staff members.
+    
+    Args:
+        to_emails: Comma-separated list of email addresses
+        subject: Email subject line
+        message: Email message content
+        from_name: Sender name (default: Hospital Management System)
+    """
+    try:
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        from dotenv import load_dotenv
+        import os
+        
+        # Load email configuration
+        load_dotenv()
+        
+        smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
+        smtp_port = int(os.getenv('SMTP_PORT', '587'))
+        email_username = os.getenv('EMAIL_USERNAME')
+        email_password = os.getenv('EMAIL_PASSWORD')
+        from_email = os.getenv('EMAIL_FROM_ADDRESS', email_username)
+        
+        if not email_username or not email_password:
+            return {"success": False, "message": "Email credentials not configured"}
+        
+        # Parse email addresses
+        email_list = [email.strip() for email in to_emails.split(',')]
+        
+        # Create email message
+        msg = MIMEMultipart()
+        msg['From'] = f"{from_name} <{from_email}>"
+        msg['Subject'] = subject
+        msg.attach(MIMEText(message, 'plain'))
+        
+        # Send emails
+        sent_count = 0
+        failed_emails = []
+        
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()
+            server.login(email_username, email_password)
+            
+            for email_addr in email_list:
+                try:
+                    msg['To'] = email_addr
+                    server.send_message(msg)
+                    sent_count += 1
+                except Exception as e:
+                    failed_emails.append(f"{email_addr}: {str(e)}")
+                finally:
+                    del msg['To']  # Remove for next iteration
+        
+        return {
+            "success": True,
+            "message": f"Sent {sent_count}/{len(email_list)} emails successfully",
+            "sent_count": sent_count,
+            "total_emails": len(email_list),
+            "failed_emails": failed_emails
+        }
+        
+    except Exception as e:
+        return {"success": False, "message": f"Email sending failed: {str(e)}"}
+
+# ================================
+# DISCHARGE REPORT TOOLS
+# ================================
+
+@mcp.tool()
+def generate_discharge_report(
+    bed_id: str,
+    discharge_condition: str = "stable",
+    discharge_destination: str = "home"
+) -> Dict[str, Any]:
+    """Generate a comprehensive patient discharge report.
+    
+    Args:
+        bed_id: The bed ID where the patient is located
+        discharge_condition: Condition of patient at discharge (default: stable)
+        discharge_destination: Where patient is going (default: home)
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("generate_discharge_report",
+                                           bed_id=bed_id,
+                                           discharge_condition=discharge_condition,
+                                           discharge_destination=discharge_destination)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for discharge report generation"}
+
+@mcp.tool()
+def add_treatment_record_simple(
+    patient_id: str,
+    doctor_id: str,
+    treatment_type: str,
+    treatment_name: str
+) -> Dict[str, Any]:
+    """Add a simple treatment record for discharge reporting.
+    
+    Args:
+        patient_id: The ID of the patient
+        doctor_id: The ID of the doctor who provided treatment
+        treatment_type: Type of treatment
+        treatment_name: Name of the treatment
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("add_treatment_record_simple",
+                                           patient_id=patient_id,
+                                           doctor_id=doctor_id,
+                                           treatment_type=treatment_type,
+                                           treatment_name=treatment_name)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for adding treatment records"}
+
+@mcp.tool()
+def add_equipment_usage_simple(
+    patient_id: str,
+    equipment_id: str,
+    staff_id: str,
+    purpose: str
+) -> Dict[str, Any]:
+    """Add equipment usage record for discharge reporting.
+    
+    Args:
+        patient_id: The ID of the patient
+        equipment_id: The ID of the equipment used
+        staff_id: The ID of the staff member who used the equipment
+        purpose: Purpose of equipment usage
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("add_equipment_usage_simple",
+                                           patient_id=patient_id,
+                                           equipment_id=equipment_id,
+                                           staff_id=staff_id,
+                                           purpose=purpose)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for adding equipment usage records"}
+
+@mcp.tool()
+def assign_staff_to_patient_simple(
+    patient_id: str,
+    staff_id: str,
+    role: str
+) -> Dict[str, Any]:
+    """Assign staff to patient for discharge reporting.
+    
+    Args:
+        patient_id: The ID of the patient
+        staff_id: The ID of the staff member
+        role: Role of staff member in patient care
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("assign_staff_to_patient_simple",
+                                           patient_id=patient_id,
+                                           staff_id=staff_id,
+                                           role=role)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for staff assignment"}
+
+@mcp.tool()
+def complete_equipment_usage_simple(usage_id: str) -> Dict[str, Any]:
+    """Complete equipment usage record.
+    
+    Args:
+        usage_id: The ID of the equipment usage record to complete
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("complete_equipment_usage_simple", usage_id=usage_id)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for completing equipment usage"}
+
+@mcp.tool()
+def list_discharge_reports(patient_id: str = None) -> Dict[str, Any]:
+    """List discharge reports.
+    
+    Args:
+        patient_id: Filter by patient ID (optional)
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("list_discharge_reports", patient_id=patient_id)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for listing discharge reports"}
+
+# ================================
 # HTTP ENDPOINTS FOR FRONTEND
 # ================================
 
