@@ -206,6 +206,24 @@ jobs:
         echo "🌐 Creating hospital network..."
         sudo docker network create hospital-network 2>/dev/null || true
         
+        # Start PostgreSQL database if not running
+        echo "🗄️ Starting PostgreSQL database..."
+        if ! sudo docker ps | grep -q hospital-postgres; then
+          sudo docker run -d \
+            --name hospital-postgres \
+            --network hospital-network \
+            --restart unless-stopped \
+            -e POSTGRES_DB=hospital_db \
+            -e POSTGRES_USER=hospital_user \
+            -e POSTGRES_PASSWORD=hospital_pass \
+            -v hospital-postgres-data:/var/lib/postgresql/data \
+            postgres:13
+          echo "⏳ Waiting for PostgreSQL to initialize..."
+          sleep 15
+        else
+          echo "✅ PostgreSQL is already running"
+        fi
+        
         # Start new backend container
         echo "🔄 Starting new backend container..."
         sudo docker run -d \
@@ -250,11 +268,11 @@ jobs:
         
         echo "🧪 Testing frontend availability..."
         frontend_health=false
-        if sudo docker exec hospital-frontend ls /usr/share/nginx/html/index.html 2>/dev/null; then
-          echo "✅ Frontend files are present"
+        if sudo docker exec hospital-frontend curl -f http://localhost:3000 2>/dev/null; then
+          echo "✅ Frontend is healthy"
           frontend_health=true
         else
-          echo "⚠️ Frontend files not found"
+          echo "⚠️ Frontend health check failed"
         fi
         
         # Overall health check
