@@ -21,6 +21,16 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   const [isInputFocused, setIsInputFocused] = useState(false); // Track input focus state
   const [showPlusMenu, setShowPlusMenu] = useState(false); // Track plus icon dropdown menu
   
+  // Voice functionality state
+  const [isListening, setIsListening] = useState(false); // Track voice recording state
+  const [isProcessingVoice, setIsProcessingVoice] = useState(false); // Track voice processing state
+  const [isSpeaking, setIsSpeaking] = useState(false); // Track if AI is currently speaking
+  const [lastVoiceInputId, setLastVoiceInputId] = useState(null); // Track the last voice input message ID
+  const [isRecording, setIsRecording] = useState(false); // Track audio recording state
+  const [mediaRecorder, setMediaRecorder] = useState(null); // Audio recorder instance
+  const [audioChunks, setAudioChunks] = useState([]); // Recorded audio chunks
+  const [currentAudio, setCurrentAudio] = useState(null); // Current playing audio
+  
   // Medical document features
   const [activeTab, setActiveTab] = useState('chat'); // chat, upload, history
   const [selectedPatientId, setSelectedPatientId] = useState(null); // This will store the UUID
@@ -120,6 +130,293 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // OpenAI Text-to-Speech function for voice output
+  const speakTextWithOpenAI = async (text, isResponseToVoiceInput = false) => {
+    // Only speak if this is a response to voice input and we have an API key
+    if (!isResponseToVoiceInput || !openaiApiKey.trim()) {
+      return;
+    }
+
+    // Stop any current audio
+    stopCurrentAudio();
+
+    // Clean up text for speech (remove markdown and formatting)
+    let cleanText = text
+      .replace(/\*\*([^*]+)\*\*/g, '$1') // Remove bold markdown
+      .replace(/\*([^*]+)\*/g, '$1') // Remove italic markdown
+      .replace(/`([^`]+)`/g, '$1') // Remove code backticks
+      .replace(/#{1,6}\s?/g, '') // Remove heading hashtags
+      .replace(/---/g, '') // Remove horizontal rules
+      .replace(/\n{2,}/g, '\n') // Reduce multiple newlines
+      .replace(/🧠|🤔|🔍|🛠️|📊|💡|ℹ️|✅|❌|💥/g, '') // Remove emojis
+      .replace(/\[(.*?)\]\(.*?\)/g, '$1') // Convert links to just text
+      .replace(/\*\*([^*]+)\*\*/g, '$1') // Additional cleanup
+      .replace(/\n/g, ' ') // Replace newlines with spaces
+      .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+      .trim();
+
+    // Skip speaking if text is too short or just symbols
+    if (cleanText.length < 3 || /^[^\w\s]*$/.test(cleanText)) {
+      return;
+    }
+
+    // Limit text length for TTS (OpenAI has a 4096 character limit)
+    if (cleanText.length > 4000) {
+      cleanText = cleanText.substring(0, 4000) + '...';
+    }
+
+    try {
+      setIsSpeaking(true);
+
+      const response = await fetch('https://api.openai.com/v1/audio/speech', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openaiApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'tts-1', // Use tts-1 for faster generation, tts-1-hd for higher quality
+          input: cleanText,
+          voice: 'alloy', // Options: alloy, echo, fable, onyx, nova, shimmer
+          response_format: 'mp3',
+          speed: 1.0,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`TTS API error: ${response.status}`);
+      }
+
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+
+      audio.onloadeddata = () => {
+        setCurrentAudio(audio);
+        audio.play().catch((error) => {
+          console.error('Audio playback failed:', error);
+          setIsSpeaking(false);
+        });
+      };
+
+      audio.onended = () => {
+        setIsSpeaking(false);
+        setCurrentAudio(null);
+        URL.revokeObjectURL(audioUrl);
+      };
+
+      audio.onerror = (error) => {
+        console.error('Audio playback error:', error);
+        setIsSpeaking(false);
+        setCurrentAudio(null);
+        URL.revokeObjectURL(audioUrl);
+      };
+    } catch (error) {
+      console.error('OpenAI TTS error:', error);
+      setIsSpeaking(false);
+
+      // Fallback to browser speech synthesis if OpenAI fails
+      if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(cleanText);
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+        utterance.volume = 0.8;
+
+        utterance.onend = () => setIsSpeaking(false);
+        utterance.onerror = () => setIsSpeaking(false);
+
+        speechSynthesis.speak(utterance);
+      }
+    }
+  };
+
+  // Function to stop current audio playback
+  const stopCurrentAudio = () => {
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+      setCurrentAudio(null);
+    }
+    if ('speechSynthesis' in window && speechSynthesis.speaking) {
+      speechSynthesis.cancel();
+    }
+    setIsSpeaking(false);
+  };
+
+  // OpenAI Speech-to-Text (Whisper) function
+  const transcribeWithOpenAI = async (audioBlob) => {
+    if (!openaiApiKey.trim()) {
+      throw new Error('OpenAI API key is required for speech recognition');
+    }
+
+    const formData = new FormData();
+    formData.append('file', audioBlob, 'audio.webm');
+    formData.append('model', 'whisper-1');
+    formData.append('language', 'en'); // Optional: specify language
+    formData.append('response_format', 'json');
+
+    try {
+      const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openaiApiKey}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Whisper API error: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.text;
+    } catch (error) {
+      console.error('OpenAI Whisper error:', error);
+      throw error;
+    }
+  };
+
+  // Start recording audio for speech-to-text
+  const startRecording = async () => {
+    try {
+      // Stop any current audio playback
+      stopCurrentAudio();
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+
+      const recorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus',
+      });
+
+      const chunks = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunks.push(event.data);
+        }
+      };
+
+      recorder.onstop = async () => {
+        const audioBlob = new Blob(chunks, { type: 'audio/webm' });
+        setIsProcessingVoice(true);
+
+        try {
+          const transcript = await transcribeWithOpenAI(audioBlob);
+
+          if (transcript && transcript.trim()) {
+            setInputMessage(transcript);
+
+            // Show user's voice input message in chat
+            const voiceInputId = Date.now();
+            const userMsg = {
+              id: voiceInputId,
+              text: transcript.trim(),
+              sender: 'user',
+              timestamp: new Date().toLocaleTimeString(),
+              isVoiceInput: true,
+            };
+            setMessages((prev) => [...prev, userMsg]);
+            setLastVoiceInputId(voiceInputId);
+
+            // Auto-send the voice input after a short delay
+            setTimeout(() => {
+              if (transcript.trim() && isConnected && !isLoading) {
+                setInputMessage('');
+                sendMessageClaudeStyle(transcript.trim(), true);
+                setIsProcessingVoice(false);
+              } else {
+                setIsProcessingVoice(false);
+              }
+            }, 800);
+          } else {
+            setIsProcessingVoice(false);
+            console.log('No speech detected');
+          }
+        } catch (error) {
+          console.error('Speech transcription failed:', error);
+          setIsProcessingVoice(false);
+
+          // Show error message
+          const errorMsg = {
+            id: Date.now(),
+            text: `🎤 **Speech Recognition Error:** ${error.message}. Please try again.`,
+            sender: 'ai',
+            timestamp: new Date().toLocaleTimeString(),
+            isError: true,
+          };
+          setMessages((prev) => [...prev, errorMsg]);
+        }
+
+        // Clean up media stream
+        stream.getTracks().forEach((track) => track.stop());
+        setAudioChunks([]);
+      };
+
+      setMediaRecorder(recorder);
+      setAudioChunks(chunks);
+      setIsRecording(true);
+      setIsListening(true);
+
+      recorder.start();
+    } catch (error) {
+      console.error('Failed to start recording:', error);
+      setIsRecording(false);
+      setIsListening(false);
+
+      // Show error message
+      const errorMsg = {
+        id: Date.now(),
+        text: `🎤 **Microphone Error:** ${error.message}. Please check your microphone permissions.`,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString(),
+        isError: true,
+      };
+      setMessages((prev) => [...prev, errorMsg]);
+    }
+  };
+
+  // Stop recording audio
+  const stopRecording = () => {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop();
+    }
+    setIsRecording(false);
+    setIsListening(false);
+  };
+
+  // Voice input toggle function
+  const toggleVoiceInput = () => {
+    if (!openaiApiKey.trim()) {
+      const errorMsg = {
+        id: Date.now(),
+        text: '🔑 **API Key Required:** Please configure your OpenAI API key to use voice features.',
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString(),
+        isError: true,
+      };
+      setMessages((prev) => [...prev, errorMsg]);
+      return;
+    }
+
+    // If AI is speaking, stop the speech
+    if (isSpeaking) {
+      stopCurrentAudio();
+      return;
+    }
+
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  };
+
   /**
    * Initialize the AI-MCP service
    */
@@ -175,21 +472,26 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   /**
    * Smart conversation flow: only show thinking when tools are needed
    */
-  const sendMessageClaudeStyle = async () => {
-    if (!inputMessage.trim() || !isConnected || isLoading) return;
+  const sendMessageClaudeStyle = async (customMessage = null, isFromVoiceInput = false) => {
+    const messageToSend = customMessage || inputMessage.trim();
+    if (!messageToSend || !isConnected || isLoading) return;
 
-    const userMessage = inputMessage.trim();
-    setInputMessage('');
+    const userMessage = messageToSend;
+    if (!customMessage) {
+      setInputMessage('');
+    }
     setIsLoading(true);
 
-    // Add user message
-    const userMsg = {
-      id: Date.now(),
-      text: userMessage,
-      sender: 'user',
-      timestamp: new Date().toLocaleTimeString()
-    };
-    setMessages(prev => [...prev, userMsg]);
+    // Add user message only if it's not from voice input (voice input already adds the message)
+    if (!isFromVoiceInput) {
+      const userMsg = {
+        id: Date.now(),
+        text: userMessage,
+        sender: 'user',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, userMsg]);
+    }
 
     // Check if this request likely needs tool calls
     const toolKeywords = ['list', 'show', 'get', 'find', 'search', 'create', 'add', 'update', 'delete', 'assign', 'check', 'manage', 'patient', 'staff', 'bed', 'department', 'appointment', 'equipment', 'supply'];
@@ -324,6 +626,13 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
           isFinalAnswer: true
         };
         setMessages(prev => [...prev, finalResponse]);
+
+        // If this is a response to voice input, speak the response
+        if (isFromVoiceInput) {
+          setTimeout(() => {
+            speakTextWithOpenAI(response.response || response.message || 'Here\'s what I found based on your request.', true);
+          }, 500);
+        }
         
       } else {
         // Direct error response without thinking for simple errors
@@ -335,6 +644,13 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
           isError: true
         };
         setMessages(prev => [...prev, errorResponse]);
+
+        // If this is a response to voice input, speak the error message
+        if (isFromVoiceInput) {
+          setTimeout(() => {
+            speakTextWithOpenAI(`I apologize, but I encountered an error: ${response.error || 'Unknown error occurred'}. Please try rephrasing your request.`, true);
+          }, 500);
+        }
       }
       
     } catch (error) {
@@ -354,6 +670,13 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
         isError: true
       };
       setMessages(prev => [...prev, errorMsg]);
+
+      // If this is a response to voice input, speak the error message
+      if (isFromVoiceInput) {
+        setTimeout(() => {
+          speakTextWithOpenAI(`I'm having trouble processing your request. This might be a temporary connection issue. Could you please try again?`, true);
+        }, 500);
+      }
     } finally {
       setIsLoading(false);
       
@@ -1163,7 +1486,17 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
                 <div className="flex justify-end">
                   <div className="max-w-[85%] sm:max-w-[80%]">
                     <div className="prose prose-sm max-w-none">
-                      <div className="whitespace-pre-wrap leading-relaxed text-xs sm:text-sm text-white bg-slate-700 rounded-2xl px-3 sm:px-4 py-2">
+                      <div className={`whitespace-pre-wrap leading-relaxed text-xs sm:text-sm text-white rounded-2xl px-3 sm:px-4 py-2 ${
+                        message.isVoiceInput ? 'bg-blue-700 border border-blue-500' : 'bg-slate-700'
+                      }`}>
+                        {message.isVoiceInput && (
+                          <div className="flex items-center space-x-1 mb-1 text-blue-200">
+                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M12 2c1.1 0 2 .9 2 2v6c0 1.1-.9 2-2 2s-2-.9-2-2V4c0-1.1.9-2 2-2zm5.3 6c0 3-2.5 5.1-5.3 5.1S6.7 11 6.7 8H5c0 3.4 2.7 6.2 6 6.7v3.3h2v-3.3c3.3-.5 6-3.3 6-6.7h-1.7z" />
+                            </svg>
+                            <span className="text-xs">Voice Input</span>
+                          </div>
+                        )}
                         <div dangerouslySetInnerHTML={{ __html: formatMessageText(message.text) }} />
                       </div>
                     </div>
@@ -1368,6 +1701,38 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
       {/* Modern Chat Input - Two Row Layout */}
       <div className="bg-[#1a1a1a] px-3 sm:px-4 py-2">
         <div className="max-w-4xl mx-auto">
+          {/* Voice Status Indicator */}
+          {(isRecording || isProcessingVoice || isSpeaking) && (
+            <div className="mb-3 px-3 py-2 bg-[#2a2a2a] border border-gray-600 rounded-lg">
+              <div className="flex items-center space-x-2">
+                {isRecording && (
+                  <>
+                    <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                    <span className="text-sm text-red-400">
+                      🎤 Recording with OpenAI Whisper...
+                    </span>
+                  </>
+                )}
+                {isProcessingVoice && (
+                  <>
+                    <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+                    <span className="text-sm text-yellow-400">
+                      🔄 Processing speech with OpenAI...
+                    </span>
+                  </>
+                )}
+                {isSpeaking && (
+                  <>
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                    <span className="text-sm text-blue-400">
+                      🔊 Speaking with OpenAI TTS...
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+          
           <div className="relative">
             {/* Main Input Container - Rounded Rectangle */}
             <div className={`bg-[#2a2a2a] rounded-2xl sm:rounded-3xl border px-3 sm:px-4 py-3 sm:py-4 transition-colors duration-200 ${
@@ -1462,12 +1827,44 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
                 <div className="flex items-center space-x-2 sm:space-x-3">
                   {/* Microphone Button */}
                   <button
-                    className="text-gray-400 hover:text-white transition-colors p-1"
-                    title="Voice input"
+                    onClick={toggleVoiceInput}
+                    disabled={!isConnected || isLoading || isProcessingVoice}
+                    className={`transition-colors duration-200 p-1 ${
+                      isListening || isRecording
+                        ? "text-red-400 hover:text-red-300 animate-pulse"
+                        : isProcessingVoice
+                        ? "text-yellow-400 hover:text-yellow-300 animate-pulse"
+                        : isSpeaking
+                        ? "text-blue-400 hover:text-blue-300 animate-pulse"
+                        : "text-gray-400 hover:text-white disabled:text-gray-600"
+                    }`}
+                    title={
+                      isListening || isRecording
+                        ? "Recording... (Click to stop)"
+                        : isProcessingVoice
+                        ? "Processing voice input..."
+                        : isSpeaking
+                        ? "AI is speaking... (Click to stop)"
+                        : "Start voice input (OpenAI Whisper)"
+                    }
                   >
-                    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                    </svg>
+                    {isListening || isRecording ? (
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M6 6h12v12H6z" />
+                      </svg>
+                    ) : isProcessingVoice ? (
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    ) : isSpeaking ? (
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2c1.1 0 2 .9 2 2v6c0 1.1-.9 2-2 2s-2-.9-2-2V4c0-1.1.9-2 2-2zm5.3 6c0 3-2.5 5.1-5.3 5.1S6.7 11 6.7 8H5c0 3.4 2.7 6.2 6 6.7v3.3h2v-3.3c3.3-.5 6-3.3 6-6.7h-1.7z" />
+                      </svg>
+                    )}
                   </button>
                   
                   {/* Send Button - Circular */}
