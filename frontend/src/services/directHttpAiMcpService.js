@@ -16,7 +16,7 @@ class DirectHttpAIMCPService {
 
   constructor() {
     this.mcpClient = new DirectHttpMCPClient();
-    this.openaiApiKey = null;
+    this.openaiApiKey = import.meta.env.VITE_OPENAI_API_KEY; // Get from environment
     this.isInitialized = false;
     this.conversationHistory = []; // Add conversation memory
     this.maxHistoryLength = 6; // Keep last 6 messages to manage token usage better
@@ -25,17 +25,15 @@ class DirectHttpAIMCPService {
   }
 
   /**
-   * Initialize the service with OpenAI API key
+   * Initialize the service
    */
-  async initialize(openaiApiKey) {
+  async initialize() {
     console.log('🚀 Initializing Direct HTTP AI-MCP Service (Claude Desktop Style)...');
     
-    if (!openaiApiKey) {
-      console.error('❌ OpenAI API key is required');
+    if (!this.openaiApiKey) {
+      console.error('❌ OpenAI API key not configured in environment variables');
       return false;
     }
-
-    this.openaiApiKey = openaiApiKey;
 
     // Connect to the MCP server directly
     const connected = await this.mcpClient.connect();

@@ -12,8 +12,8 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [showSetup, setShowSetup] = useState(false); // Start with false since auth is handled by parent
   
-  // Configuration state - get API key from authenticated user
-  const [openaiApiKey, setOpenaiApiKey] = useState(user?.apiKey || import.meta.env.VITE_OPENAI_API_KEY || '');
+  // Configuration state - get API key from environment variables
+  const [openaiApiKey] = useState(import.meta.env.VITE_OPENAI_API_KEY || '');
   
   const [serverInfo, setServerInfo] = useState(null);
   const [connectionError, setConnectionError] = useState('');
@@ -39,7 +39,7 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
       console.log('🔄 Auto-connecting for authenticated user...');
       initializeService();
     }
-  }, [user, openaiApiKey, isConnected, showSetup]); // Dependencies that should trigger auto-connection
+  }, [user, isConnected, showSetup]); // Dependencies that should trigger auto-connection
 
   // Component to display thinking duration
   const ThinkingDuration = React.memo(({ startTime }) => {
@@ -111,7 +111,7 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
    */
   const initializeService = async () => {
     if (!openaiApiKey.trim()) {
-      setConnectionError('Please enter your OpenAI API key');
+      setConnectionError('OpenAI API key not configured in environment variables. Please contact administrator.');
       return;
     }
 
@@ -123,7 +123,7 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
       
       console.log('🚀 Initializing Direct HTTP MCP Service...');
       
-      const initialized = await aiMcpServiceRef.current.initialize(openaiApiKey);
+      const initialized = await aiMcpServiceRef.current.initialize();
       
       if (initialized) {
         setIsConnected(true);

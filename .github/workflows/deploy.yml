@@ -11,6 +11,11 @@ env:
   ECR_REPOSITORY_BACKEND: hospital-backend
   ECR_REPOSITORY_FRONTEND: hospital-frontend
   EC2_HOST: 34.207.201.88
+  # Environment variables for the entire workflow
+  VITE_OPENAI_API_KEY: ${{ secrets.VITE_OPENAI_API_KEY }}
+  VITE_LANGSMITH_API_KEY: ${{ secrets.VITE_LANGSMITH_API_KEY }}
+  VITE_LANGSMITH_PROJECT: hospital-management-system
+  VITE_LANGSMITH_TRACING: true
 
 jobs:
   test:
@@ -68,6 +73,16 @@ jobs:
         docker push $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:$IMAGE_TAG
         docker push $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:latest
         echo "✅ Backend image pushed successfully"
+
+    - name: Create frontend .env file for production
+      working-directory: ./frontend
+      run: |
+        echo "VITE_OPENAI_API_KEY=${{ secrets.VITE_OPENAI_API_KEY }}" > .env
+        echo "VITE_LANGSMITH_API_KEY=${{ secrets.VITE_LANGSMITH_API_KEY }}" >> .env
+        echo "VITE_LANGSMITH_PROJECT=hospital-management-system" >> .env
+        echo "VITE_LANGSMITH_TRACING=true" >> .env
+        echo "VITE_MCP_BRIDGE_URL=${{ secrets.VITE_MCP_BRIDGE_URL }}" >> .env
+        echo "✅ Frontend .env file created"
 
     - name: Build and push frontend image
       env:
