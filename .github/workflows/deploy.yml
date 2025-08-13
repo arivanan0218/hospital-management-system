@@ -202,6 +202,10 @@ jobs:
         echo "🗑️ Cleaning up orphaned containers..."
         sudo docker container prune -f || true
         
+        # Create hospital network if it doesn't exist
+        echo "🌐 Creating hospital network..."
+        sudo docker network create hospital-network 2>/dev/null || true
+        
         # Start new backend container
         echo "🔄 Starting new backend container..."
         sudo docker run -d \
