@@ -377,16 +377,26 @@ jobs:
         
         # Test database connection
         echo "🗄️ Testing database connection..."
-        sudo docker exec hospital-postgres python3 -c "
+        if sudo docker exec hospital-backend python -c "
         import psycopg2
         try:
-            conn = psycopg2.connect('postgresql://postgres:postgres@localhost:5432/hospital_db')
+            conn = psycopg2.connect('postgresql://postgres:postgres@postgres:5432/hospital_db')
             print('✅ Database connection successful')
             conn.close()
         except Exception as e:
             print(f'❌ Database connection failed: {e}')
             exit(1)
-        " || exit 1
+        "; then
+            echo "✅ Database connection test passed"
+        else
+            echo "⚠️ Python database test failed, trying PostgreSQL native test..."
+            if sudo docker exec hospital-postgres psql -U postgres -d hospital_db -c "SELECT 1;" > /dev/null 2>&1; then
+                echo "✅ PostgreSQL native database test passed"
+            else
+                echo "❌ All database tests failed"
+                exit 1
+            fi
+        fi
         
         # Test backend health with retry logic
         echo "🔧 Testing backend health..."
