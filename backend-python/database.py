@@ -22,6 +22,9 @@ Base = declarative_base()
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+# --- New imports for meeting & legacy models registration ---
+# Note: Meeting models will be imported when needed to avoid circular imports
+
 # Database Models
 
 class User(Base):
@@ -45,6 +48,7 @@ class User(Base):
     appointments_as_doctor = relationship("Appointment", foreign_keys="Appointment.doctor_id", back_populates="doctor")
     inventory_transactions = relationship("InventoryTransaction", back_populates="performed_by_user")
     agent_interactions = relationship("AgentInteraction", back_populates="user")
+    discharge_reports = relationship("DischargeReport", foreign_keys="DischargeReport.doctor_id", back_populates="doctor")
 
 class Department(Base):
     """Department table model."""
@@ -66,6 +70,7 @@ class Department(Base):
     rooms = relationship("Room", back_populates="department")
     equipment = relationship("Equipment", back_populates="department")
     appointments = relationship("Appointment", back_populates="department")
+    discharge_reports = relationship("DischargeReport", back_populates="department")
 
 class Patient(Base):
     """Patient table model."""
@@ -93,6 +98,7 @@ class Patient(Base):
     appointments = relationship("Appointment", back_populates="patient")
     medical_documents = relationship("MedicalDocument", back_populates="patient")
     extracted_medical_data = relationship("ExtractedMedicalData", back_populates="patient")
+    discharge_reports = relationship("DischargeReport", back_populates="patient")
 
 class Room(Base):
     """Room table model."""
@@ -374,6 +380,24 @@ class LegacyUser(Base):
     address = Column(String, nullable=False)
     phone = Column(String, nullable=False)
 
+class DischargeReport(Base):
+    """Discharge report table model."""
+    __tablename__ = "discharge_reports"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
+    doctor_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    department_id = Column(UUID(as_uuid=True), ForeignKey("departments.id"), nullable=False)
+    discharge_date = Column(DateTime, nullable=False)
+    notes = Column(Text)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    # Relationships
+    patient = relationship("Patient", back_populates="discharge_reports")
+    doctor = relationship("User", foreign_keys=[doctor_id], back_populates="discharge_reports")
+    department = relationship("Department", back_populates="discharge_reports")
+
 def create_tables():
     """Create all tables in the database."""
     try:
@@ -395,6 +419,11 @@ def get_db():
         yield db
     finally:
         db.close()
+
+# --- Helper for session retrieval expected by some tooling files ---
+def get_db_session():
+    """Return a new database session (convenience wrapper)."""
+    return SessionLocal()
 
 def migrate_json_to_db():
     """Migrate existing users.json data to PostgreSQL database."""
