@@ -16,7 +16,7 @@ class DirectAIMCPService {
   }
   constructor() {
     this.mcpClient = new DirectMCPClient();
-    this.openaiApiKey = null;
+    this.openaiApiKey = import.meta.env.VITE_OPENAI_API_KEY; // Get from environment
     this.isConnected = false;
     this.conversationHistory = []; // Add conversation memory
     this.maxHistoryLength = 5; // Keep last 20 messages to manage token usage
@@ -25,10 +25,13 @@ class DirectAIMCPService {
   }
 
   /**
-   * Initialize with OpenAI API key and MCP server configuration
+   * Initialize with MCP server configuration
    */
-  async initialize(openaiApiKey, mcpServerConfig) {
-    this.openaiApiKey = openaiApiKey;
+  async initialize(mcpServerConfig) {
+    // Validate API key from environment
+    if (!this.openaiApiKey) {
+      throw new Error('OpenAI API key not configured in environment variables');
+    }
     
     console.log('🚀 Initializing Direct AI-MCP Service...');
     console.log('📋 MCP Server Config:', mcpServerConfig);
