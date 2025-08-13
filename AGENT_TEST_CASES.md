@@ -1,856 +1,1445 @@
-# Hospital Management System - Agent Test Cases
+# Comprehensive Agent Test Cases for Hospital Management System
 
 ## Overview
-This document contains comprehensive test cases for all agents in the Hospital Management System multi-agent architecture. Each agent is tested for functionality, edge cases, error handling, and integration scenarios.
+This document provides a complete set of test cases covering every agent functionality in the Hospital Management System multi-agent architecture. Each agent is tested through natural language interactions, business workflows, and comprehensive scenarios.
 
-**Total Test Cases: 120**
-**Agents Covered: 11**
-
----
-
-## 1. Base Agent (BaseAgent) - 5 Test Cases
-
-### BA-001: Agent Initialization
-- **Description**: Test base agent initialization with valid parameters
-- **Input**: agent_name="Test Agent", agent_type="test_agent"
-- **Expected**: Agent initialized with correct name and type
-- **Category**: Functional
-
-### BA-002: Database Session Creation
-- **Description**: Test database session creation and management
-- **Input**: Valid database connection
-- **Expected**: Session created successfully and can be closed
-- **Category**: Database
-
-### BA-003: Model Serialization - UUID
-- **Description**: Test serialization of SQLAlchemy models with UUID fields
-- **Input**: Model object with UUID field
-- **Expected**: UUID converted to string format
-- **Category**: Data Serialization
-
-### BA-004: Model Serialization - DateTime
-- **Description**: Test serialization of models with datetime fields
-- **Input**: Model object with datetime/date fields
-- **Expected**: DateTime converted to ISO format string
-- **Category**: Data Serialization
-
-### BA-005: Model Serialization - Decimal
-- **Description**: Test serialization of models with decimal fields
-- **Input**: Model object with Decimal fields
-- **Expected**: Decimal converted to float
-- **Category**: Data Serialization
+## Test Coverage Summary
+- **Agent Tests**: 120+ test cases covering all 11 specialized agents
+- **Natural Language Tests**: Conversational interfaces and queries
+- **Business Logic Tests**: Hospital workflows and operations
+- **Integration Tests**: Cross-agent communication and workflows
+- **Error Handling**: Edge cases and failure scenarios
+- **Performance Tests**: Load testing and concurrent operations
 
 ---
 
-## 2. Appointment Agent (AppointmentAgent) - 12 Test Cases
+## 1. BASE AGENT TEST CASES
 
-### AA-001: Create Valid Appointment
-- **Description**: Create appointment with all valid parameters
-- **Input**: patient_id, doctor_id, department_id, date, time, reason
-- **Expected**: Appointment created successfully with unique ID
-- **Category**: Functional
+### Agent System Initialization
+```javascript
+// Test Case Group 1: System Startup and Initialization
+'Initialize the hospital management system'
+'Start all agents'
+'Check system status'
+'Verify agent connectivity'
+'Show me system health'
+'Are all agents running?'
+'System initialization complete?'
+'Agent orchestration status'
 
-### AA-002: Create Appointment - Conflict Detection
-- **Description**: Attempt to create overlapping appointments
-- **Input**: Existing appointment time slot
-- **Expected**: Conflict detected, appointment creation fails
-- **Category**: Business Logic
+// Expected Response Pattern: /initialized|running|healthy|active|available/i
+```
 
-### AA-003: Create Appointment - Invalid Date Format
-- **Description**: Create appointment with invalid date format
-- **Input**: appointment_date="invalid-date"
-- **Expected**: Error returned with appropriate message
-- **Category**: Input Validation
+### Database Connection Testing
+```javascript
+// Test Case Group 2: Database Connectivity
+'Test database connection'
+'Check database status'
+'Verify database connectivity'
+'Is the database online?'
+'Database health check'
+'Test PostgreSQL connection'
+'Verify database tables'
+'Check data integrity'
 
-### AA-004: List All Appointments
-- **Description**: Retrieve all appointments without filters
-- **Input**: No filters
-- **Expected**: List of all appointments returned
-- **Category**: Retrieval
+// Expected Response Pattern: /connected|online|healthy|available|operational/i
+```
 
-### AA-005: List Appointments by Doctor
-- **Description**: Filter appointments by specific doctor
-- **Input**: doctor_id="valid-uuid"
-- **Expected**: Only appointments for specified doctor returned
-- **Category**: Filtering
+### Agent Communication
+```javascript
+// Test Case Group 3: Inter-Agent Communication
+'Test agent communication'
+'Check agent routing'
+'Verify message passing between agents'
+'Agent coordination test'
+'Multi-agent workflow test'
+'Cross-agent data sharing'
+'Agent synchronization check'
 
-### AA-006: List Appointments by Patient
-- **Description**: Filter appointments by specific patient
-- **Input**: patient_id="valid-uuid"
-- **Expected**: Only appointments for specified patient returned
-- **Category**: Filtering
-
-### AA-007: Update Appointment Status
-- **Description**: Change appointment status from scheduled to completed
-- **Input**: appointment_id, status="completed"
-- **Expected**: Appointment status updated successfully
-- **Category**: Update Operation
-
-### AA-008: Cancel Appointment
-- **Description**: Cancel an existing appointment
-- **Input**: appointment_id, reason="Patient request"
-- **Expected**: Appointment cancelled with proper logging
-- **Category**: State Management
-
-### AA-009: Reschedule Appointment - Valid Time
-- **Description**: Reschedule appointment to available time slot
-- **Input**: appointment_id, new_date, new_time
-- **Expected**: Appointment rescheduled successfully
-- **Category**: Business Logic
-
-### AA-010: Reschedule Appointment - Conflict
-- **Description**: Attempt to reschedule to occupied time slot
-- **Input**: appointment_id, conflicting time slot
-- **Expected**: Conflict detected, reschedule fails
-- **Category**: Conflict Management
-
-### AA-011: Get Doctor Schedule
-- **Description**: Retrieve doctor's schedule for specific date
-- **Input**: doctor_id, date
-- **Expected**: List of appointments for doctor on specified date
-- **Category**: Scheduling
-
-### AA-012: Get Available Time Slots
-- **Description**: Find available appointment slots for doctor
-- **Input**: doctor_id, date, duration
-- **Expected**: List of available time slots returned
-- **Category**: Availability Check
+// Expected Response Pattern: /communication|routing|coordination|synchronized/i
+```
 
 ---
 
-## 3. Patient Agent (PatientAgent) - 11 Test Cases
+## 2. APPOINTMENT AGENT TEST CASES
 
-### PA-001: Create Valid Patient
-- **Description**: Create patient with all required fields
-- **Input**: first_name, last_name, date_of_birth, gender, phone, email, address
-- **Expected**: Patient created with unique patient number
-- **Category**: Functional
+### Create Appointments with Natural Language
+```javascript
+// Test Case Group 4: Appointment Creation
+'Schedule an appointment for patient PAT-001 with Dr. Smith on August 15th at 10:30 AM for a cardiology consultation'
 
-### PA-002: Create Patient - Missing Required Fields
-- **Description**: Attempt to create patient without required fields
-- **Input**: Missing first_name
-- **Expected**: Validation error returned
-- **Category**: Input Validation
+'Book appointment: patient John Doe (PAT-002) with Dr. Johnson, department cardiology, tomorrow at 2 PM, duration 45 minutes, reason "chest pain follow-up"'
 
-### PA-003: Create Patient - Invalid Email
-- **Description**: Create patient with invalid email format
-- **Input**: email="invalid-email"
-- **Expected**: Email validation error
-- **Category**: Input Validation
+'Create urgent appointment for patient PAT-EM-9925 with any available doctor in emergency department today'
 
-### PA-004: Create Patient - Duplicate Phone
-- **Description**: Create patient with existing phone number
-- **Input**: phone="existing-number"
-- **Expected**: Duplicate phone error or warning
-- **Category**: Data Integrity
+'Schedule routine checkup for patient Alice Johnson with Dr. Brown next Monday at 9 AM'
 
-### PA-005: List All Patients
-- **Description**: Retrieve all patients from database
-- **Input**: No filters
-- **Expected**: List of all patients with basic info
-- **Category**: Retrieval
+'Book follow-up appointment for patient PAT-003 with their primary care doctor in 2 weeks'
 
-### PA-006: Search Patient by Number
-- **Description**: Find patient using patient number
-- **Input**: patient_number="P001"
-- **Expected**: Specific patient record returned
-- **Category**: Search
+'Create appointment for patient PAT-004 with cardiologist on 2025-08-20 at 14:30, reason "post-surgery follow-up"'
 
-### PA-007: Search Patient by Name
-- **Description**: Search patients by first or last name
-- **Input**: first_name="John", last_name="Doe"
-- **Expected**: Matching patients returned
-- **Category**: Search
+'Schedule group appointment for 3 patients with Dr. Wilson on Friday at 3 PM for consultation'
 
-### PA-008: Update Patient Information
-- **Description**: Update patient's contact information
-- **Input**: patient_id, new phone, new address
-- **Expected**: Patient information updated successfully
-- **Category**: Update Operation
+'Book emergency slot for patient PAT-005 with Dr. Martinez today, urgent cardiac evaluation'
 
-### PA-009: Get Patient Medical History
-- **Description**: Retrieve patient's medical history summary
-- **Input**: patient_id
-- **Expected**: Medical history data returned
-- **Category**: Medical Records
+// Expected Response Pattern: /Appointment.*created successfully|scheduled|booked/i
+```
 
-### PA-010: Delete Patient - Valid
-- **Description**: Remove patient from system
-- **Input**: patient_id (no active appointments)
-- **Expected**: Patient deleted successfully
-- **Category**: Deletion
+### List and Search Appointments
+```javascript
+// Test Case Group 5: Appointment Retrieval
+'Show me all appointments for today'
+'List appointments for Dr. Smith this week'
+'Display upcoming appointments for patient John Doe'
+'Get all appointments in cardiology department'
+'Show me cancelled appointments'
+'List all appointments for tomorrow'
+'Display Dr. Johnson\'s schedule for next week'
+'Get appointment history for patient PAT-001'
+'Show me all emergency appointments today'
+'List overdue appointments'
 
-### PA-011: Delete Patient - Has Active Records
-- **Description**: Attempt to delete patient with active appointments
-- **Input**: patient_id (with active appointments)
-- **Expected**: Deletion blocked with appropriate message
-- **Category**: Data Integrity
+// Expected Response Pattern: /appointments?|schedule|found|total|upcoming/i
+```
 
----
+### Appointment Conflict Detection
+```javascript
+// Test Case Group 6: Scheduling Conflicts
+'Try to book Dr. Smith at 10 AM when he already has an appointment'
+'Schedule overlapping appointments for the same patient'
+'Book appointment outside doctor\'s working hours'
+'Create double-booked slots for busy doctors'
+'Schedule appointment during doctor\'s vacation'
+'Book patient when they have another appointment'
+'Try to schedule in non-existent time slots'
+'Create conflicting emergency appointments'
 
-## 4. Staff Agent (StaffAgent) - 10 Test Cases
+// Expected Response Pattern: /conflict|overlap|unavailable|busy|booked/i
+```
 
-### SA-001: Create Valid Staff Member
-- **Description**: Create staff member with all required fields
-- **Input**: first_name, last_name, role, department_id, employee_id, email
-- **Expected**: Staff member created successfully
-- **Category**: Functional
+### Reschedule and Cancel Appointments
+```javascript
+// Test Case Group 7: Appointment Modifications
+'Reschedule Dr. Smith\'s 10 AM appointment to 2 PM tomorrow'
+'Cancel patient PAT-001\'s appointment with Dr. Johnson'
+'Move all of Dr. Brown\'s appointments forward by 30 minutes'
+'Reschedule emergency appointment to next available slot'
+'Cancel and rebook appointment due to doctor illness'
+'Change appointment duration from 30 to 60 minutes'
+'Reschedule recurring appointments for next month'
+'Cancel all appointments for patient PAT-002'
 
-### SA-002: Create Staff - Duplicate Employee ID
-- **Description**: Create staff with existing employee ID
-- **Input**: employee_id="existing-id"
-- **Expected**: Duplicate employee ID error
-- **Category**: Data Integrity
+// Expected Response Pattern: /rescheduled|cancelled|moved|updated|modified/i
+```
 
-### SA-003: List Staff by Department
-- **Description**: Filter staff members by department
-- **Input**: department_id="cardiology"
-- **Expected**: Only staff from cardiology department
-- **Category**: Filtering
+### Doctor Schedule Management
+```javascript
+// Test Case Group 8: Schedule Optimization
+'Show me Dr. Smith\'s availability this week'
+'Find next available slot with cardiology specialists'
+'Display doctor schedules for emergency department'
+'Get availability for all doctors on Monday'
+'Show me gaps in Dr. Johnson\'s schedule'
+'Find overlapping free time for multiple doctors'
+'Display busiest doctors this month'
+'Show average appointment duration by doctor'
 
-### SA-004: List Staff by Status
-- **Description**: Filter staff by employment status
-- **Input**: status="active"
-- **Expected**: Only active staff members returned
-- **Category**: Filtering
-
-### SA-005: Update Staff Department
-- **Description**: Transfer staff member to different department
-- **Input**: staff_id, new department_id
-- **Expected**: Staff department updated successfully
-- **Category**: Update Operation
-
-### SA-006: Update Staff Status - Active to Inactive
-- **Description**: Change staff status to inactive
-- **Input**: staff_id, status="inactive"
-- **Expected**: Staff status updated, appropriate notifications
-- **Category**: Status Management
-
-### SA-007: Get Staff by ID
-- **Description**: Retrieve specific staff member details
-- **Input**: staff_id
-- **Expected**: Complete staff member profile
-- **Category**: Retrieval
-
-### SA-008: Get Staff Schedule
-- **Description**: Get staff member's work schedule
-- **Input**: staff_id, date_range
-- **Expected**: Schedule information returned
-- **Category**: Scheduling
-
-### SA-009: Update Staff Credentials
-- **Description**: Update staff certifications and qualifications
-- **Input**: staff_id, new certifications
-- **Expected**: Credentials updated successfully
-- **Category**: Professional Management
-
-### SA-010: Delete Staff Member
-- **Description**: Remove staff member from system
-- **Input**: staff_id
-- **Expected**: Staff member deleted with audit trail
-- **Category**: Deletion
+// Expected Response Pattern: /available|schedule|free|busy|slots|duration/i
+```
 
 ---
 
-## 5. Department Agent (DepartmentAgent) - 8 Test Cases
+## 3. PATIENT AGENT TEST CASES
 
-### DA-001: Create Valid Department
-- **Description**: Create new hospital department
-- **Input**: department_name, department_code, description
-- **Expected**: Department created with unique ID
-- **Category**: Functional
+### Comprehensive Patient Registration
+```javascript
+// Test Case Group 9: Patient Creation and Registration
+'Register new patient: Sarah Williams, DOB 1985-07-22, female, phone 555-0123, email sarah.williams@email.com, address "456 Oak Street", emergency contact "Mike Williams 555-0124", insurance "BlueCross", allergies "penicillin", blood type "A+"'
 
-### DA-002: Create Department - Duplicate Code
-- **Description**: Create department with existing code
-- **Input**: department_code="existing-code"
-- **Expected**: Duplicate code error
-- **Category**: Data Integrity
+'Add pediatric patient: Tommy Johnson, born 2018-03-10, male, guardian "Jennifer Johnson", guardian phone 555-0125, address "789 Pine Ave"'
 
-### DA-003: List All Departments
-- **Description**: Retrieve all hospital departments
-- **Input**: No filters
-- **Expected**: Complete list of departments
-- **Category**: Retrieval
+'Create emergency patient: Jane Emergency, DOB 1990-01-01, female, brought by ambulance, no insurance information available'
 
-### DA-004: Get Department by ID
-- **Description**: Retrieve specific department details
-- **Input**: department_id
-- **Expected**: Department information with staff count
-- **Category**: Retrieval
+'Register VIP patient: Robert Executive, DOB 1975-12-05, male, private insurance, personal doctor preference Dr. Smith'
 
-### DA-005: Update Department Information
-- **Description**: Update department details
-- **Input**: department_id, new description, new head of department
-- **Expected**: Department updated successfully
-- **Category**: Update Operation
+'Add elderly patient: Margaret Senior, age 82, born 1942-04-15, female, multiple medications, Medicare insurance'
 
-### DA-006: Get Department Statistics
-- **Description**: Get department operational statistics
-- **Input**: department_id
-- **Expected**: Staff count, patient count, utilization stats
-- **Category**: Analytics
+'Create international patient: Carlos Rodriguez, DOB 1988-09-30, male, visitor visa, travel insurance, Spanish speaking'
 
-### DA-007: Assign Department Head
-- **Description**: Assign staff member as department head
-- **Input**: department_id, staff_id
-- **Expected**: Department head assigned successfully
-- **Category**: Management
+'Register pregnant patient: Lisa Expecting, DOB 1993-11-20, female, 28 weeks pregnant, OB-GYN referral needed'
 
-### DA-008: Delete Department
-- **Description**: Remove department from system
-- **Input**: department_id (no staff or patients)
-- **Expected**: Department deleted successfully
-- **Category**: Deletion
+'Add psychiatric patient: David Mental, DOB 1987-06-12, male, previous psychiatric history, special handling required'
 
----
+// Expected Response Pattern: /Patient.*created successfully|registered|added/i
+```
 
-## 6. Room and Bed Agent (RoomBedAgent) - 13 Test Cases
+### Patient Search and Lookup
+```javascript
+// Test Case Group 10: Patient Discovery
+'Find patient named John Smith'
+'Search for patient with phone number 555-0123'
+'Locate patient by email sarah.williams@email.com'
+'Find patients born in 1985'
+'Search for patients with blood type O negative'
+'Locate patients with penicillin allergies'
+'Find patients in cardiology department'
+'Search for patients admitted today'
+'Locate emergency patients'
+'Find patients by insurance provider BlueCross'
 
-### RBA-001: Create Valid Room
-- **Description**: Create new hospital room
-- **Input**: room_number, department_id, room_type, capacity
-- **Expected**: Room created with unique ID
-- **Category**: Functional
+// Expected Response Pattern: /found|patients?|search|located|results/i
+```
 
-### RBA-002: Create Room - Duplicate Number
-- **Description**: Create room with existing room number in department
-- **Input**: room_number="existing-number", same department
-- **Expected**: Duplicate room number error
-- **Category**: Data Integrity
+### Patient Medical History Management
+```javascript
+// Test Case Group 11: Medical Records
+'Show medical history for patient PAT-001'
+'Add diagnosis "hypertension" to patient John Smith'
+'Update patient allergies for Sarah Williams'
+'Record medication "Lisinopril 10mg daily" for patient PAT-002'
+'Add surgery history for patient Robert Executive'
+'Update family medical history for patient PAT-003'
+'Record vaccination history for pediatric patient Tommy'
+'Add chronic conditions for elderly patient Margaret'
+'Update emergency contact for patient Lisa'
+'Record mental health history for patient David'
 
-### RBA-003: List Rooms by Department
-- **Description**: Get all rooms in specific department
-- **Input**: department_id
-- **Expected**: List of rooms in department
-- **Category**: Filtering
+// Expected Response Pattern: /medical history|diagnosis|allergies|medications|updated/i
+```
 
-### RBA-004: List Rooms by Status
-- **Description**: Filter rooms by availability status
-- **Input**: status="available"
-- **Expected**: Only available rooms returned
-- **Category**: Filtering
+### Patient Demographics and Statistics
+```javascript
+// Test Case Group 12: Patient Analytics
+'Show patient demographics by age group'
+'Display gender distribution of patients'
+'Show patients by insurance type'
+'Display most common allergies among patients'
+'Show patient admissions by month'
+'Display average age of patients by department'
+'Show patients by zip code distribution'
+'Display most frequent diagnoses'
+'Show patient volume trends'
+'Display readmission rates by condition'
 
-### RBA-005: Update Room Information
-- **Description**: Update room details and specifications
-- **Input**: room_id, new room_type, new capacity
-- **Expected**: Room information updated
-- **Category**: Update Operation
+// Expected Response Pattern: /demographics|distribution|statistics|trends|rates/i
+```
 
-### RBA-006: Create Valid Bed
-- **Description**: Create new bed in existing room
-- **Input**: bed_number, room_id, bed_type
-- **Expected**: Bed created successfully
-- **Category**: Functional
+### Patient Care Coordination
+```javascript
+// Test Case Group 13: Care Management
+'Assign primary care doctor to patient PAT-001'
+'Create care team for patient with multiple conditions'
+'Schedule comprehensive care plan review'
+'Coordinate discharge planning for patient PAT-002'
+'Arrange specialist consultations for complex case'
+'Set up patient follow-up appointment reminders'
+'Coordinate lab work and imaging for patient'
+'Arrange transportation for elderly patient'
+'Set up interpreter services for international patient'
+'Coordinate psychiatric care for mental health patient'
 
-### RBA-007: Create Bed - Room at Capacity
-- **Description**: Create bed when room is at maximum capacity
-- **Input**: bed details for full room
-- **Expected**: Capacity exceeded error
-- **Category**: Business Logic
-
-### RBA-008: List Available Beds
-- **Description**: Get all beds available for assignment
-- **Input**: status="available"
-- **Expected**: List of unoccupied beds
-- **Category**: Availability
-
-### RBA-009: Assign Bed to Patient
-- **Description**: Assign available bed to patient
-- **Input**: bed_id, patient_id, admission_date
-- **Expected**: Bed assigned, status updated to occupied
-- **Category**: Assignment
-
-### RBA-010: Assign Bed - Already Occupied
-- **Description**: Attempt to assign occupied bed
-- **Input**: bed_id (occupied), patient_id
-- **Expected**: Bed unavailable error
-- **Category**: Conflict Management
-
-### RBA-011: Discharge Bed
-- **Description**: Release bed when patient is discharged
-- **Input**: bed_id, discharge_date
-- **Expected**: Bed status changed to available
-- **Category**: Discharge Management
-
-### RBA-012: Update Bed Status - Maintenance
-- **Description**: Mark bed as under maintenance
-- **Input**: bed_id, status="maintenance", notes
-- **Expected**: Bed marked as unavailable for maintenance
-- **Category**: Maintenance
-
-### RBA-013: Get Room Occupancy Report
-- **Description**: Get occupancy statistics for room
-- **Input**: room_id, date_range
-- **Expected**: Occupancy rates and bed utilization data
-- **Category**: Analytics
+// Expected Response Pattern: /assigned|care team|coordinated|scheduled|arranged/i
+```
 
 ---
 
-## 7. Equipment Agent (EquipmentAgent) - 10 Test Cases
+## 4. STAFF AGENT TEST CASES
 
-### EA-001: Create Equipment Category
-- **Description**: Create new equipment category
-- **Input**: category_name, description
-- **Expected**: Category created successfully
-- **Category**: Configuration
+### Comprehensive Staff Management
+```javascript
+// Test Case Group 14: Staff Registration and Onboarding
+'Create new staff member: Dr. Michael Johnson, employee ID "EMP001", department Cardiology, position "Senior Cardiologist", specialization "Interventional Cardiology", salary 180000, hire date "2020-01-15", medical license "MD-12345", shift "Day", status "active", phone "555-2001", email "m.johnson@hospital.com"'
 
-### EA-002: Create Valid Equipment
-- **Description**: Add new medical equipment to inventory
-- **Input**: equipment_name, category_id, department_id, serial_number
-- **Expected**: Equipment registered with unique ID
-- **Category**: Functional
+'Add head nurse: Sarah Davis, employee ID "EMP002", department Emergency, position "Charge Nurse", certifications "RN, ACLS, PALS", salary 85000, hire date "2019-03-01", license "RN-67890", shift "Night"'
 
-### EA-003: Create Equipment - Duplicate Serial
-- **Description**: Add equipment with existing serial number
-- **Input**: serial_number="existing-serial"
-- **Expected**: Duplicate serial number error
-- **Category**: Data Integrity
+'Register lab technician: Robert Kim, employee ID "EMP003", department Laboratory, position "Senior Lab Tech", certifications "MLT, Phlebotomy", salary 58000, education "Bachelor of Science"'
 
-### EA-004: List Equipment by Department
-- **Description**: Get all equipment in specific department
-- **Input**: department_id
-- **Expected**: List of department equipment
-- **Category**: Filtering
+'Add administrative staff: Jennifer White, employee ID "EMP004", department Administration, position "Medical Records Clerk", salary 42000, background check completed'
 
-### EA-005: List Equipment by Status
-- **Description**: Filter equipment by operational status
-- **Input**: status="available"
-- **Expected**: Only available equipment returned
-- **Category**: Filtering
+'Create surgeon profile: Dr. Lisa Anderson, employee ID "EMP005", department Surgery, position "Orthopedic Surgeon", specializations "Joint Replacement, Sports Medicine", on-call schedule "Weekends"'
 
-### EA-006: Update Equipment Status - In Use
-- **Description**: Mark equipment as currently in use
-- **Input**: equipment_id, status="in_use", user_id
-- **Expected**: Equipment status updated, user logged
-- **Category**: Status Management
+'Register pharmacy staff: David Martinez, employee ID "EMP006", department Pharmacy, position "Clinical Pharmacist", pharmacy license "RPh-54321", drug handling certification'
 
-### EA-007: Update Equipment Status - Maintenance
-- **Description**: Schedule equipment for maintenance
-- **Input**: equipment_id, status="maintenance", maintenance_date
-- **Expected**: Equipment marked for maintenance
-- **Category**: Maintenance Scheduling
+'Add security personnel: Mark Thompson, employee ID "EMP007", department Security, position "Security Officer", certifications "CPR, First Aid", shift "Night", clearance level "Level 2"'
 
-### EA-008: Get Equipment by ID
-- **Description**: Retrieve specific equipment details
-- **Input**: equipment_id
-- **Expected**: Complete equipment information
-- **Category**: Retrieval
+'Create IT staff: Amanda Chen, employee ID "EMP008", department IT, position "Systems Administrator", certifications "Network+, Security+", access level "Administrator"'
 
-### EA-009: Schedule Equipment Maintenance
-- **Description**: Schedule routine or emergency maintenance
-- **Input**: equipment_id, maintenance_type, scheduled_date
-- **Expected**: Maintenance scheduled successfully
-- **Category**: Maintenance Management
+// Expected Response Pattern: /Staff.*created successfully|registered|added/i
+```
 
-### EA-010: Get Equipment Usage History
-- **Description**: Retrieve equipment usage and maintenance history
-- **Input**: equipment_id, date_range
-- **Expected**: Usage logs and maintenance records
-- **Category**: Analytics
+### Staff Scheduling and Shift Management
+```javascript
+// Test Case Group 15: Workforce Management
+'Schedule Dr. Johnson for day shift Monday through Friday'
+'Assign Sarah Davis to night shift this weekend'
+'Create on-call schedule for all surgeons this month'
+'Schedule rotating shifts for emergency department nurses'
+'Assign holiday coverage for Christmas and New Year'
+'Create backup coverage for Dr. Anderson\'s vacation'
+'Schedule mandatory training sessions for all nursing staff'
+'Assign overtime shifts for high patient census periods'
+'Create staff schedule for upcoming joint replacement surgeries'
+'Schedule cross-training rotations for lab technicians'
 
----
+// Expected Response Pattern: /scheduled|assigned|coverage|shifts|rotation/i
+```
 
-## 8. Inventory Agent (InventoryAgent) - 11 Test Cases
+### Staff Performance and Development
+```javascript
+// Test Case Group 16: Professional Growth
+'Record continuing education credits for Dr. Johnson'
+'Update certifications for nurse Sarah Davis'
+'Schedule performance reviews for Q3 2025'
+'Track mandatory training compliance for all staff'
+'Record specialty board certifications'
+'Update professional development plans'
+'Schedule competency assessments for new hires'
+'Track CME requirements for medical staff'
+'Record peer review feedback'
+'Update staff skill assessments'
 
-### IA-001: Create Supply Category
-- **Description**: Create new supply category for organization
-- **Input**: category_name, description
-- **Expected**: Supply category created successfully
-- **Category**: Configuration
+// Expected Response Pattern: /recorded|updated|scheduled|tracked|assessed/i
+```
 
-### IA-002: Create Valid Supply Item
-- **Description**: Add new supply item to inventory
-- **Input**: supply_name, category_id, unit_price, reorder_point
-- **Expected**: Supply item created with stock tracking
-- **Category**: Functional
+### Staff Department Operations
+```javascript
+// Test Case Group 17: Departmental Management
+'List all staff in cardiology department'
+'Show nursing staff in emergency department'
+'Display physicians by specialty'
+'Get staff coverage for intensive care unit'
+'Show administrative staff roster'
+'List on-call doctors for surgery department'
+'Display part-time vs full-time staff distribution'
+'Show staff by employment status'
+'Get department head assignments'
+'Display staff hierarchy by department'
 
-### IA-003: List Supplies by Category
-- **Description**: Filter supplies by category
-- **Input**: category_id
-- **Expected**: List of supplies in specified category
-- **Category**: Filtering
+// Expected Response Pattern: /staff|department|physicians|nurses|coverage|roster/i
+```
 
-### IA-004: Update Supply Stock - Add Inventory
-- **Description**: Increase stock quantity for supply item
-- **Input**: supply_id, quantity_added, user_id
-- **Expected**: Stock increased, transaction logged
-- **Category**: Stock Management
+### Staff Communication and Coordination
+```javascript
+// Test Case Group 18: Team Communication
+'Send department meeting notification to all cardiology staff'
+'Schedule staff meeting for emergency department next Tuesday'
+'Create care team for complex patient case'
+'Assign primary and secondary doctors to patient'
+'Coordinate shift handoffs between nursing teams'
+'Schedule interdisciplinary team meetings'
+'Create communication alerts for critical patients'
+'Coordinate staff for emergency response procedures'
+'Schedule case review meetings with specialists'
+'Create staff notification for policy changes'
 
-### IA-005: Update Supply Stock - Consume Inventory
-- **Description**: Decrease stock when supplies are used
-- **Input**: supply_id, quantity_used, user_id
-- **Expected**: Stock decreased, usage logged
-- **Category**: Stock Management
-
-### IA-006: Update Supply Stock - Insufficient Stock
-- **Description**: Attempt to consume more than available stock
-- **Input**: supply_id, quantity > current_stock
-- **Expected**: Insufficient stock error
-- **Category**: Business Logic
-
-### IA-007: Get Low Stock Supplies
-- **Description**: Identify supplies below reorder point
-- **Input**: No parameters (system check)
-- **Expected**: List of supplies needing reorder
-- **Category**: Alert System
-
-### IA-008: List Inventory Transactions
-- **Description**: Get history of all inventory transactions
-- **Input**: date_range, transaction_type
-- **Expected**: Transaction history with details
-- **Category**: Audit Trail
-
-### IA-009: Get Supply Usage Report
-- **Description**: Generate usage analytics for supply items
-- **Input**: supply_id, date_range
-- **Expected**: Usage patterns and consumption data
-- **Category**: Analytics
-
-### IA-010: Update Supply Information
-- **Description**: Update supply details and pricing
-- **Input**: supply_id, new_price, new_description
-- **Expected**: Supply information updated
-- **Category**: Update Operation
-
-### IA-011: Delete Supply Item
-- **Description**: Remove supply item from inventory
-- **Input**: supply_id (zero stock)
-- **Expected**: Supply deleted successfully
-- **Category**: Deletion
+// Expected Response Pattern: /sent|scheduled|assigned|coordinated|created|notified/i
+```
 
 ---
 
-## 9. Medical Document Agent (MedicalDocumentAgent) - 8 Test Cases
+## 5. DEPARTMENT AGENT TEST CASES
 
-### MDA-001: Upload Medical Document
-- **Description**: Upload and process medical document
-- **Input**: patient_id, document_file, document_type
-- **Expected**: Document uploaded and indexed
-- **Category**: Document Management
+### Hospital Department Structure
+```javascript
+// Test Case Group 19: Department Creation and Organization
+'Create cardiology department with description "Comprehensive heart and vascular care", department head Dr. Johnson, located on floor 3, phone "555-3001", email "cardiology@hospital.com", budget 2500000, staff capacity 25'
 
-### MDA-002: Extract Medical Information - NER
-- **Description**: Extract medical entities from document text
-- **Input**: document_text with medical terms
-- **Expected**: Medical entities identified and extracted
-- **Category**: NLP Processing
+'Establish emergency department on ground floor, 24/7 operations, trauma level II designation, phone "555-9911", capacity 40 staff, 20 beds'
 
-### MDA-003: Search Medical Documents
-- **Description**: Search documents by medical terms
-- **Input**: search_query, patient_id
-- **Expected**: Relevant documents returned
-- **Category**: Search Functionality
+'Create intensive care unit on floor 4, specialized critical care, 12 bed capacity, 24-hour physician coverage, specialized equipment'
 
-### MDA-004: Get Document by ID
-- **Description**: Retrieve specific medical document
-- **Input**: document_id
-- **Expected**: Document content and metadata
-- **Category**: Retrieval
+'Add pediatrics department on floor 2, child-friendly environment, age range 0-18 years, specialized pediatric staff, play areas'
 
-### MDA-005: List Patient Documents
-- **Description**: Get all documents for specific patient
-- **Input**: patient_id
-- **Expected**: List of patient's medical documents
-- **Category**: Patient Records
+'Establish radiology department in basement level B1, imaging services including MRI, CT, X-ray, ultrasound capabilities'
 
-### MDA-006: Update Document Metadata
-- **Description**: Update document tags and categories
-- **Input**: document_id, new_tags, category
-- **Expected**: Document metadata updated
-- **Category**: Document Organization
+'Create surgical suite complex on floor 5, 8 operating rooms, sterile environment, specialized surgical equipment'
 
-### MDA-007: Generate Document Summary
-- **Description**: Create AI-generated summary of medical document
-- **Input**: document_id
-- **Expected**: Concise medical summary generated
-- **Category**: AI Processing
+'Add laboratory department on floor 1, full-service lab including blood work, microbiology, pathology services'
 
-### MDA-008: Delete Medical Document
-- **Description**: Remove medical document from system
-- **Input**: document_id
-- **Expected**: Document deleted with audit log
-- **Category**: Document Management
+'Create pharmacy department on floor 1, inpatient and outpatient services, drug dispensing, clinical pharmacy services'
 
----
+// Expected Response Pattern: /Department.*created successfully|established|added/i
+```
 
-## 10. Meeting Agent (MeetingAgent) - 6 Test Cases
+### Department Operations Management
+```javascript
+// Test Case Group 20: Operational Excellence
+'Show current patient census for each department'
+'Display bed occupancy rates by department'
+'Get staffing levels for all departments'
+'Show department budget utilization'
+'Display equipment allocation by department'
+'Get patient wait times by department'
+'Show department performance metrics'
+'Display resource utilization statistics'
+'Get patient satisfaction scores by department'
+'Show department efficiency ratings'
 
-### MA-001: Schedule Meeting - All Staff
-- **Description**: Schedule meeting with all hospital staff
-- **Input**: meeting_topic, date, time, duration
-- **Expected**: Meeting scheduled, all active staff invited
-- **Category**: Meeting Management
+// Expected Response Pattern: /census|occupancy|staffing|budget|metrics|statistics/i
+```
 
-### MA-002: Schedule Meeting - Specific Participants
-- **Description**: Schedule meeting with specific staff members
-- **Input**: meeting_topic, participant_list, date, time
-- **Expected**: Meeting scheduled, specific staff invited
-- **Category**: Targeted Communication
+### Interdepartmental Coordination
+```javascript
+// Test Case Group 21: Cross-Department Collaboration
+'Coordinate patient transfer from emergency to cardiology'
+'Schedule interdepartmental consultation between surgery and cardiology'
+'Arrange lab work coordination with multiple departments'
+'Coordinate radiology services for surgery department'
+'Arrange pharmacy consultation for complex medication cases'
+'Schedule interdisciplinary team meetings'
+'Coordinate discharge planning across departments'
+'Arrange shared resources between departments'
+'Coordinate emergency response procedures'
+'Schedule cross-departmental training sessions'
 
-### MA-003: List Upcoming Meetings
-- **Description**: Get list of upcoming meetings
-- **Input**: date_range
-- **Expected**: List of scheduled meetings
-- **Category**: Schedule Management
+// Expected Response Pattern: /coordinated|scheduled|arranged|transferred|shared/i
+```
 
-### MA-004: Update Meeting Status
-- **Description**: Change meeting status (completed, cancelled)
-- **Input**: meeting_id, new_status
-- **Expected**: Meeting status updated, notifications sent
-- **Category**: Status Management
+### Department Resource Management
+```javascript
+// Test Case Group 22: Resource Allocation
+'Allocate additional nursing staff to emergency department'
+'Request equipment transfer from cardiology to ICU'
+'Schedule shared conference room for department meetings'
+'Allocate budget for new medical equipment'
+'Request additional bed capacity for surgery department'
+'Schedule maintenance downtime for radiology equipment'
+'Allocate parking spaces for department staff'
+'Request additional supply storage for pharmacy'
+'Schedule facility maintenance for pediatrics playroom'
+'Allocate computer workstations for medical records'
 
-### MA-005: Add Meeting Notes
-- **Description**: Add notes and action items to completed meeting
-- **Input**: meeting_id, notes, action_items
-- **Expected**: Meeting notes saved successfully
-- **Category**: Documentation
+// Expected Response Pattern: /allocated|transferred|scheduled|requested|assigned/i
+```
 
-### MA-006: Get Meeting by ID
-- **Description**: Retrieve specific meeting details
-- **Input**: meeting_id
-- **Expected**: Complete meeting information and participants
-- **Category**: Retrieval
+### Department Quality and Compliance
+```javascript
+// Test Case Group 23: Quality Assurance
+'Schedule department accreditation review'
+'Track compliance with safety protocols'
+'Monitor infection control measures by department'
+'Schedule quality improvement meetings'
+'Track patient safety incidents by department'
+'Monitor medication error rates by department'
+'Schedule regulatory compliance audits'
+'Track continuing education compliance'
+'Monitor department-specific quality metrics'
+'Schedule peer review activities'
 
----
-
-## 11. Discharge Agent (DischargeAgent) - 6 Test Cases
-
-### DIA-001: Generate Discharge Report
-- **Description**: Generate comprehensive discharge report for patient
-- **Input**: bed_id, discharge_condition, discharge_destination
-- **Expected**: Discharge report generated with all details
-- **Category**: Report Generation
-
-### DIA-002: Add Treatment Record
-- **Description**: Add treatment record to patient's discharge summary
-- **Input**: patient_id, doctor_id, treatment_type, treatment_name
-- **Expected**: Treatment record added successfully
-- **Category**: Medical Records
-
-### DIA-003: Add Equipment Usage Record
-- **Description**: Record equipment usage during patient stay
-- **Input**: patient_id, equipment_id, staff_id, purpose
-- **Expected**: Equipment usage logged
-- **Category**: Resource Tracking
-
-### DIA-004: Assign Staff to Patient
-- **Description**: Record staff assignment for patient care
-- **Input**: patient_id, staff_id, assignment_type
-- **Expected**: Staff assignment recorded
-- **Category**: Care Team Management
-
-### DIA-005: Complete Equipment Usage
-- **Description**: Mark equipment usage as completed
-- **Input**: usage_id
-- **Expected**: Equipment usage marked complete
-- **Category**: Resource Management
-
-### DIA-006: List Discharge Reports
-- **Description**: Get list of discharge reports with optional filtering
-- **Input**: patient_id (optional)
-- **Expected**: List of discharge reports
-- **Category**: Report Management
+// Expected Response Pattern: /scheduled|tracked|monitored|compliance|quality|safety/i
+```
 
 ---
 
-## 12. User Agent (UserAgent) - 8 Test Cases
+## 6. ROOM AND BED AGENT TEST CASES
 
-### UA-001: Create Valid User
-- **Description**: Create new system user with proper credentials
-- **Input**: username, email, password_hash, role
-- **Expected**: User created with unique ID
-- **Category**: User Management
+### Hospital Infrastructure Management
+```javascript
+// Test Case Group 24: Room Creation and Setup
+'Create ICU room "ICU-301" in cardiology department, type "Critical Care", capacity 1 bed, floor 3, equipped with cardiac monitoring, ventilator capability, isolation capable, private bathroom'
 
-### UA-002: Create User - Duplicate Username
-- **Description**: Attempt to create user with existing username
-- **Input**: username="existing-user"
-- **Expected**: Duplicate username error
-- **Category**: Data Integrity
+'Add general ward room "GW-401" in medicine department, type "Semi-private", capacity 2 beds, floor 4, basic amenities, shared bathroom, visitor seating'
 
-### UA-003: Create User - Invalid Email
-- **Description**: Create user with malformed email address
-- **Input**: email="invalid-email"
-- **Expected**: Email validation error
-- **Category**: Input Validation
+'Create operating room "OR-501" in surgery department, type "Major Surgery Suite", specialized equipment, sterile environment, anesthesia capability, surgical lights'
 
-### UA-004: List All Users
-- **Description**: Retrieve all system users
-- **Input**: No filters
-- **Expected**: List of all users (without passwords)
-- **Category**: User Administration
+'Add pediatric room "PED-201" in pediatrics department, child-friendly decor, specialized pediatric equipment, family accommodation, play area'
 
-### UA-005: Update User Information
-- **Description**: Update user profile information
-- **Input**: user_id, new_email, new_role
-- **Expected**: User information updated successfully
-- **Category**: Profile Management
+'Create emergency room "ER-101" in emergency department, type "Trauma Bay", immediate access, advanced life support equipment, multiple monitoring systems'
 
-### UA-006: Update User Password
-- **Description**: Change user password with proper validation
-- **Input**: user_id, old_password_hash, new_password_hash
-- **Expected**: Password updated securely
-- **Category**: Security
+'Add maternity room "MAT-301" in obstetrics department, birthing suite, family-centered care, specialized obstetric equipment'
 
-### UA-007: Delete User Account
-- **Description**: Remove user from system
-- **Input**: user_id
-- **Expected**: User deleted with proper audit trail
-- **Category**: Account Management
+'Create isolation room "ISO-401" in infectious disease unit, negative pressure, specialized air filtration, full isolation protocols'
 
-### UA-008: Create Legacy User
-- **Description**: Create legacy user for migration purposes
-- **Input**: name, email, address, phone
-- **Expected**: Legacy user record created
-- **Category**: Data Migration
+'Add VIP suite "VIP-501" in executive wing, luxury accommodations, private dining, concierge services, enhanced privacy'
 
----
+// Expected Response Pattern: /Room.*created successfully|added|established/i
+```
 
-## 13. Orchestrator Agent (OrchestratorAgent) - 12 Test Cases
+### Comprehensive Bed Management
+```javascript
+// Test Case Group 25: Bed Operations and Assignment
+'Create ICU bed "ICU-301-A" in room ICU-301, type "Critical Care Bed", equipped with cardiac monitors, ventilator connections, IV poles, specialized mattress'
 
-### OA-001: Initialize Multi-Agent System
-- **Description**: Initialize all agents and routing system
-- **Input**: System startup
-- **Expected**: All agents initialized, routing table created
-- **Category**: System Initialization
+'Add pediatric bed "PED-201-A" in pediatrics room, child-sized, safety rails, colorful bedding, entertainment system'
 
-### OA-002: Route Request - Valid Tool
-- **Description**: Route request to appropriate agent
-- **Input**: tool_name="create_patient", parameters
-- **Expected**: Request routed to PatientAgent, result returned
-- **Category**: Request Routing
+'Create birthing bed "MAT-301-A" in maternity room, adjustable positions, delivery capability, fetal monitoring connections'
 
-### OA-003: Route Request - Invalid Tool
-- **Description**: Handle request for non-existent tool
-- **Input**: tool_name="invalid_tool"
-- **Expected**: Tool not found error returned
-- **Category**: Error Handling
+'Add isolation bed "ISO-401-A" in isolation room, specialized protocols, negative pressure compatibility, minimal contact design'
 
-### OA-004: Get System Status
-- **Description**: Retrieve status of all system agents
-- **Input**: No parameters
-- **Expected**: Status report for all agents
-- **Category**: System Monitoring
+'Create surgical bed "PACU-201-A" in post-anesthesia care unit, recovery position capability, monitoring equipment'
 
-### OA-005: Execute Patient Admission Workflow
-- **Description**: Run complete patient admission workflow
-- **Input**: patient_data, bed_preferences
-- **Expected**: Patient created, bed assigned, workflow completed
-- **Category**: Workflow Management
+'Add emergency bed "ER-101-A" in trauma bay, quick access, emergency equipment nearby, mobility for procedures'
 
-### OA-006: Execute Patient Discharge Workflow
-- **Description**: Run complete patient discharge workflow
-- **Input**: patient_id, discharge_date
-- **Expected**: Discharge report generated, bed released
-- **Category**: Workflow Management
+'Create long-term care bed "LTC-301-A" in rehabilitation unit, comfort features, mobility assistance, therapy accessibility'
 
-### OA-007: Execute Equipment Maintenance Workflow
-- **Description**: Run equipment maintenance workflow
-- **Input**: equipment_id, maintenance_type
-- **Expected**: Equipment scheduled for maintenance
-- **Category**: Maintenance Workflows
+'Add bariatric bed "BAR-401-A" in specialized unit, weight capacity 1000lbs, wider design, specialized equipment'
 
-### OA-008: Execute Inventory Restock Workflow
-- **Description**: Run inventory restock workflow
-- **Input**: supply_id, quantity, user_id
-- **Expected**: Inventory updated, transactions logged
-- **Category**: Inventory Workflows
+// Expected Response Pattern: /Bed.*created successfully|added|established/i
+```
 
-### OA-009: Get Agent Information
-- **Description**: Retrieve details about specific agent
-- **Input**: agent_name
-- **Expected**: Agent capabilities and tools listed
-- **Category**: Agent Management
+### Bed Assignment and Patient Placement
+```javascript
+// Test Case Group 26: Patient Bed Allocation
+'Assign patient John Smith (PAT-001) to ICU bed ICU-301-A for cardiac monitoring, admission date today, expected length of stay 3 days'
 
-### OA-010: Handle Agent Communication Error
-- **Description**: Handle failure when agent is unavailable
-- **Input**: Request to unavailable agent
-- **Expected**: Appropriate error handling and fallback
-- **Category**: Error Recovery
+'Place emergency patient Jane Emergency (PAT-EM-9925) in trauma bay bed ER-101-A, immediate admission, critical condition'
 
-### OA-011: Load Balance Agent Requests
-- **Description**: Distribute requests across multiple agent instances
-- **Input**: Multiple concurrent requests
-- **Expected**: Requests distributed efficiently
-- **Category**: Performance
+'Assign pediatric patient Tommy Johnson (PAT-PED-001) to pediatric bed PED-201-A, parental accommodation needed'
 
-### OA-012: Monitor Agent Performance
-- **Description**: Track agent response times and success rates
-- **Input**: System monitoring request
-- **Expected**: Performance metrics for all agents
-- **Category**: Performance Monitoring
+'Place surgical patient Robert Executive (PAT-002) in post-surgery bed PACU-201-A, post-operative monitoring required'
+
+'Assign isolation patient with infectious condition to isolation bed ISO-401-A, full isolation protocols'
+
+'Place expectant mother Lisa Expecting (PAT-MAT-001) in birthing bed MAT-301-A, labor and delivery'
+
+'Assign rehabilitation patient Margaret Senior (PAT-003) to long-term care bed LTC-301-A, physical therapy needs'
+
+'Place bariatric patient requiring specialized care in bariatric bed BAR-401-A, weight management program'
+
+// Expected Response Pattern: /assigned|placed|admitted|allocated/i
+```
+
+### Bed Status and Availability Management
+```javascript
+// Test Case Group 27: Bed Utilization and Status
+'Show all available beds in the hospital'
+'Display occupied beds with patient information'
+'List beds requiring housekeeping attention'
+'Show beds under maintenance or repair'
+'Display bed occupancy rate by department'
+'List beds reserved for incoming patients'
+'Show beds in isolation or quarantine status'
+'Display bed turnover statistics'
+'List beds with equipment issues'
+'Show beds scheduled for discharge today'
+
+// Expected Response Pattern: /available|occupied|maintenance|occupancy|turnover/i
+```
+
+### Room and Bed Maintenance
+```javascript
+// Test Case Group 28: Facility Maintenance
+'Schedule deep cleaning for ICU room ICU-301 after patient discharge'
+'Mark bed ICU-301-A for maintenance, mattress replacement needed'
+'Schedule equipment calibration for all monitoring systems in room'
+'Arrange room renovation for pediatric room PED-201, new paint and decor'
+'Schedule bed frame repair for general ward bed GW-401-A'
+'Arrange medical equipment update for surgical room OR-501'
+'Schedule air filtration system maintenance for isolation room ISO-401'
+'Arrange luxury amenity refresh for VIP suite VIP-501'
+'Schedule preventive maintenance for all beds in cardiology wing'
+'Arrange emergency repair for broken equipment in trauma bay'
+
+// Expected Response Pattern: /scheduled|maintenance|repair|cleaning|renovation/i
+```
 
 ---
 
-## Test Execution Guidelines
+## 7. EQUIPMENT AGENT TEST CASES
+
+### Medical Equipment Inventory Management
+```javascript
+// Test Case Group 29: Equipment Registration and Cataloging
+'Register MRI machine: equipment ID "MRI-001", name "Siemens Magnetom Vida 3T", category "Diagnostic Imaging", manufacturer "Siemens Healthineers", model "Magnetom Vida", serial number "MR-2023-001", department "Radiology", location "MRI Suite 1", cost $3,000,000, purchase date "2023-01-15", warranty expires "2028-01-15", service contract active'
+
+'Add CT scanner: equipment ID "CT-002", name "GE Revolution CT", category "Diagnostic Imaging", manufacturer "GE Healthcare", model "Revolution CT", serial "CT-2023-002", location "CT Suite 2", cost $1,800,000, purchase date "2023-03-01"'
+
+'Register ventilator: equipment ID "VENT-003", name "Philips V60 Ventilator", category "Life Support", manufacturer "Philips", model "V60", serial "VENT-2023-003", department "ICU", location "ICU-301", cost $45,000, mobile unit'
+
+'Add defibrillator: equipment ID "DEFIB-004", name "ZOLL X-Series", category "Emergency Equipment", manufacturer "ZOLL Medical", model "X-Series", serial "ZOLL-2023-004", department "Emergency", portable unit, cost $15,000'
+
+'Register surgical robot: equipment ID "ROBOT-005", name "da Vinci Xi Surgical System", category "Surgical Equipment", manufacturer "Intuitive Surgical", model "da Vinci Xi", location "OR-501", cost $2,500,000'
+
+'Add ultrasound machine: equipment ID "US-006", name "Philips EPIQ Elite", category "Diagnostic Imaging", manufacturer "Philips", model "EPIQ Elite", department "Cardiology", portable, cost $150,000'
+
+'Register dialysis machine: equipment ID "DIAL-007", name "Fresenius 5008 CorDiax", category "Treatment Equipment", manufacturer "Fresenius Medical Care", department "Nephrology", cost $35,000'
+
+'Add X-ray machine: equipment ID "XRAY-008", name "Philips DigitalDiagnost C90", category "Diagnostic Imaging", manufacturer "Philips", model "DigitalDiagnost C90", location "X-ray Room 1", cost $120,000'
+
+// Expected Response Pattern: /Equipment.*registered successfully|added|cataloged/i
+```
+
+### Equipment Status and Availability
+```javascript
+// Test Case Group 30: Equipment Operations Management
+'Show all available medical equipment'
+'Display equipment currently in use'
+'List equipment scheduled for maintenance'
+'Show equipment out of service'
+'Display high-value equipment requiring special handling'
+'List portable equipment available for transport'
+'Show equipment nearing end of service life'
+'Display equipment with expired warranties'
+'List equipment requiring immediate attention'
+'Show equipment utilization rates by department'
+
+// Expected Response Pattern: /available|in use|maintenance|service|utilization/i
+```
+
+### Equipment Maintenance and Service
+```javascript
+// Test Case Group 31: Preventive and Corrective Maintenance
+'Schedule routine maintenance for MRI machine MRI-001 next Monday, preventive service, estimated 4 hours downtime'
+
+'Report equipment malfunction for ventilator VENT-003, patient safety issue, immediate repair needed'
+
+'Schedule annual calibration for all diagnostic imaging equipment in radiology department'
+
+'Arrange warranty service for CT scanner CT-002, covered under manufacturer warranty'
+
+'Schedule software update for surgical robot ROBOT-005, requires certified technician'
+
+'Report equipment failure for defibrillator DEFIB-004, battery not holding charge, emergency replacement needed'
+
+'Schedule cleaning and disinfection for all portable ultrasound equipment'
+
+'Arrange equipment upgrade for dialysis machine DIAL-007, new software version available'
+
+'Schedule safety inspection for all life support equipment in ICU'
+
+'Report equipment damage for X-ray machine XRAY-008, requires assessment and repair'
+
+// Expected Response Pattern: /scheduled|reported|arranged|maintenance|repair|service/i
+```
+
+### Equipment Allocation and Utilization
+```javascript
+// Test Case Group 32: Resource Optimization
+'Allocate portable ultrasound US-006 to cardiology department for today'
+'Reserve MRI machine MRI-001 for emergency case tomorrow at 2 PM'
+'Schedule equipment sharing between departments for specialized procedures'
+'Allocate backup ventilator for ICU patient requiring extended support'
+'Reserve surgical robot ROBOT-005 for complex surgery next week'
+'Allocate portable X-ray equipment for bedside imaging in ICU'
+'Schedule equipment rotation for fair distribution across departments'
+'Allocate specialized monitoring equipment for high-acuity patients'
+'Reserve dialysis machine for renal patient treatment schedule'
+'Allocate emergency equipment for disaster preparedness drill'
+
+// Expected Response Pattern: /allocated|reserved|scheduled|shared|assigned/i
+```
+
+### Equipment Performance and Analytics
+```javascript
+// Test Case Group 33: Equipment Intelligence
+'Generate equipment utilization report for Q3 2025'
+'Show equipment downtime statistics by department'
+'Display most frequently used equipment'
+'Generate maintenance cost analysis for high-value equipment'
+'Show equipment replacement recommendations based on age and usage'
+'Display equipment efficiency ratings'
+'Generate equipment ROI analysis for recent purchases'
+'Show equipment failure patterns and trends'
+'Display comparative analysis of equipment brands and models'
+'Generate equipment lifecycle management report'
+
+// Expected Response Pattern: /report|statistics|analysis|utilization|efficiency|ROI/i
+```
+
+---
+
+## 8. INVENTORY AGENT TEST CASES
+
+### Medical Supply and Inventory Management
+```javascript
+// Test Case Group 34: Inventory Item Registration
+'Add medical supply: item code "MED-001", name "Surgical Gloves - Nitrile", category "Personal Protective Equipment", unit "Box of 100", minimum stock 50 boxes, current stock 200 boxes, cost per unit $15.50, supplier "MedSupply Corp", expiration tracking required'
+
+'Register pharmaceutical: item code "PHARM-002", name "Amoxicillin 500mg", category "Antibiotics", unit "bottle of 30 tablets", current stock 150 bottles, minimum stock 25 bottles, cost $12.75, supplier "PharmaCorp", expiration date tracking, controlled substance level 0'
+
+'Add medical device supply: item code "DEV-003", name "IV Catheters 18G", category "Medical Devices", unit "box of 50", current stock 75 boxes, minimum stock 20 boxes, cost $45.00, sterile packaging, single use'
+
+'Register surgical supply: item code "SURG-004", name "Surgical Sutures 4-0", category "Surgical Supplies", unit "box of 12", current stock 30 boxes, minimum stock 10 boxes, cost $85.00, various sizes'
+
+'Add maintenance supply: item code "MAINT-005", name "Disinfectant Solution", category "Cleaning Supplies", unit "gallon", current stock 100 gallons, minimum stock 25 gallons, cost $8.50, EPA approved'
+
+'Register office supply: item code "OFF-006", name "Medical Forms - Patient Intake", category "Administrative", unit "pack of 500", current stock 20 packs, minimum stock 5 packs, cost $25.00'
+
+'Add food service supply: item code "FOOD-007", name "Patient Meal Trays", category "Food Service", unit "pack of 100", current stock 500 units, minimum stock 100 units, cost $35.00'
+
+'Register emergency supply: item code "EMRG-008", name "Emergency Crash Cart Supplies", category "Emergency Equipment", unit "complete kit", current stock 5 kits, minimum stock 2 kits, cost $450.00, monthly inspection required'
+
+// Expected Response Pattern: /Supply.*added successfully|registered|created/i
+```
+
+### Inventory Level Monitoring and Alerts
+```javascript
+// Test Case Group 35: Stock Level Management
+'Show all inventory items below minimum stock levels'
+'Display items requiring immediate reorder'
+'List items with stock levels approaching expiration'
+'Show high-value inventory items'
+'Display most frequently used supplies by department'
+'List items with no movement in the last 90 days'
+'Show seasonal inventory patterns for planning'
+'Display items with irregular usage patterns'
+'List emergency supplies and their current status'
+'Show inventory items requiring special handling'
+
+// Expected Response Pattern: /low stock|reorder|expiration|high-value|frequent|movement/i
+```
+
+### Supply Requisition and Distribution
+```javascript
+// Test Case Group 36: Department Supply Requests
+'Process supply requisition from Surgery Department: 5 boxes surgical gloves MED-001, 3 boxes IV catheters DEV-003, 2 boxes sutures SURG-004, requested by Dr. Smith, urgent priority'
+
+'Process emergency requisition from ICU: 10 boxes nitrile gloves, 5 bottles amoxicillin, 2 emergency crash cart supplies, requested by Nurse Johnson, immediate delivery'
+
+'Process routine requisition from Pediatrics: 3 boxes pediatric IV catheters, 2 packs patient forms, 1 gallon disinfectant, requested by Dept Manager, standard delivery'
+
+'Process pharmacy requisition: 50 bottles amoxicillin PHARM-002, 25 bottles pain medication, 15 bottles insulin, requested by Pharmacist Brown, controlled substance handling'
+
+'Process maintenance requisition: 10 gallons disinfectant solution, 5 boxes cleaning supplies, 3 packs maintenance forms, requested by Facilities Manager'
+
+'Process food service requisition: 200 patient meal trays, 50 dietary supplement units, 25 special diet supplies, requested by Nutrition Director'
+
+'Process administration requisition: 10 packs patient forms, 5 boxes office supplies, 2 printer cartridge sets, requested by Admin Manager'
+
+'Process research requisition: specialized laboratory supplies, 3 boxes sterile containers, 2 sets calibration standards, requested by Research Director'
+
+// Expected Response Pattern: /requisition.*processed|approved|fulfilled/i
+```
+
+### Inventory Tracking and Consumption
+```javascript
+// Test Case Group 37: Usage and Consumption Patterns
+'Record consumption: Surgery Department used 15 boxes surgical gloves MED-001, 8 boxes IV catheters DEV-003 during major surgery procedures'
+
+'Log emergency usage: ICU consumed 25 boxes gloves, 10 bottles medication during code blue situation'
+
+'Track daily consumption: Pediatrics used 5 boxes gloves, 3 bottles medication, 2 packs forms during regular operations'
+
+'Record waste disposal: 2 boxes expired medication PHARM-002, 1 box damaged IV catheters DEV-003 disposed according to protocols'
+
+'Log bulk consumption: Operating rooms consumed 50 boxes various surgical supplies during busy surgical day'
+
+'Track specialized usage: Cardiology used 10 boxes specialized catheters, 5 bottles cardiac medications'
+
+'Record maintenance consumption: Facilities used 15 gallons disinfectant, 10 boxes cleaning supplies for deep cleaning'
+
+'Log research consumption: Laboratory used specialized supplies for ongoing medical research projects'
+
+// Expected Response Pattern: /consumption.*recorded|logged|tracked/i
+```
+
+### Vendor Management and Purchasing
+```javascript
+// Test Case Group 38: Procurement and Supplier Relations
+'Create purchase order: PO-2025-001 to MedSupply Corp for 500 boxes surgical gloves MED-001, 200 boxes IV catheters DEV-003, total value $12,500, delivery date needed February 15th'
+
+'Generate emergency purchase order: PO-2025-EMRG for immediate delivery of critical supplies to PharmaCorp, expedited shipping, overnight delivery required'
+
+'Process bulk purchase order: PO-2025-002 for quarterly supply order, mixed suppliers, total value $85,000, delivery schedule over 30 days'
+
+'Create specialty order: PO-2025-SPEC for specialized surgical equipment, single supplier, high-value order requiring approval'
+
+'Generate maintenance supplies order: PO-2025-MAINT for cleaning and maintenance supplies, local supplier, monthly delivery schedule'
+
+'Create food service order: PO-2025-FOOD for dietary supplies and patient meal components, weekly delivery schedule'
+
+'Process controlled substance order: PO-2025-CTRL for pharmaceutical supplies requiring DEA documentation and security protocols'
+
+'Generate research supplies order: PO-2025-RSRCH for specialized laboratory and research materials, academic supplier'
+
+// Expected Response Pattern: /purchase order.*created|generated|processed/i
+```
+
+### Inventory Analytics and Reporting
+```javascript
+// Test Case Group 39: Supply Chain Intelligence
+'Generate monthly inventory turnover report for all categories'
+'Show cost analysis for high-consumption items'
+'Display seasonal demand patterns for planning'
+'Generate ABC analysis for inventory prioritization'
+'Show vendor performance metrics and delivery statistics'
+'Display waste reduction opportunities and recommendations'
+'Generate budget variance report for procurement'
+'Show inventory carrying costs by category'
+'Display supply chain risk assessment'
+'Generate inventory optimization recommendations'
+
+// Expected Response Pattern: /report|analysis|metrics|recommendations|patterns/i
+```
+
+---
+
+## 9. MEDICAL DOCUMENT AGENT TEST CASES
+
+### Medical Record Creation and Management
+```javascript
+// Test Case Group 40: Comprehensive Medical Documentation
+'Create discharge summary for patient John Smith (PAT-001): admitted 2025-01-15 for chest pain, diagnosed with unstable angina, treated with cardiac catheterization and stenting, medications prescribed include Plavix 75mg daily and Metoprolol 50mg twice daily, follow-up with cardiologist in 2 weeks, activity restrictions for 1 week'
+
+'Generate surgical report for patient Jane Emergency (PAT-EM-9925): emergency appendectomy performed January 18th, 2025, laparoscopic approach, uncomplicated procedure, minimal blood loss, patient recovered well in PACU, post-operative orders include pain management and ambulation protocol'
+
+'Create radiology report for patient Robert Executive (PAT-002): chest X-ray performed 2025-01-20, shows clear lungs, no acute cardiopulmonary process, heart size normal, bones intact, impression: normal chest radiograph'
+
+'Generate pathology report: tissue biopsy specimen from patient Margaret Senior (PAT-003), microscopic examination shows benign fibrous tissue, no evidence of malignancy, recommend continued monitoring'
+
+'Create consultation report: cardiology consultation for patient with new onset atrial fibrillation, recommendations include anticoagulation therapy and rate control, follow-up in cardiology clinic'
+
+'Generate laboratory report: comprehensive metabolic panel for patient showing normal glucose, electrolytes within normal limits, kidney function adequate, liver enzymes slightly elevated'
+
+'Create nursing notes: patient assessment showing stable vital signs, pain level 3/10, ambulating with assistance, wound healing well, family education provided'
+
+'Generate therapy notes: physical therapy session notes showing patient progress with mobility, strength improving, able to walk 100 feet with walker, continuing therapy plan'
+
+// Expected Response Pattern: /document.*created|generated|completed/i
+```
+
+### Medical Document Storage and Retrieval
+```javascript
+// Test Case Group 41: Document Management System
+'Upload medical document: patient consent form for John Smith (PAT-001), document type "Consent Form", category "Administrative", date 2025-01-20, requires electronic signature'
+
+'Store diagnostic image: MRI scan for patient Jane Emergency (PAT-EM-9925), study type "Brain MRI with contrast", performed 2025-01-18, radiologist Dr. Anderson, DICOM format'
+
+'Archive medical record: complete medical history for patient Robert Executive (PAT-002), 150-page comprehensive record, digitize and store with OCR indexing'
+
+'Upload surgical video: laparoscopic procedure recording for educational purposes, patient consent obtained, high-definition format, 45-minute duration'
+
+'Store medical chart: emergency department chart for patient Margaret Senior (PAT-003), includes triage notes, physician evaluation, diagnostic results, disposition'
+
+'Archive historical records: convert paper records from 1990-2000 period to digital format, maintain patient confidentiality, index by patient ID and date range'
+
+'Upload insurance documentation: prior authorization forms, claims documentation, coverage verification for various patients'
+
+'Store research documentation: clinical trial paperwork, IRB approvals, patient consent forms for research studies'
+
+// Expected Response Pattern: /uploaded|stored|archived|digitized/i
+```
+
+### Document Search and Information Extraction
+```javascript
+// Test Case Group 42: Advanced Document Intelligence
+'Search medical documents for all patients with diagnosis of "hypertension" in the past 6 months'
+
+'Find all surgical reports containing "laparoscopic appendectomy" from the current year'
+
+'Extract medication information from discharge summaries for patients discharged this month'
+
+'Search radiology reports for findings related to "pneumonia" or "lung infection"'
+
+'Find all consultation reports from cardiology department in the past quarter'
+
+'Extract vital signs data from nursing notes for ICU patients over the past week'
+
+'Search pathology reports for any mentions of "malignancy" or "cancer" requiring follow-up'
+
+'Find all emergency department records with chief complaint of "chest pain"'
+
+'Extract allergy information from all patient medical records for safety database update'
+
+'Search therapy notes for patients showing significant improvement in mobility scores'
+
+// Expected Response Pattern: /found|extracted|located|identified/i
+```
+
+### Medical Document Analysis and Insights
+```javascript
+// Test Case Group 43: Clinical Data Analytics
+'Analyze discharge summaries to identify most common diagnoses this quarter'
+
+'Extract medication patterns from prescription data to identify prescribing trends'
+
+'Analyze surgical reports for complication rates by procedure type'
+
+'Identify patients with multiple admissions from medical record analysis'
+
+'Extract quality metrics from nursing documentation for performance improvement'
+
+'Analyze radiology reports for diagnostic accuracy and interpretation consistency'
+
+'Identify patients requiring follow-up care from consultation report analysis'
+
+'Extract research data from clinical notes for quality improvement studies'
+
+'Analyze emergency department records for wait time and treatment effectiveness'
+
+'Identify documentation gaps or inconsistencies across medical records'
+
+// Expected Response Pattern: /analyzed|identified|extracted|trends|patterns/i
+```
+
+### Medical Document Compliance and Quality
+```javascript
+// Test Case Group 44: Regulatory and Quality Assurance
+'Validate medical record completeness for patient John Smith (PAT-001) according to Joint Commission standards'
+
+'Check documentation compliance for controlled substance prescriptions in discharge summaries'
+
+'Audit surgical reports for required elements: pre-operative diagnosis, procedure performed, post-operative diagnosis, complications'
+
+'Verify patient consent documentation for all procedures performed this month'
+
+'Check medical record authentication requirements: physician signatures, co-signatures for residents, dated entries'
+
+'Validate documentation timeliness: discharge summaries completed within 30 days, operative reports within 24 hours'
+
+'Audit nursing documentation for medication administration records completeness'
+
+'Check consultation report compliance: clear recommendations, follow-up instructions, specialist credentials'
+
+'Verify radiology report critical value communication and acknowledgment'
+
+'Audit medical record amendments and corrections for proper documentation procedures'
+
+// Expected Response Pattern: /validated|compliant|audited|verified|complete/i
+```
+
+---
+
+## 10. MEETING AGENT TEST CASES
+
+### Meeting Scheduling and Management
+```javascript
+// Test Case Group 45: Comprehensive Meeting Organization
+'Schedule hospital-wide meeting: "Quarterly All-Staff Meeting", date February 1st 2025, time 2:00 PM, duration 90 minutes, location Main Auditorium, invite all 23 staff members, add agenda items: budget review, policy updates, Q&A session'
+
+'Schedule emergency meeting: "Code Blue Protocol Update", date tomorrow, time 8:00 AM, duration 45 minutes, location Conference Room A, urgent priority, invite all emergency department staff'
+
+'Schedule department meeting: "Cardiology Department Review", date next Monday, time 10:00 AM, duration 60 minutes, location Cardiology Conference Room, invite Dr. Smith, Dr. Anderson, Nurse Johnson, and cardiology residents'
+
+'Schedule interdisciplinary meeting: "Patient Care Coordination", date January 25th, time 1:00 PM, duration 120 minutes, invite physicians from surgery, cardiology, and nursing supervisors'
+
+'Schedule board meeting: "Executive Leadership Review", date last Friday of month, time 9:00 AM, duration 180 minutes, location Executive Boardroom, invite all department heads and administration'
+
+'Schedule training session: "New Equipment Training", date February 10th, time 3:00 PM, duration 2 hours, location Training Center, invite technical staff and equipment operators'
+
+'Schedule quality improvement meeting: "Patient Safety Initiative", date weekly recurring, time Thursday 11:00 AM, duration 60 minutes, invite quality committee members'
+
+'Schedule telemedicine meeting: "Remote Consultation Setup", virtual meeting, date February 5th, time 4:00 PM, duration 90 minutes, send video conferencing links to participants'
+
+// Expected Response Pattern: /meeting.*scheduled successfully|created|organized/i
+```
+
+### Meeting Status and Updates
+```javascript
+// Test Case Group 46: Meeting Lifecycle Management
+'Update meeting status: change "Quarterly All-Staff Meeting" from scheduled to completed, add completion notes and attendance count'
+
+'Cancel emergency meeting: "Code Blue Protocol Update", reason: protocol already updated, notify all participants immediately'
+
+'Reschedule department meeting: move "Cardiology Department Review" from Monday 10 AM to Tuesday 2 PM due to surgical emergency'
+
+'Update meeting location: change "Patient Care Coordination" meeting from Conference Room A to Main Auditorium due to increased attendance'
+
+'Add participants to meeting: include Dr. Williams and Nurse Brown to "Interdisciplinary Patient Care Meeting"'
+
+'Remove participants from meeting: exclude Dr. Jones from "Quality Improvement Meeting" due to scheduling conflict'
+
+'Mark meeting as in-progress: "Executive Leadership Review" currently underway in Executive Boardroom'
+
+'Update meeting duration: extend "New Equipment Training" from 2 hours to 3 hours to include hands-on practice'
+
+// Expected Response Pattern: /meeting.*updated|rescheduled|cancelled|modified/i
+```
+
+### Meeting Documentation and Follow-up
+```javascript
+// Test Case Group 47: Meeting Records and Action Items
+'Add meeting notes for "Quarterly All-Staff Meeting": key topics discussed include new patient safety protocols, budget allocation for equipment purchases, upcoming accreditation visit preparation, staff recognition program launch'
+
+'Record action items from "Emergency Protocol Meeting": update emergency response procedures by February 1st (assigned to Dr. Emergency), conduct staff training sessions by February 15th (assigned to Training Coordinator), review equipment inventory by January 30th (assigned to Equipment Manager)'
+
+'Generate meeting summary: create comprehensive summary for "Interdisciplinary Patient Care Meeting" including participant feedback, decisions made, and next steps'
+
+'Add meeting attachments: upload presentation slides, handouts, and reference documents for "New Equipment Training" session'
+
+'Create meeting minutes: formal meeting minutes for "Executive Leadership Review" including attendance, agenda items, discussion points, decisions, and action items'
+
+'Add follow-up tasks: schedule follow-up meetings for action item review, set reminders for assigned tasks and deadlines'
+
+'Archive completed meeting: move "Quality Improvement Meeting" to historical records with complete documentation'
+
+'Generate meeting attendance report: track attendance patterns and participation rates across all scheduled meetings'
+
+// Expected Response Pattern: /notes.*added|recorded|generated|archived/i
+```
+
+---
+
+## 11. DISCHARGE AGENT TEST CASES
+
+### Comprehensive Discharge Processing
+```javascript
+// Test Case Group 48: Patient Discharge Management
+'Generate discharge summary for patient John Smith (PAT-001): admitted January 15th for cardiac event, primary diagnosis unstable angina, secondary diagnosis hypertension, treatment included cardiac catheterization with stent placement, medications prescribed: Plavix 75mg daily, Metoprolol 50mg BID, discharge condition stable, discharge destination home with family, follow-up scheduled with cardiology in 2 weeks'
+
+'Process discharge for pediatric patient: Tommy Johnson (PAT-PED-001), admitted for appendicitis, surgical procedure completed successfully, full recovery achieved, discharge to home with parents, pediatric surgeon follow-up in 1 week, activity restrictions for 2 weeks'
+
+'Create emergency discharge summary: Jane Emergency (PAT-EM-9925), trauma patient, treated for multiple injuries, stabilized condition, discharge to rehabilitation facility for continued recovery, physical therapy required, follow-up with trauma surgeon and rehabilitation team'
+
+'Generate complex discharge report: Margaret Senior (PAT-003), long-term care patient, multiple comorbidities managed, discharge to skilled nursing facility, comprehensive medication list, multiple specialist follow-ups arranged'
+
+'Process surgical discharge: Robert Executive (PAT-002), elective surgery completed, post-operative recovery excellent, discharge home with visiting nurse services, surgical site care instructions provided'
+
+'Create obstetric discharge summary: new mother after successful delivery, infant healthy, breastfeeding established, discharge home with newborn, pediatric and obstetric follow-up appointments scheduled'
+
+'Generate psychiatric discharge plan: patient stabilized on new medication regimen, discharge with outpatient mental health services, family support system engaged, crisis plan established'
+
+'Process rehabilitation discharge: patient completed physical therapy program, functional goals achieved, discharge home with home health services, durable medical equipment provided'
+
+// Expected Response Pattern: /discharge.*generated|processed|completed|created/i
+```
+
+### Treatment and Care Documentation
+```javascript
+// Test Case Group 49: Medical Care Records
+'Record treatment history for PAT-001: cardiac catheterization performed by Dr. Smith on January 16th, successful stent placement in LAD artery, patient tolerated procedure well, post-procedure monitoring in cardiac care unit for 24 hours'
+
+'Document medication administration: patient received pre-operative antibiotics, pain management with morphine PCA pump, anti-nausea medication as needed, blood thinner protocol for cardiac protection'
+
+'Log nursing care activities: daily assessments completed, wound care performed twice daily, patient education on medications and activity restrictions, family teaching sessions conducted'
+
+'Record diagnostic procedures: echocardiogram showed improved cardiac function post-intervention, laboratory values trending toward normal, chest X-ray clear, EKG showing regular rhythm'
+
+'Document specialty consultations: endocrinology consultation for diabetes management, nutritionist consultation for cardiac diet education, pharmacy consultation for medication reconciliation'
+
+'Record therapy sessions: physical therapy evaluation completed, occupational therapy assessment for activities of daily living, respiratory therapy for breathing exercises'
+
+'Log equipment usage: cardiac monitoring for 48 hours, IV therapy for medication administration, oxygen therapy as needed, walker for mobility assistance'
+
+'Document patient education: medication instructions provided and reviewed, activity restrictions explained, warning signs discussed, follow-up appointments scheduled and confirmed'
+
+// Expected Response Pattern: /treatment.*recorded|documented|logged/i
+```
+
+### Staff Assignment and Care Team Coordination
+```javascript
+// Test Case Group 50: Healthcare Team Management
+'Assign primary care team to PAT-001: attending physician Dr. Smith (cardiology), primary nurse Nurse Johnson (day shift), resident Dr. Brown (cardiology), care coordinator Sarah Wilson'
+
+'Document nursing assignments: Nurse Johnson primary nurse days, Nurse Williams primary nurse nights, charge nurse Mary Davis coordinating care, nurse manager supervising patient flow'
+
+'Record physician coverage: Dr. Smith attending physician, Dr. Brown resident physician, Dr. Emergency on-call coverage nights and weekends, hospitalist Dr. Anderson for consultation'
+
+'Assign support staff: social worker for discharge planning, dietitian for nutritional counseling, pharmacy consult for medication review, case manager for insurance coordination'
+
+'Document specialist involvement: cardiologist Dr. Smith for primary cardiac care, endocrinologist Dr. Wilson for diabetes management, psychiatrist Dr. Taylor for anxiety management'
+
+'Record therapy staff assignments: physical therapist John PT for mobility assessment, occupational therapist Mary OT for ADL training, respiratory therapist Bob RT for breathing treatments'
+
+'Assign ancillary services: chaplain services for spiritual care, interpreter services for language barrier, transportation services for discharge, patient advocate for family support'
+
+'Document interdisciplinary team meetings: weekly rounds with full care team, daily huddles for status updates, family conferences for care planning, discharge planning meetings'
+
+// Expected Response Pattern: /assigned|documented|coordinated|scheduled/i
+```
+
+### Equipment and Resource Management
+```javascript
+// Test Case Group 51: Medical Equipment Tracking
+'Record cardiac monitor usage for PAT-001: equipment ID CARDIAC-001, assigned January 15th, continuous monitoring for 48 hours, normal readings throughout stay, equipment returned to central supply clean and functional'
+
+'Log IV pump utilization: equipment ID IV-PUMP-005, used for medication administration, precise dosing maintained, no equipment malfunctions, scheduled for maintenance after use'
+
+'Document ventilator usage: equipment ID VENT-003, used in ICU for respiratory support, weaning protocol successful, extubated after 24 hours, equipment cleaned and calibrated'
+
+'Record wheelchair assignment: mobility equipment provided for patient transport, safety assessment completed, patient educated on proper use, family training provided'
+
+'Log bed usage and turnover: ICU bed ICU-301-A occupied for 3 days, bed prepared for next patient, housekeeping completed deep clean, maintenance inspection passed'
+
+'Document specialized equipment: surgical robot used for minimally invasive procedure, equipment performed flawlessly, post-procedure maintenance completed, usage logged for billing'
+
+'Record monitoring equipment: blood pressure monitors, pulse oximeters, glucose monitors used throughout stay, all equipment functioning properly, batteries replaced as needed'
+
+'Log assistive devices: walker provided for mobility, crutches fitted properly, shower chair for safety, grab bars installed in bathroom for fall prevention'
+
+// Expected Response Pattern: /equipment.*recorded|logged|documented|tracked/i
+```
+
+### Discharge Coordination and Follow-up
+```javascript
+// Test Case Group 52: Post-Discharge Care Planning
+'Coordinate discharge planning for PAT-001: arrange cardiology follow-up appointment February 1st, prescription refills coordinated with outpatient pharmacy, home health services arranged for wound care'
+
+'Schedule specialist follow-ups: endocrinology appointment for diabetes management, ophthalmology screening for diabetic complications, nephrology consultation if needed'
+
+'Arrange home health services: visiting nurse for medication management, physical therapy for strength training, occupational therapy for safety assessment'
+
+'Coordinate durable medical equipment: hospital bed rental for comfort, oxygen concentrator for respiratory support, wheelchair for mobility assistance'
+
+'Plan medication management: prescription transfer to home pharmacy, medication synchronization program enrollment, pill organizer provided for compliance'
+
+'Arrange transportation services: medical transport for follow-up appointments, wheelchair accessible vehicle if needed, family transportation coordination'
+
+'Schedule diagnostic follow-up: laboratory work in 1 week, echocardiogram in 1 month, stress test in 3 months for cardiac assessment'
+
+'Coordinate insurance and billing: prior authorizations for services, insurance coverage verification, discharge summary sent to primary care physician'
+
+// Expected Response Pattern: /coordinated|scheduled|arranged|planned/i
+```
+
+---
+
+## 12. USER AGENT TEST CASES
+
+### User Account Management and Security
+```javascript
+// Test Case Group 53: Comprehensive User Administration
+'Create new user account: username "dr_johnson", email "dr.johnson@hospital.com", role "physician", department "Cardiology", password meets security requirements, two-factor authentication enabled, account activation required'
+
+'Register nurse user: username "nurse_mary", email "mary.williams@hospital.com", role "nurse", department "ICU", shift assignment day shift, supervisor Dr. Anderson, training certifications required'
+
+'Add administrative user: username "admin_sarah", email "sarah.admin@hospital.com", role "administrator", department "Administration", full system access, audit trail enabled'
+
+'Create resident account: username "resident_brown", email "dr.brown@hospital.com", role "resident", department "Internal Medicine", attending physician Dr. Smith, limited privileges, supervision required'
+
+'Register technician user: username "tech_mike", email "mike.tech@hospital.com", role "technician", department "Radiology", equipment certifications required, specialized access to imaging systems'
+
+'Add pharmacist account: username "pharm_lisa", email "lisa.pharm@hospital.com", role "pharmacist", department "Pharmacy", controlled substance access, prescription verification privileges'
+
+'Create social worker profile: username "social_jane", email "jane.social@hospital.com", role "social_worker", department "Social Services", patient confidentiality training completed'
+
+'Register security personnel: username "security_bob", email "bob.security@hospital.com", role "security", department "Security", access control management, emergency response training'
+
+// Expected Response Pattern: /user.*created successfully|registered|added/i
+```
+
+### User Authentication and Access Control
+```javascript
+// Test Case Group 54: Security and Permission Management
+'Authenticate user login: username "dr_johnson", verify password hash, check two-factor authentication, log successful login, update last login timestamp'
+
+'Validate user permissions: check if user "nurse_mary" has access to patient records in ICU, verify role-based permissions, log access attempt'
+
+'Reset user password: generate secure temporary password for user "admin_sarah", send reset link via email, require password change on next login'
+
+'Lock user account: temporarily disable account for "resident_brown" due to multiple failed login attempts, send security notification to supervisor'
+
+'Enable multi-factor authentication: setup SMS verification for user "pharm_lisa", generate backup codes, verify phone number'
+
+'Update user role: change role for "tech_mike" from technician to senior technician, update system permissions, notify department manager'
+
+'Revoke user access: disable account for departing employee "security_bob", revoke all system access, archive user data, maintain audit trail'
+
+'Audit user activity: generate security report for user "dr_johnson" showing login patterns, system access, data modifications'
+
+// Expected Response Pattern: /authenticated|authorized|validated|updated|disabled/i
+```
+
+### Legacy User Migration and Data Management
+```javascript
+// Test Case Group 55: Historical User Data Integration
+'Create legacy user record: migrate historical data for former employee Dr. Wilson, maintain medical record associations, preserve audit trails, mark account as historical'
+
+'Update legacy user information: add contact information for retired physician Dr. Thompson, maintain historical treatment records, update emergency contact'
+
+'Link legacy records: associate old patient treatments with legacy physician accounts, maintain data integrity, preserve historical context'
+
+'Archive legacy user: move inactive user account to historical archive, maintain data relationships, ensure regulatory compliance'
+
+'Validate legacy data: verify completeness of migrated user records, check data integrity, identify missing information'
+
+'Generate legacy report: create report of all historical user accounts, treatment associations, data completeness status'
+
+'Restore legacy access: temporarily reactivate retired physician account for medical record access, limited time access, supervisor approval required'
+
+'Clean legacy data: remove duplicate legacy records, standardize data formats, maintain referential integrity'
+
+// Expected Response Pattern: /legacy.*created|migrated|updated|archived/i
+```
+
+---
+
+## 13. ORCHESTRATOR AGENT TEST CASES
+
+### Multi-Agent System Coordination
+```javascript
+// Test Case Group 56: Comprehensive System Integration
+'Initialize hospital management system: start all 11 specialized agents (Patient, Staff, Appointment, Department, Room/Bed, Equipment, Inventory, Medical Document, Meeting, Discharge, User agents), establish inter-agent communication, verify all database connections, load system configurations'
+
+'Execute patient admission workflow: coordinate between Patient Agent (create patient record), Room/Bed Agent (assign available bed), Staff Agent (assign care team), Appointment Agent (schedule initial appointments), Inventory Agent (allocate supplies), create comprehensive admission package'
+
+'Process emergency patient workflow: coordinate rapid response between Emergency protocols, Patient Agent (quick registration), Room/Bed Agent (emergency bed allocation), Staff Agent (emergency team assignment), Equipment Agent (critical equipment allocation), time-critical execution'
+
+'Execute surgical workflow coordination: integrate Appointment Agent (schedule surgery), Staff Agent (assign surgical team), Equipment Agent (reserve surgical equipment), Room/Bed Agent (prepare OR), Inventory Agent (surgical supplies), post-surgery discharge planning'
+
+'Coordinate discharge workflow: integrate Discharge Agent (generate report), Room/Bed Agent (release bed), Staff Agent (finalize care notes), Appointment Agent (schedule follow-ups), Inventory Agent (reconcile supplies), Medical Document Agent (finalize records)'
+
+'Execute inventory management workflow: coordinate between Inventory Agent (stock monitoring), Equipment Agent (equipment needs), Staff Agent (requisition approvals), automated reordering based on usage patterns and minimum stock levels'
+
+'Process staff scheduling workflow: coordinate Staff Agent (availability tracking), Appointment Agent (patient scheduling), Department Agent (department coverage), Meeting Agent (staff meetings), optimize staff allocation and patient coverage'
+
+'Execute quality assurance workflow: coordinate Medical Document Agent (compliance checking), Patient Agent (outcome tracking), Staff Agent (performance metrics), generate comprehensive quality reports'
+
+// Expected Response Pattern: /workflow.*executed|coordinated|completed|integrated/i
+```
+
+### System Monitoring and Health Checks
+```javascript
+// Test Case Group 57: System Performance and Reliability
+'Perform system health check: verify all agents are responsive, check database connectivity for each agent, validate inter-agent communication, monitor system resource usage, generate health status report'
+
+'Monitor agent performance: track response times for each agent, identify bottlenecks, monitor memory usage, check for error patterns, generate performance analytics'
+
+'Execute load balancing: distribute high-volume requests across agent instances, monitor system capacity, optimize resource allocation, prevent system overload'
+
+'Perform failover testing: simulate agent failure scenarios, verify backup systems activate, test data integrity during failures, validate recovery procedures'
+
+'Monitor data synchronization: ensure all agents have consistent data views, check for synchronization conflicts, validate data integrity across the system'
+
+'Execute system backup verification: verify all agent data is properly backed up, test restoration procedures, validate backup integrity, check automated backup schedules'
+
+'Generate system analytics: create comprehensive reports on agent utilization, system performance trends, user activity patterns, resource consumption analysis'
+
+'Perform security monitoring: check for unauthorized access attempts, monitor privileged operations, validate security policies are enforced, generate security audit reports'
+
+// Expected Response Pattern: /system.*monitored|verified|balanced|analyzed/i
+```
+
+### Agent Communication and Error Handling
+```javascript
+// Test Case Group 58: Inter-Agent Communication Management
+'Route complex request requiring multiple agents: patient admission request needs Patient Agent (registration), Room/Bed Agent (bed assignment), Staff Agent (nurse assignment), coordinate sequential and parallel operations'
+
+'Handle agent timeout scenarios: when Equipment Agent becomes unresponsive, implement timeout handling, retry mechanisms, fallback procedures, user notification'
+
+'Process concurrent agent requests: multiple simultaneous requests for bed assignments, implement request queuing, prevent race conditions, ensure data consistency'
+
+'Execute transaction rollback: when partial workflow fails (patient created but bed assignment fails), coordinate rollback across affected agents, maintain data integrity'
+
+'Handle agent version compatibility: ensure all agents can communicate despite version differences, validate message formats, handle backward compatibility'
+
+'Process priority request handling: emergency requests get priority routing, interrupt normal workflow if necessary, escalate to appropriate agents immediately'
+
+'Coordinate batch operations: process bulk data updates across multiple agents, ensure atomic operations, handle partial failures gracefully'
+
+'Execute agent dependency resolution: when Appointment Agent needs Patient data, automatically coordinate with Patient Agent, resolve dependencies transparently'
+
+// Expected Response Pattern: /request.*routed|handled|processed|coordinated/i
+```
+
+### Workflow Automation and Integration
+```javascript
+// Test Case Group 59: Advanced Workflow Management
+'Execute automated daily workflow: morning patient census update, staff schedule optimization, equipment maintenance checks, inventory level monitoring, generate daily operational report'
+
+'Process triggered workflows: when patient is discharged, automatically trigger bed cleaning workflow, billing finalization, follow-up appointment scheduling, inventory reconciliation'
+
+'Coordinate scheduled maintenance: execute weekly equipment maintenance workflow, coordinate with Equipment Agent, Staff Agent for technician assignment, Schedule downtime to minimize disruption'
+
+'Execute emergency protocol workflow: when code blue is called, coordinate rapid response team assignment, equipment allocation, room preparation, documentation requirements'
+
+'Process regulatory compliance workflow: monthly compliance checks across all agents, ensure data privacy, audit trail completeness, regulatory reporting requirements'
+
+'Execute research data extraction: coordinate between Medical Document Agent, Patient Agent, secure data anonymization, research protocol compliance'
+
+'Process insurance workflow: coordinate Patient Agent (verify coverage), Appointment Agent (authorization checks), billing system integration, claims processing'
+
+'Execute quality improvement workflow: analyze patterns across all agents, identify improvement opportunities, coordinate implementation of changes, measure outcomes'
+
+// Expected Response Pattern: /workflow.*automated|triggered|executed|processed/i
+```
+
+---
+
+## COMPREHENSIVE INTEGRATION TEST SCENARIOS
+
+### End-to-End Hospital Workflows
+```javascript
+// Test Case Group 60: Complete Patient Journey
+'Execute complete patient admission to discharge workflow: John Smith arrives at emergency department with chest pain, emergency registration, triage assessment, physician evaluation, diagnostic testing (EKG, labs, chest X-ray), admission to cardiac care unit, bed assignment ICU-301-A, cardiology consultation, cardiac catheterization, treatment with stent placement, recovery monitoring, medication reconciliation, discharge planning, home care coordination, follow-up appointments scheduled, discharge summary generated, bed released for next patient'
+
+'Process surgical patient end-to-end: Jane Doe scheduled for elective gallbladder surgery, pre-operative assessment, surgical suite reservation OR-501, anesthesia team assignment, surgical equipment allocation, procedure completed successfully, post-operative recovery PACU, pain management, early ambulation, surgical site monitoring, patient education, discharge home with family, follow-up with surgeon scheduled'
+
+'Handle emergency trauma workflow: multi-vehicle accident victim arrives, rapid triage, trauma team activation, multiple specialists involved, emergency surgery, ICU admission, family notification, insurance verification, multiple diagnostic procedures, rehabilitation consultation, discharge to rehabilitation facility, coordination with outpatient services'
+
+// Expected Response Pattern: /workflow.*completed successfully|executed|processed/i
+```
+
+### Multi-Department Coordination Scenarios
+```javascript
+// Test Case Group 61: Cross-Department Integration
+'Coordinate complex cardiac case: patient requires cardiology, cardiac surgery, anesthesiology, ICU nursing, pharmacy, social work, case management, insurance coordination, equipment management, supply chain, all departments working seamlessly together'
+
+'Process multi-trauma patient: emergency department, trauma surgery, orthopedic surgery, neurology, radiology, laboratory, blood bank, respiratory therapy, physical therapy, discharge planning, all coordinated through orchestrator agent'
+
+'Handle obstetric emergency: labor and delivery, neonatology, anesthesiology, pharmacy, laboratory, nursery care, lactation consultation, social services, pediatric follow-up, seamless care transition'
+
+// Expected Response Pattern: /coordination.*successful|departments.*collaborated|integrated/i
+```
+
+---
+
+## PERFORMANCE AND LOAD TESTING SCENARIOS
+
+### System Stress Testing
+```javascript
+// Test Case Group 62: High-Volume Operations
+'Simulate peak hospital operations: 50 concurrent patient admissions, 30 discharge processes, 100 appointment bookings, 25 equipment reservations, 200 inventory transactions, all processed simultaneously while maintaining system responsiveness'
+
+'Execute emergency surge scenario: mass casualty event with 75 emergency patients arriving within 1 hour, rapid bed assignments, staff mobilization, equipment allocation, supply distribution, maintain system performance under extreme load'
+
+'Process high-volume data operations: generate 500 discharge summaries, process 1000 appointment changes, handle 2000 inventory updates, execute 300 staff schedule modifications, ensure database integrity and system stability'
+
+// Expected Response Pattern: /processed successfully|maintained performance|system stable/i
+```
+
+### Agent Performance Testing
+```javascript
+// Test Case Group 63: Individual Agent Load Testing
+'Test Patient Agent scalability: create 1000 patient records simultaneously, verify data integrity, measure response times, ensure no data corruption'
+
+'Stress test Appointment Agent: schedule 2000 appointments across 50 physicians over 30 days, handle conflicts automatically, optimize scheduling efficiency'
+
+'Load test Equipment Agent: process 500 equipment requests simultaneously, manage resource conflicts, maintain accurate availability tracking'
+
+// Expected Response Pattern: /scalability.*verified|performance.*acceptable|load.*handled/i
+```
+
+---
+
+## ERROR HANDLING AND RECOVERY TEST SCENARIOS
+
+### System Failure Recovery
+```javascript
+// Test Case Group 64: Disaster Recovery Testing
+'Simulate database connection failure: test agent behavior when database becomes unavailable, verify graceful degradation, automatic reconnection, data synchronization upon recovery'
+
+'Test partial system failure: disable Patient Agent, verify other agents continue functioning, implement fallback procedures, maintain critical operations'
+
+'Execute backup and restore testing: simulate complete system failure, restore from backup, verify data integrity, test full system recovery procedures'
+
+// Expected Response Pattern: /recovery.*successful|fallback.*activated|system.*restored/i
+```
+
+### Data Integrity Testing
+```javascript
+// Test Case Group 65: Data Consistency Validation
+'Test transaction rollback scenarios: simulate failures during multi-agent operations, verify proper rollback across all affected agents, ensure no partial data corruption'
+
+'Validate referential integrity: create complex data relationships across agents, delete parent records, verify cascade operations, maintain database consistency'
+
+'Test concurrent data modifications: multiple users modifying same patient record, implement proper locking, prevent data conflicts, maintain data accuracy'
+
+// Expected Response Pattern: /integrity.*maintained|consistency.*verified|conflicts.*resolved/i
+```
+
+---
+
+## SECURITY AND COMPLIANCE TEST SCENARIOS
+
+### Access Control Testing
+```javascript
+// Test Case Group 66: Security Validation
+'Test role-based access control: verify physicians can access patient records, nurses have appropriate permissions, administrative staff have limited clinical access, unauthorized users are blocked'
+
+'Validate audit trail completeness: every data modification logged with user, timestamp, before/after values, maintain complete audit trail for regulatory compliance'
+
+'Test data encryption: verify patient data encrypted at rest and in transit, secure password storage, encrypted backups, compliance with HIPAA requirements'
+
+// Expected Response Pattern: /access.*controlled|audit.*complete|encryption.*verified/i
+```
+
+### Regulatory Compliance Testing
+```javascript
+// Test Case Group 67: Compliance Validation
+'Validate HIPAA compliance: patient data access logging, minimum necessary standard enforcement, breach notification procedures, compliance reporting capabilities'
+
+'Test Joint Commission requirements: medical record completeness, medication reconciliation processes, patient safety protocols, quality measure tracking'
+
+'Verify state and federal regulations: controlled substance tracking, mandatory reporting procedures, license verification, regulatory audit trail maintenance'
+
+// Expected Response Pattern: /compliance.*verified|regulations.*met|standards.*maintained/i
+```
+
+---
+
+## AUTOMATION AND CONTINUOUS TESTING
+
+### Automated Test Execution Framework
+```python
+# Example Test Automation Structure
+class HospitalManagementSystemTests:
+    
+    def setUp(self):
+        """Initialize test environment and sample data"""
+        self.orchestrator = OrchestratorAgent()
+        self.sample_patients = generate_test_patients(100)
+        self.sample_staff = generate_test_staff(50)
+        self.test_database = create_test_database()
+    
+    def tearDown(self):
+        """Clean up test environment"""
+        cleanup_test_data()
+        reset_test_database()
+    
+    @pytest.mark.integration
+    def test_complete_patient_workflow(self):
+        """Test end-to-end patient admission to discharge"""
+        # Implementation of comprehensive workflow testing
+        pass
+    
+    @pytest.mark.performance
+    def test_system_load_capacity(self):
+        """Test system performance under high load"""
+        # Implementation of load testing
+        pass
+    
+    @pytest.mark.security
+    def test_access_control_enforcement(self):
+        """Test security and permission systems"""
+        # Implementation of security testing
+        pass
+```
+
+### Continuous Integration Test Pipeline
+```yaml
+# CI/CD Pipeline Configuration Example
+test_pipeline:
+  unit_tests:
+    - individual_agent_functionality
+    - data_validation_tests
+    - business_logic_verification
+  
+  integration_tests:
+    - agent_communication_tests
+    - workflow_coordination_tests
+    - database_interaction_tests
+  
+  performance_tests:
+    - load_testing
+    - stress_testing
+    - scalability_validation
+  
+  security_tests:
+    - access_control_verification
+    - data_encryption_validation
+    - audit_trail_completeness
+  
+  compliance_tests:
+    - hipaa_compliance_verification
+    - regulatory_requirement_testing
+    - quality_standard_validation
+```
+
+---
+
+## TEST EXECUTION METHODOLOGY
 
 ### Test Environment Setup
-1. **Database**: Use isolated test database with sample data
-2. **Dependencies**: Ensure all required packages are installed
-3. **Configuration**: Set test environment variables
-4. **Logging**: Enable detailed logging for debugging
+1. **Isolated Test Database**: Complete copy of production schema with synthetic test data
+2. **Agent Service Instances**: Dedicated test instances of all 11 agents
+3. **Mock External Services**: Simulated email services, file systems, external APIs
+4. **Monitoring and Logging**: Comprehensive logging for test analysis and debugging
+5. **Data Reset Procedures**: Automated cleanup and reset between test runs
 
-### Test Data Requirements
-- **Sample Patients**: At least 10 patient records
-- **Sample Staff**: At least 5 staff members across different departments
-- **Sample Departments**: Cardiology, Emergency, Surgery, Radiology
-- **Sample Equipment**: Various medical equipment items
-- **Sample Supplies**: Medical supplies with different stock levels
+### Test Data Management
+- **Realistic Sample Data**: 1000+ synthetic patients, 100+ staff members, complete department structure
+- **Edge Case Scenarios**: Data variations to test boundary conditions and error handling
+- **Performance Test Data**: High-volume datasets for load and stress testing
+- **Security Test Data**: Various user roles and permission scenarios
 
-### Test Categories
-- **Functional**: Core functionality tests
-- **Input Validation**: Data validation and sanitization
-- **Business Logic**: Complex business rules and workflows
-- **Error Handling**: Exception and error scenarios
-- **Integration**: Inter-agent communication tests
-- **Performance**: Load and stress testing
-- **Security**: Access control and data protection
-
-### Expected Test Coverage
-- **Unit Tests**: Individual agent methods
-- **Integration Tests**: Agent-to-agent communication
-- **End-to-End Tests**: Complete workflows
-- **Performance Tests**: Response time and throughput
-- **Error Handling**: Graceful failure scenarios
-
-### Test Execution Commands
-```bash
-# Run all agent tests
-python -m pytest tests/agents/ -v
-
-# Run specific agent tests
-python -m pytest tests/agents/test_patient_agent.py -v
-
-# Run with coverage
-python -m pytest tests/agents/ --cov=agents --cov-report=html
-```
+### Test Execution Strategy
+- **Automated Daily Runs**: Complete test suite execution every night
+- **Continuous Integration**: Tests run on every code commit
+- **Manual Exploratory Testing**: Human testing for usability and edge cases
+- **Performance Benchmarking**: Regular performance baseline validation
+- **Security Scanning**: Automated vulnerability and penetration testing
 
 ---
 
-## Test Automation Framework
-
-### Framework Structure
-```
-tests/
-├── agents/
-│   ├── test_appointment_agent.py
-│   ├── test_patient_agent.py
-│   ├── test_staff_agent.py
-│   └── ...
-├── fixtures/
-│   ├── database_fixtures.py
-│   └── sample_data.py
-├── utils/
-│   ├── test_helpers.py
-│   └── mock_services.py
-└── conftest.py
-```
-
-### Key Features
-- **Automated Test Discovery**: Pytest automatically discovers test files
-- **Fixtures**: Reusable test data and setup
-- **Mocking**: Mock external dependencies
-- **Parallel Execution**: Run tests in parallel for faster feedback
-- **Continuous Integration**: Integrate with CI/CD pipelines
-
----
-
-*This document serves as the comprehensive test specification for the Hospital Management System multi-agent architecture. Each test case should be implemented with proper assertions, error handling, and documentation.*
+*This comprehensive test specification provides complete coverage for the Hospital Management System multi-agent architecture. Each test scenario is designed to validate both individual agent functionality and system-wide integration, ensuring a robust, secure, and compliant healthcare management platform.*
