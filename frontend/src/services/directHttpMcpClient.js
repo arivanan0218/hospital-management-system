@@ -7,8 +7,13 @@ class DirectHttpMCPClient {
   constructor() {
    // Use relative URL to go through nginx proxy
     // This will use the current domain/port and route through nginx
+<<<<<<< HEAD
     // this.serverUrl = '';
     this.serverUrl = 'http://localhost:8000';
+=======
+    this.serverUrl = '';
+    //this.serverUrl = 'http://localhost:8000';
+>>>>>>> origin/dev-aws
     this.isConnected = false;
     this.serverInfo = {};
     this.tools = [];

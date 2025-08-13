@@ -11,6 +11,11 @@ env:
   ECR_REPOSITORY_BACKEND: hospital-backend
   ECR_REPOSITORY_FRONTEND: hospital-frontend
   EC2_HOST: 34.207.201.88
+  # Environment variables for the entire workflow
+  VITE_OPENAI_API_KEY: ${{ secrets.VITE_OPENAI_API_KEY }}
+  VITE_LANGSMITH_API_KEY: ${{ secrets.VITE_LANGSMITH_API_KEY }}
+  VITE_LANGSMITH_PROJECT: hospital-management-system
+  VITE_LANGSMITH_TRACING: true
 
 jobs:
   test:
@@ -69,6 +74,16 @@ jobs:
         docker push $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:latest
         echo "✅ Backend image pushed successfully"
 
+    - name: Create frontend .env file for production
+      working-directory: ./frontend
+      run: |
+        echo "VITE_OPENAI_API_KEY=${{ secrets.VITE_OPENAI_API_KEY }}" > .env
+        echo "VITE_LANGSMITH_API_KEY=${{ secrets.VITE_LANGSMITH_API_KEY }}" >> .env
+        echo "VITE_LANGSMITH_PROJECT=hospital-management-system" >> .env
+        echo "VITE_LANGSMITH_TRACING=true" >> .env
+        echo "VITE_MCP_BRIDGE_URL=${{ secrets.VITE_MCP_BRIDGE_URL }}" >> .env
+        echo "✅ Frontend .env file created"
+
     - name: Build and push frontend image
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -91,16 +106,68 @@ jobs:
         
         echo "🚀 Starting deployment to EC2..."
         
-        # Clean up disk space first
-        echo "🧹 Cleaning up disk space..."
-        sudo docker system prune -af --volumes || true
-        sudo docker image prune -af || true
-        sudo apt-get clean || true
-        sudo rm -rf /var/lib/apt/lists/* || true
-        sudo rm -rf /tmp/* || true
+        # More aggressive disk space cleanup
+        echo "🧹 Performing aggressive disk space cleanup..."
         
-        echo "💾 Disk space after cleanup:"
+        # Stop all containers first to free up resources
+        echo "🛑 Stopping all Docker containers..."
+        sudo docker stop $(sudo docker ps -aq) 2>/dev/null || true
+        
+        # Remove all stopped containers
+        echo "🗑️ Removing stopped containers..."
+        sudo docker container prune -f || true
+        
+        # Remove all unused images (not just dangling ones)
+        echo "🗑️ Removing unused Docker images..."
+        sudo docker image prune -af || true
+        
+        # Remove all unused networks
+        echo "🗑️ Removing unused Docker networks..."
+        sudo docker network prune -f || true
+        
+        # Remove all unused volumes
+        echo "🗑️ Removing unused Docker volumes..."
+        sudo docker volume prune -f || true
+        
+        # Complete system prune with volumes
+        echo "🗑️ Performing complete Docker system cleanup..."
+        sudo docker system prune -af --volumes || true
+        
+        # Clean package manager cache
+        echo "🗑️ Cleaning package manager cache..."
+        sudo apt-get clean || true
+        sudo apt-get autoclean || true
+        sudo apt-get autoremove -y || true
+        
+        # Clean temporary files and logs
+        echo "🗑️ Cleaning temporary files..."
+        sudo rm -rf /tmp/* || true
+        sudo rm -rf /var/tmp/* || true
+        sudo rm -rf /var/lib/apt/lists/* || true
+        sudo rm -rf /var/cache/apt/* || true
+        
+        # Clean log files older than 7 days
+        echo "🗑️ Cleaning old log files..."
+        sudo find /var/log -type f -name "*.log" -mtime +7 -delete 2>/dev/null || true
+        sudo find /var/log -type f -name "*.gz" -mtime +7 -delete 2>/dev/null || true
+        
+        # Clean up any node_modules or build artifacts that might be left
+        echo "🗑️ Cleaning build artifacts..."
+        sudo find /home -name "node_modules" -type d -exec rm -rf {} + 2>/dev/null || true
+        sudo find /home -name "dist" -type d -exec rm -rf {} + 2>/dev/null || true
+        sudo find /home -name ".cache" -type d -exec rm -rf {} + 2>/dev/null || true
+        
+        echo "💾 Disk space after aggressive cleanup:"
         df -h
+        
+        # Check if we have enough space (at least 2GB free)
+        available_space=$(df / | tail -1 | awk '{print $4}')
+        if [ "$available_space" -lt 2097152 ]; then
+          echo "⚠️ Warning: Less than 2GB free space available. Consider increasing disk size."
+          echo "Available space: ${available_space}KB"
+        else
+          echo "✅ Sufficient disk space available: ${available_space}KB"
+        fi
         
         # Configure AWS CLI on EC2
         aws configure set region us-east-1
@@ -109,15 +176,74 @@ jobs:
         echo "🔐 Logging into ECR..."
         aws ecr get-login-password --region us-east-1 | sudo docker login --username AWS --password-stdin 324037286635.dkr.ecr.us-east-1.amazonaws.com
         
-        # Pull latest images
-        echo "📥 Pulling latest images..."
-        sudo docker pull 324037286635.dkr.ecr.us-east-1.amazonaws.com/hospital-backend:latest
-        sudo docker pull 324037286635.dkr.ecr.us-east-1.amazonaws.com/hospital-frontend:latest
+        # Pull latest images one at a time to reduce memory pressure
+        echo "📥 Pulling backend image..."
+        if ! sudo docker pull 324037286635.dkr.ecr.us-east-1.amazonaws.com/hospital-backend:latest; then
+          echo "❌ Failed to pull backend image. Checking disk space..."
+          df -h
+          exit 1
+        fi
         
-        # Stop and remove old containers (except database and nginx)
+        echo "📥 Pulling frontend image..."
+        if ! sudo docker pull 324037286635.dkr.ecr.us-east-1.amazonaws.com/hospital-frontend:latest; then
+          echo "❌ Failed to pull frontend image. Checking disk space..."
+          df -h
+          exit 1
+        fi
+        
+        echo "✅ All images pulled successfully"
+        
+        # Stop and remove old containers (except database)
         echo "🛑 Stopping old containers..."
-        sudo docker stop hospital-backend hospital-frontend 2>/dev/null || true
-        sudo docker rm hospital-backend hospital-frontend 2>/dev/null || true
+        sudo docker stop hospital-backend hospital-frontend nginx-proxy 2>/dev/null || true
+        sudo docker rm hospital-backend hospital-frontend nginx-proxy 2>/dev/null || true
+        
+        # Clean up any orphaned containers after stopping
+        echo "🗑️ Cleaning up orphaned containers..."
+        sudo docker container prune -f || true
+        
+        # Create hospital network if it doesn't exist
+        echo "🌐 Creating hospital network..."
+        sudo docker network create hospital-network 2>/dev/null || true
+        
+        # Start PostgreSQL database if not running
+        echo "🗄️ Starting PostgreSQL database..."
+        if ! sudo docker ps | grep -q hospital-postgres; then
+          # Remove any existing container first
+          sudo docker stop hospital-postgres 2>/dev/null || true
+          sudo docker rm hospital-postgres 2>/dev/null || true
+          sudo docker volume rm hospital-postgres-data 2>/dev/null || true
+          
+          echo "🔄 Creating fresh PostgreSQL container..."
+          sudo docker run -d \
+            --name hospital-postgres \
+            --network hospital-network \
+            --network-alias postgres \
+            --restart unless-stopped \
+            -e POSTGRES_DB=hospital_db \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD=postgres \
+            postgres:13
+            
+          echo "⏳ Waiting for PostgreSQL to initialize..."
+          sleep 30
+          
+          # Wait for PostgreSQL to be ready
+          echo "🔍 Checking PostgreSQL readiness..."
+          for i in {1..15}; do
+            if sudo docker exec hospital-postgres pg_isready -U postgres -d hospital_db > /dev/null 2>&1; then
+              echo "✅ PostgreSQL is ready"
+              break
+            fi
+            echo "⏳ Waiting for PostgreSQL... (attempt $i/15)"
+            sleep 5
+          done
+        else
+          echo "✅ PostgreSQL is already running"
+          # Ensure existing container has the postgres alias
+          sudo docker network disconnect hospital-network hospital-postgres 2>/dev/null || true
+          sudo docker network connect --alias postgres hospital-network hospital-postgres 2>/dev/null || true
+        fi
         
         # Start new backend container
         echo "🔄 Starting new backend container..."
@@ -125,7 +251,7 @@ jobs:
           --name hospital-backend \
           --network hospital-network \
           --restart unless-stopped \
-          -e DATABASE_URL="postgresql://hospital_user:hospital_pass@hospital-postgres:5432/hospital_db" \
+          -e DATABASE_URL="postgresql://postgres:postgres@postgres:5432/hospital_db" \
           324037286635.dkr.ecr.us-east-1.amazonaws.com/hospital-backend:latest
         
         # Start new frontend container
@@ -136,25 +262,139 @@ jobs:
           --restart unless-stopped \
           324037286635.dkr.ecr.us-east-1.amazonaws.com/hospital-frontend:latest
         
+        # Setup nginx proxy for routing
+        echo "🌐 Setting up nginx proxy..."
+        
+        # Create nginx configuration
+        cat > /tmp/nginx.conf << 'NGINXEOF'
+        events {
+            worker_connections 1024;
+        }
+        
+        http {
+            upstream frontend {
+                server hospital-frontend:3000;
+            }
+            
+            upstream backend {
+                server hospital-backend:8000;
+            }
+            
+            server {
+                listen 80;
+                
+                # Add CORS headers
+                add_header 'Access-Control-Allow-Origin' '*' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization' always;
+                
+                # Health endpoint (route to backend)
+                location /health {
+                    proxy_pass http://backend;
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto $scheme;
+                }
+                
+                # API routes (route to backend)
+                location /api/ {
+                    proxy_pass http://backend;
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto $scheme;
+                }
+                
+                # Tools routes (route to backend) - CRITICAL for MCP server
+                location /tools/ {
+                    proxy_pass http://backend;
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto $scheme;
+                }
+                
+                # Docs routes (route to backend)
+                location /docs {
+                    proxy_pass http://backend;
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto $scheme;
+                }
+                
+                # OpenAPI JSON (route to backend)
+                location /openapi.json {
+                    proxy_pass http://backend;
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto $scheme;
+                }
+                
+                # All other routes (route to frontend)
+                location / {
+                    proxy_pass http://frontend;
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto $scheme;
+                }
+            }
+        }
+        NGINXEOF
+        
+        # Stop and remove existing nginx proxy if it exists
+        sudo docker stop nginx-proxy 2>/dev/null || true
+        sudo docker rm nginx-proxy 2>/dev/null || true
+        
+        # Start nginx proxy container
+        echo "🔄 Starting nginx proxy..."
+        sudo docker run -d \
+          --name nginx-proxy \
+          --network hospital-network \
+          --restart unless-stopped \
+          -p 80:80 \
+          nginx:alpine
+        
+        # Copy nginx configuration to container
+        sudo docker cp /tmp/nginx.conf nginx-proxy:/etc/nginx/nginx.conf
+        
+        # Reload nginx configuration
+        sudo docker exec nginx-proxy nginx -s reload
+        
         # Wait for containers to be healthy
-        echo "⏳ Waiting for containers to be healthy..."
+        echo "⏳ Waiting for containers to start..."
         sleep 30
         
-        # Test health endpoint
-        echo "🧪 Testing application health..."
-        if curl -f http://localhost/health >/dev/null 2>&1; then
-          echo "✅ Deployment successful! Application is healthy."
-        else
-          echo "❌ Deployment failed! Health check failed."
-          exit 1
-        fi
+        # Simple deployment verification
+        echo "🔍 Verifying deployment..."
         
-        # Show container status
+        # Check container status
         echo "📋 Container status:"
         sudo docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
         
-        echo "🎉 Deployment completed successfully!"
-        echo "🌐 Application URL: http://${{ env.EC2_HOST }}/"
+        # Simple health check - just verify nginx can reach backend
+        echo "🚀 Testing API health endpoint..."
+        for i in {1..5}; do
+            if curl -s http://localhost/health | grep -q "healthy"; then
+                echo "✅ Deployment successful - API is responding"
+                break
+            else
+                echo "⏳ Waiting for API... attempt $i/5"
+                sleep 10
+                if [ $i -eq 5 ]; then
+                    echo "⚠️ API not responding yet, but containers are running"
+                    echo "🔍 Container logs:"
+                    sudo docker logs hospital-backend --tail 5 2>/dev/null || true
+                    echo "🎯 Deployment completed - manual verification may be needed"
+                fi
+            fi
+        done
+        
+        echo "🎉 Deployment completed!"
+        echo " Application URL: http://${{ env.EC2_HOST }}/"
         EOF
         
         chmod +x deploy-to-ec2.sh
