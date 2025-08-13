@@ -182,36 +182,6 @@ class AuthService {
   }
 
   /**
-   * Validate API key (mock)
-   */
-  async validateApiKey(apiKey) {
-    try {
-      // Simulate network delay (reduced for better UX)
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // Basic OpenAI API key format validation
-      if (!apiKey || !apiKey.startsWith('sk-')) {
-        throw new Error('Invalid API key format');
-      }
-
-      if (apiKey.length < 20) {
-        throw new Error('API key appears to be invalid');
-      }
-
-      return {
-        success: true,
-        message: 'API key validated successfully'
-      };
-
-    } catch (error) {
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  }
-
-  /**
    * Get user profile (mock)
    */
   async getUserProfile(token) {
