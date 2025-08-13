@@ -8,6 +8,7 @@ Additional tables needed to track comprehensive patient care data.
 from sqlalchemy import Column, String, DateTime, Text, DECIMAL, ForeignKey, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 from database import Base
 import uuid
 
@@ -98,37 +99,5 @@ class StaffAssignment(Base):
     staff = relationship("Staff")
     bed = relationship("Bed")
 
-class DischargeReport(Base):
-    """Store generated discharge reports."""
-    __tablename__ = "discharge_reports"
-    
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
-    bed_id = Column(UUID(as_uuid=True), ForeignKey("beds.id"), nullable=False)
-    generated_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    
-    report_number = Column(String(50), unique=True, nullable=False)
-    admission_date = Column(DateTime, nullable=False)
-    discharge_date = Column(DateTime, nullable=False)
-    length_of_stay_days = Column(Integer)
-    
-    # Report sections as JSON
-    patient_summary = Column(Text)  # JSON
-    treatment_summary = Column(Text)  # JSON
-    equipment_summary = Column(Text)  # JSON
-    staff_summary = Column(Text)  # JSON
-    medications = Column(Text)  # JSON
-    procedures = Column(Text)  # JSON
-    discharge_instructions = Column(Text)
-    follow_up_required = Column(Text)
-    
-    # Discharge conditions
-    discharge_condition = Column(String(50))  # improved, stable, critical, deceased
-    discharge_destination = Column(String(100))  # home, transfer, rehabilitation, nursing_home
-    
-    created_at = Column(DateTime, default=func.now())
-    
-    # Relationships
-    patient = relationship("Patient")
-    bed = relationship("Bed")
-    generated_by_user = relationship("User", foreign_keys=[generated_by])
+# Note: DischargeReport is already defined in database.py
+# so we don't redefine it here to avoid conflicts

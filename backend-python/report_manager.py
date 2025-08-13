@@ -113,7 +113,41 @@ class ReportManager:
             Report data if found, None otherwise
         """
         try:
-            # Search in current reports first
+            # First check the database for the report
+            db_report = self.session.query(DischargeReport).filter(
+                DischargeReport.report_number == report_number
+            ).first()
+            
+            if db_report:
+                # Convert database report to expected format
+                report_data = {
+                    "id": str(db_report.id),
+                    "report_number": db_report.report_number,
+                    "patient_id": str(db_report.patient_id),
+                    "bed_id": str(db_report.bed_id),
+                    "generated_by": str(db_report.generated_by) if db_report.generated_by else None,
+                    "admission_date": db_report.admission_date.isoformat() if db_report.admission_date else None,
+                    "discharge_date": db_report.discharge_date.isoformat() if db_report.discharge_date else None,
+                    "length_of_stay_days": db_report.length_of_stay_days,
+                    "patient_summary": json.loads(db_report.patient_summary) if db_report.patient_summary else {},
+                    "treatment_summary": json.loads(db_report.treatment_summary) if db_report.treatment_summary else [],
+                    "equipment_summary": json.loads(db_report.equipment_summary) if db_report.equipment_summary else [],
+                    "staff_summary": json.loads(db_report.staff_summary) if db_report.staff_summary else [],
+                    "medications": json.loads(db_report.medications) if db_report.medications else [],
+                    "procedures": json.loads(db_report.procedures) if db_report.procedures else [],
+                    "discharge_instructions": db_report.discharge_instructions or "",
+                    "follow_up_required": db_report.follow_up_required or "",
+                    "discharge_condition": db_report.discharge_condition,
+                    "discharge_destination": db_report.discharge_destination,
+                    "created_at": db_report.created_at.isoformat(),
+                    "source": "database"
+                }
+                
+                # Generate markdown content from the database data
+                report_data['content'] = self._generate_markdown_content(report_data)
+                return report_data
+            
+            # Search in current reports first (file system fallback)
             current_dir = self.reports_dir / "current"
             for metadata_file in current_dir.glob(f"{report_number}_*_metadata.json"):
                 with open(metadata_file, 'r', encoding='utf-8') as f:
@@ -126,6 +160,7 @@ class ReportManager:
                         content = f.read()
                     
                     metadata['content'] = content
+                    metadata['source'] = "file_system"
                     return metadata
             
             # Search in archive if not found in current
@@ -148,6 +183,109 @@ class ReportManager:
         except Exception as e:
             print(f"Error retrieving report {report_number}: {e}")
             return None
+    
+    def _generate_markdown_content(self, report_data: Dict[str, Any]) -> str:
+        """Generate markdown content from database report data."""
+        try:
+            patient_summary = report_data.get('patient_summary', {})
+            treatments = report_data.get('treatment_summary', [])
+            equipment_usage = report_data.get('equipment_summary', [])
+            staff_assignments = report_data.get('staff_summary', [])
+            medications = report_data.get('medications', [])
+            procedures = report_data.get('procedures', [])
+            
+            markdown_content = f"""# PATIENT DISCHARGE REPORT
+
+**Report Number:** {report_data.get('report_number', 'N/A')}  
+**Generated:** {report_data.get('created_at', 'N/A')}  
+
+## PATIENT INFORMATION
+
+- **Name:** {patient_summary.get('name', 'N/A')}
+- **Patient Number:** {patient_summary.get('patient_number', 'N/A')}
+- **Date of Birth:** {patient_summary.get('date_of_birth', 'N/A')}
+- **Gender:** {patient_summary.get('gender', 'N/A')}
+- **Blood Type:** {patient_summary.get('blood_type', 'N/A')}
+
+## ADMISSION DETAILS
+
+- **Admission Date:** {report_data.get('admission_date', 'N/A')}
+- **Discharge Date:** {report_data.get('discharge_date', 'N/A')}
+- **Length of Stay:** {report_data.get('length_of_stay_days', 'N/A')} days
+- **Bed:** {patient_summary.get('bed_number', 'N/A')}
+- **Room:** {patient_summary.get('room_number', 'N/A')}
+- **Department:** {patient_summary.get('department', 'N/A')}
+
+## TREATMENTS ADMINISTERED
+
+"""
+            if treatments:
+                for treatment in treatments:
+                    markdown_content += f"### {treatment.get('treatment_name', 'Unknown Treatment')}\n"
+                    markdown_content += f"- **Type:** {treatment.get('treatment_type', 'N/A')}\n"
+                    markdown_content += f"- **Description:** {treatment.get('description', 'N/A')}\n"
+                    markdown_content += f"- **Doctor:** {treatment.get('doctor', 'N/A')}\n"
+                    markdown_content += f"- **Status:** {treatment.get('status', 'N/A')}\n\n"
+            else:
+                markdown_content += "No treatments recorded.\n\n"
+
+            markdown_content += """## EQUIPMENT USAGE
+
+"""
+            if equipment_usage:
+                for equipment in equipment_usage:
+                    markdown_content += f"### {equipment.get('equipment_name', 'Unknown Equipment')}\n"
+                    markdown_content += f"- **Type:** {equipment.get('equipment_type', 'N/A')}\n"
+                    markdown_content += f"- **Purpose:** {equipment.get('purpose', 'N/A')}\n"
+                    markdown_content += f"- **Operated By:** {equipment.get('operated_by', 'N/A')}\n"
+                    markdown_content += f"- **Duration:** {equipment.get('duration_minutes', 'N/A')} minutes\n\n"
+            else:
+                markdown_content += "No equipment usage recorded.\n\n"
+
+            markdown_content += """## STAFF ASSIGNMENTS
+
+"""
+            if staff_assignments:
+                for staff in staff_assignments:
+                    markdown_content += f"### {staff.get('staff_name', 'Unknown Staff')}\n"
+                    markdown_content += f"- **Position:** {staff.get('position', 'N/A')}\n"
+                    markdown_content += f"- **Department:** {staff.get('department', 'N/A')}\n"
+                    markdown_content += f"- **Assignment Type:** {staff.get('assignment_type', 'N/A')}\n"
+                    markdown_content += f"- **Responsibilities:** {staff.get('responsibilities', 'N/A')}\n\n"
+            else:
+                markdown_content += "No staff assignments recorded.\n\n"
+
+            markdown_content += """## MEDICATIONS
+
+"""
+            if medications:
+                for medication in medications:
+                    markdown_content += f"### {medication.get('medication_name', 'Unknown Medication')}\n"
+                    markdown_content += f"- **Dosage:** {medication.get('dosage', 'N/A')}\n"
+                    markdown_content += f"- **Frequency:** {medication.get('frequency', 'N/A')}\n"
+                    markdown_content += f"- **Duration:** {medication.get('duration', 'N/A')}\n"
+                    markdown_content += f"- **Prescribed By:** {medication.get('prescribed_by', 'N/A')}\n\n"
+            else:
+                markdown_content += "No medications recorded.\n\n"
+
+            markdown_content += f"""## DISCHARGE INFORMATION
+
+**Discharge Condition:** {report_data.get('discharge_condition', 'N/A')}  
+**Discharge Destination:** {report_data.get('discharge_destination', 'N/A')}  
+
+### Discharge Instructions
+{report_data.get('discharge_instructions', 'No specific instructions provided.')}
+
+### Follow-up Required
+{report_data.get('follow_up_required', 'No follow-up specified.')}
+
+---
+*Report generated by Hospital Management System*
+"""
+            return markdown_content
+            
+        except Exception as e:
+            return f"Error generating markdown content: {str(e)}"
     
     def list_reports(self, 
                     status: str = "all", 
