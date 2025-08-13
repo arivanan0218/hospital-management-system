@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LogOut, User, Settings, Upload, FileText, History, CheckCircle } from 'lucide-react';
+import { LogOut, User, Settings, Upload, FileText, History, CheckCircle, Plus } from 'lucide-react';
 import DirectHttpAIMCPService from '../services/directHttpAiMcpService.js';
 import MedicalDocumentUpload from './MedicalDocumentUpload.jsx';
 import EnhancedMedicalDocumentUpload from './EnhancedMedicalDocumentUpload.jsx';
@@ -19,6 +19,7 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   const [connectionError, setConnectionError] = useState('');
   const [expandedThinking, setExpandedThinking] = useState({}); // Track which thinking messages are expanded
   const [isInputFocused, setIsInputFocused] = useState(false); // Track input focus state
+  const [showPlusMenu, setShowPlusMenu] = useState(false); // Track plus icon dropdown menu
   
   // Medical document features
   const [activeTab, setActiveTab] = useState('chat'); // chat, upload, history
@@ -64,6 +65,7 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   const messagesContainerRef = useRef(null);
   const lastMessageCountRef = useRef(0);
   const inputFieldRef = useRef(null); // Add ref for input field
+  const plusMenuRef = useRef(null); // Add ref for plus menu dropdown
 
   // Controlled scroll function
   const scrollToBottom = React.useCallback(() => {
@@ -105,6 +107,18 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isConnected]);
+
+  // Handle outside clicks for plus menu
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (plusMenuRef.current && !plusMenuRef.current.contains(event.target)) {
+        setShowPlusMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   /**
    * Initialize the AI-MCP service
@@ -1062,8 +1076,8 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
         </div>
       </div>
 
-      {/* Tab Navigation - Responsive */}
-      <div className="border-b border-gray-700 bg-[#1a1a1a]">
+      {/* Tab Navigation - Hidden since we're using plus menu */}
+      <div className="hidden border-b border-gray-700 bg-[#1a1a1a]">
         <div className="max-w-4xl mx-auto px-3 sm:px-4">
           <nav className="flex space-x-4 sm:space-x-8 overflow-x-auto">
             <button
@@ -1393,15 +1407,44 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
               <div className="flex items-center justify-between">
                 {/* Left Side - Plus and Tools Icons */}
                 <div className="flex items-center space-x-2 sm:space-x-3">
-                  {/* Plus Button */}
-                  <button
-                    className="text-gray-400 hover:text-white transition-colors p-1"
-                    title="Add attachment"
-                  >
-                    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                  </button>
+                  {/* Plus Button with Dropdown */}
+                  <div className="relative" ref={plusMenuRef}>
+                    <button
+                      onClick={() => setShowPlusMenu(!showPlusMenu)}
+                      className="text-gray-400 hover:text-white transition-colors p-1"
+                      title="Upload documents or view medical history"
+                    >
+                      <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+                    </button>
+                    
+                    {/* Dropdown Menu */}
+                    {showPlusMenu && (
+                      <div className="absolute bottom-full left-0 mb-2 bg-[#2a2a2a] border border-gray-600 rounded-lg shadow-xl min-w-48 z-50">
+                        <div className="py-2">
+                          <button
+                            onClick={() => {
+                              setActiveTab('upload');
+                              setShowPlusMenu(false);
+                            }}
+                            className="w-full px-4 py-2 text-left text-gray-300 hover:text-white hover:bg-[#3a3a3a] transition-colors flex items-center space-x-3"
+                          >
+                            <Upload className="w-4 h-4" />
+                            <span>Upload Documents</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              setActiveTab('history');
+                              setShowPlusMenu(false);
+                            }}
+                            className="w-full px-4 py-2 text-left text-gray-300 hover:text-white hover:bg-[#3a3a3a] transition-colors flex items-center space-x-3"
+                          >
+                            <History className="w-4 h-4" />
+                            <span>Medical History</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   
                   {/* Tools Button */}
                   <button
@@ -1456,6 +1499,17 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
         <div className="flex-1 overflow-y-auto bg-[#1a1a1a] p-3 sm:p-6">
           <div className="max-w-4xl mx-auto">
             <div className="mb-4 sm:mb-6">
+              {/* Back to Chat Button */}
+              <button
+                onClick={() => setActiveTab('chat')}
+                className="mb-4 flex items-center space-x-2 text-gray-400 hover:text-white transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                <span>Back to Chat</span>
+              </button>
+              
               <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">Upload Medical Documents</h2>
               <p className="text-sm sm:text-base text-gray-400">Upload patient medical documents for AI-powered analysis and history tracking.</p>
             </div>
@@ -1544,6 +1598,17 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
         <div className="flex-1 overflow-y-auto bg-[#1a1a1a] p-3 sm:p-6">
           <div className="max-w-4xl mx-auto">
             <div className="mb-4 sm:mb-6">
+              {/* Back to Chat Button */}
+              <button
+                onClick={() => setActiveTab('chat')}
+                className="mb-4 flex items-center space-x-2 text-gray-400 hover:text-white transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                <span>Back to Chat</span>
+              </button>
+              
               <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">Medical History</h2>
               <p className="text-sm sm:text-base text-gray-400">View comprehensive medical history extracted from uploaded documents.</p>
             </div>
