@@ -239,6 +239,7 @@ jobs:
           --name hospital-frontend \
           --network hospital-network \
           --restart unless-stopped \
+          -p 3000:3000 \
           324037286635.dkr.ecr.us-east-1.amazonaws.com/hospital-frontend:latest
         
         # Wait for containers to be healthy
@@ -259,20 +260,26 @@ jobs:
         # Test health endpoints directly
         echo "🧪 Testing backend health..."
         backend_health=false
-        if sudo docker exec hospital-backend curl -f http://localhost:8000/health 2>/dev/null; then
+        if curl -f http://localhost:8000/health 2>/dev/null; then
           echo "✅ Backend is healthy"
           backend_health=true
         else
-          echo "⚠️ Backend health check failed"
+          echo "⚠️ Backend health check failed, checking if container is running..."
+          if sudo docker ps | grep -q hospital-backend; then
+            echo "Backend container is running but health endpoint not responding"
+          fi
         fi
         
         echo "🧪 Testing frontend availability..."
         frontend_health=false
-        if sudo docker exec hospital-frontend curl -f http://localhost:3000 2>/dev/null; then
+        if curl -f http://localhost:3000 2>/dev/null; then
           echo "✅ Frontend is healthy"
           frontend_health=true
         else
-          echo "⚠️ Frontend health check failed"
+          echo "⚠️ Frontend health check failed, checking if container is running..."
+          if sudo docker ps | grep -q hospital-frontend; then
+            echo "Frontend container is running but not responding on port 3000"
+          fi
         fi
         
         # Overall health check
