@@ -796,6 +796,74 @@ def list_discharge_reports(patient_id: str = None) -> Dict[str, Any]:
     
     return {"error": "Multi-agent system required for listing discharge reports"}
 
+@mcp.tool()
+def download_discharge_report(report_number: str, download_format: str = "pdf") -> Dict[str, Any]:
+    """Download a discharge report in the specified format.
+    
+    Args:
+        report_number: The report number to download
+        download_format: Format for download - "pdf", "markdown", or "zip" (default: pdf)
+    """
+    try:
+        from report_manager import download_discharge_report as download_report_func
+        result = download_report_func(report_number, format=download_format)  # Fix parameter name
+        return result
+    except Exception as e:
+        return {"success": False, "error": str(e), "message": f"Failed to download report: {str(e)}"}
+
+@mcp.tool()
+def get_discharge_report_storage_stats() -> Dict[str, Any]:
+    """Get storage statistics for discharge reports system."""
+    try:
+        from report_manager import ReportManager
+        manager = ReportManager()
+        result = manager.get_storage_stats()
+        return result
+    except Exception as e:
+        return {"success": False, "error": str(e), "message": f"Failed to get storage stats: {str(e)}"}
+
+@mcp.tool()
+def list_available_discharge_reports(status: str = "all", patient_name: str = None, 
+                                   from_date: str = None, to_date: str = None, 
+                                   limit: int = 50) -> Dict[str, Any]:
+    """List available discharge reports with filtering options.
+    
+    Args:
+        status: Report status filter - "current", "archived", or "all" (default: all)
+        patient_name: Filter by patient name (partial match, optional)
+        from_date: Start date filter in YYYY-MM-DD format (optional)
+        to_date: End date filter in YYYY-MM-DD format (optional)
+        limit: Maximum number of reports to return (default: 50)
+    """
+    try:
+        from report_manager import ReportManager
+        manager = ReportManager()
+        reports = manager.list_reports(
+            status=status, 
+            patient_name=patient_name,
+            from_date=from_date, 
+            to_date=to_date, 
+            limit=limit
+        )
+        return {"success": True, "data": reports, "count": len(reports)}
+    except Exception as e:
+        return {"success": False, "error": str(e), "message": f"Failed to list reports: {str(e)}"}
+
+@mcp.tool()
+def archive_old_discharge_reports(days_old: int = 30) -> Dict[str, Any]:
+    """Archive discharge reports older than specified days.
+    
+    Args:
+        days_old: Reports older than this many days will be archived (default: 30)
+    """
+    try:
+        from report_manager import ReportManager
+        manager = ReportManager()
+        result = manager.archive_old_reports(days_old)
+        return result
+    except Exception as e:
+        return {"success": False, "error": str(e), "message": f"Failed to archive reports: {str(e)}"}
+
 # ================================
 # HTTP ENDPOINTS FOR FRONTEND
 # ================================
@@ -823,7 +891,9 @@ async def call_tool_http(request: Request):
             raise HTTPException(status_code=400, detail="Tool name is required")
         
         # System-level tools that should not be routed through orchestrator
-        system_tools = ["get_system_status", "get_agent_info", "list_agents", "execute_workflow"]
+        system_tools = ["get_system_status", "get_agent_info", "list_agents", "execute_workflow", 
+                       "download_discharge_report", "get_discharge_report_storage_stats", 
+                       "list_available_discharge_reports", "archive_old_discharge_reports"]
         
         if tool_name in system_tools:
             # Handle system tools directly
@@ -835,6 +905,14 @@ async def call_tool_http(request: Request):
                 result = list_agents()
             elif tool_name == "execute_workflow":
                 result = execute_workflow(**arguments)
+            elif tool_name == "download_discharge_report":
+                result = download_discharge_report(**arguments)
+            elif tool_name == "get_discharge_report_storage_stats":
+                result = get_discharge_report_storage_stats(**arguments)
+            elif tool_name == "list_available_discharge_reports":
+                result = list_available_discharge_reports(**arguments)
+            elif tool_name == "archive_old_discharge_reports":
+                result = archive_old_discharge_reports(**arguments)
             else:
                 result = {"error": f"System tool {tool_name} not implemented"}
         else:

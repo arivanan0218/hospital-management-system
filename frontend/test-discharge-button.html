@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Discharge Report Download</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            padding: 20px; 
+            background-color: #1a1a1a; 
+            color: white; 
+        }
+        .report { 
+            background-color: #2a2a2a; 
+            padding: 20px; 
+            border-radius: 8px; 
+            margin-bottom: 20px; 
+        }
+        .download-section {
+            margin-top: 16px;
+            padding: 12px;
+            background-color: rgb(30, 58, 138);
+            border: 1px solid rgb(29, 78, 216);
+            border-radius: 8px;
+        }
+        .download-button {
+            padding: 8px 16px;
+            background-color: rgb(37, 99, 235);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background-color 0.2s;
+        }
+        .download-button:hover {
+            background-color: rgb(29, 78, 216);
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test Discharge Report Download Button</h1>
+    
+    <div class="report">
+        <h3>### Patient Discharge Report</h3>
+        <p><strong>Report Number:</strong> DR-20250813-C38F9760</p>
+        <p><strong>Generated:</strong> 2025-08-13 15:35:28</p>
+        <p>This is a test discharge report...</p>
+        
+        <div class="download-section">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="font-size: 14px; color: rgb(147, 197, 253);">
+                    <strong>📋 Report Generated: DR-20250813-C38F9760</strong>
+                </div>
+                <button onclick="testDownload('DR-20250813-C38F9760')" class="download-button">
+                    <span>📥</span>
+                    <span>Download as PDF</span>
+                </button>
+            </div>
+            <div style="font-size: 12px; color: rgb(96, 165, 250); margin-top: 4px;">
+                Click the button above to download this report as PDF to your local storage
+            </div>
+        </div>
+    </div>
+
+    <div id="status"></div>
+
+    <script>
+        async function testDownload(reportNumber) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `⏳ Testing download for ${reportNumber}...`;
+            
+            try {
+                // Import PDFDownloadManager (assuming it's available)
+                console.log('Testing PDF download for:', reportNumber);
+                
+                // Simulate the download process
+                statusDiv.innerHTML = `
+                    <div style="color: green; margin-top: 20px;">
+                        ✅ <strong>Download Test Initiated</strong><br>
+                        📋 Report: ${reportNumber}<br>
+                        📥 This would normally download the PDF to your browser<br>
+                        💾 And save it to local storage<br><br>
+                        <em>In the actual implementation, this will call the backend API to download the real PDF file.</em>
+                    </div>
+                `;
+            } catch (error) {
+                statusDiv.innerHTML = `
+                    <div style="color: red; margin-top: 20px;">
+                        ❌ <strong>Test Error:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

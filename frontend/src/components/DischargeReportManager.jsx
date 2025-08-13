@@ -37,8 +37,11 @@ const DischargeReportManager = ({ aiMcpService }) => {
 
       // Get list of discharge reports from server
       const result = await aiMcpService.mcpClient.callTool(
-        'mcp_hospital-mana_list_discharge_reports',
-        {}
+        'list_available_discharge_reports',
+        {
+          status: 'all',
+          limit: 50
+        }
       );
 
       if (result.success && result.data) {

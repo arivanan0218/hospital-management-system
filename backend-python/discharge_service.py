@@ -83,6 +83,15 @@ class PatientDischargeReportGenerator:
             # Create discharge report record
             report_number = f"DR-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
             
+            # Get or find a user for generated_by
+            if not generated_by_user_id:
+                # Try to find a doctor or any user as fallback
+                default_user = self.session.query(User).filter(User.role == 'doctor').first()
+                if not default_user:
+                    default_user = self.session.query(User).first()
+                if default_user:
+                    generated_by_user_id = str(default_user.id)
+            
             discharge_report = DischargeReport(
                 patient_id=patient.id,
                 bed_id=uuid.UUID(bed_id),

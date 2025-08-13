@@ -20,16 +20,20 @@ class PDFDownloadManager {
       console.log('📥 Downloading discharge report PDF:', reportNumber);
       
       // Make API call to download PDF
-      const response = await fetch('http://localhost:8080/api/mcp/call', {
+      const response = await fetch('http://localhost:8000/tools/call', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          method: 'mcp_hospital-mana_download_discharge_report',
+          jsonrpc: "2.0",
+          id: 1,
           params: {
-            report_number: reportNumber,
-            download_format: 'pdf'
+            name: 'download_discharge_report',
+            arguments: {
+              report_number: reportNumber,
+              download_format: 'pdf'
+            }
           }
         })
       });
@@ -40,11 +44,21 @@ class PDFDownloadManager {
 
       const result = await response.json();
       
-      if (!result.success || !result.data?.success) {
-        throw new Error(result.error || 'Failed to download PDF');
+      // Parse MCP JSON-RPC response
+      if (result.error) {
+        throw new Error(result.error.message || 'MCP API error');
       }
-
-      const pdfData = result.data;
+      
+      if (!result.result?.content?.[0]?.text) {
+        throw new Error('Invalid MCP response format');
+      }
+      
+      // Parse the text content which contains the actual result
+      const pdfData = JSON.parse(result.result.content[0].text);
+      
+      if (!pdfData.success) {
+        throw new Error(pdfData.error || pdfData.message || 'Failed to download PDF');
+      }
       console.log('✅ PDF download response:', pdfData);
 
       // Get the actual PDF file
@@ -96,8 +110,9 @@ class PDFDownloadManager {
    */
   async fetchPDFFile(filePath) {
     // Convert Windows path to URL-friendly path
+    // The server serves from 'reports' directory as root, so remove 'reports\' or 'reports/'
     const urlPath = filePath.replace(/\\/g, '/').replace(/^reports\//, '');
-    const pdfUrl = `http://localhost:3000/reports/${urlPath}`;
+    const pdfUrl = `http://localhost:3000/${urlPath}`;
     
     console.log('📡 Fetching PDF from:', pdfUrl);
     
