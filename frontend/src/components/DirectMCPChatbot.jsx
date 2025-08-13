@@ -997,13 +997,13 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
             <div className="flex items-center space-x-1">
               {/* Mobile: Show only essential buttons */}
               <div className="flex items-center space-x-1 sm:hidden">
-                <button
+                {/* <button
                   onClick={() => setShowSetup(true)}
                   className="p-1.5 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors"
                   title="Settings"
                 >
                   <Settings className="w-4 h-4" />
-                </button>
+                </button> */}
                 <button
                   onClick={onLogout}
                   className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded-md transition-colors"
