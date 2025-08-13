@@ -42,22 +42,48 @@ class StaffAgent(BaseAgent):
             "Staff performance monitoring"
         ]
     
-    def create_staff(self, user_id: str, employee_id: str, department_id: str, position: str,
+    def create_staff(self, first_name: str, last_name: str, role: str, department_id: str,
+                    employee_id: str = None, phone: str = None, email: str = None,
                     hire_date: str = None, salary: float = None, status: str = "active") -> Dict[str, Any]:
-        """Create a new staff record."""
+        """Create a new staff record with associated user account."""
         if not DATABASE_AVAILABLE:
             return {"success": False, "message": "Database not available"}
         
         try:
+            # Generate employee ID if not provided
+            if not employee_id:
+                import random
+                employee_id = f"EMP{random.randint(1000, 9999)}"
+            
             # Parse hire date
             hire_dt = datetime.strptime(hire_date, "%Y-%m-%d").date() if hire_date else date.today()
             
+            # Generate default username and email if not provided
+            username = f"{first_name.lower()}.{last_name.lower()}".replace(" ", "")
+            if not email:
+                email = f"{username}@hospital.com"
+            
             db = self.get_db_session()
+            
+            # First create the User record
+            user = User(
+                username=username,
+                email=email,
+                password_hash="default_hash",  # Should be properly hashed in production
+                role=role,
+                first_name=first_name,
+                last_name=last_name,
+                phone=phone
+            )
+            db.add(user)
+            db.flush()  # Flush to get the user ID without committing
+            
+            # Then create the Staff record
             staff = Staff(
-                user_id=uuid.UUID(user_id),
+                user_id=user.id,
                 employee_id=employee_id,
                 department_id=uuid.UUID(department_id),
-                position=position,
+                position=role,  # Use role as position
                 hire_date=hire_dt,
                 salary=salary,
                 status=status
@@ -65,12 +91,21 @@ class StaffAgent(BaseAgent):
             db.add(staff)
             db.commit()
             db.refresh(staff)
+            db.refresh(user)
+            
+            # Create combined result with both user and staff info
             result = self.serialize_model(staff)
+            result['first_name'] = user.first_name
+            result['last_name'] = user.last_name
+            result['email'] = user.email
+            result['phone'] = user.phone
+            result['username'] = user.username
+            
             db.close()
             
             # Log the interaction
             self.log_interaction(
-                query=f"Create staff: {employee_id} - {position}",
+                query=f"Create staff: {employee_id} - {first_name} {last_name} ({role})",
                 response=f"Staff record created successfully with ID: {result['id']}",
                 tool_used="create_staff"
             )
