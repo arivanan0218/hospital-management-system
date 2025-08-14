@@ -7,16 +7,10 @@ Additional tables needed to track comprehensive patient care data.
 
 from sqlalchemy import Column, String, DateTime, Text, DECIMAL, ForeignKey, Integer
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship, declarative_base
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from database import Base
 import uuid
-
-# Use the same Base that database.py uses
-try:
-    from database import Base
-except ImportError:
-    # Fallback in case of circular import
-    Base = declarative_base()
 
 class TreatmentRecord(Base):
     """Treatment record table - tracks all treatments given to patients."""
