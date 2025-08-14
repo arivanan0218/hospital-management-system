@@ -17,6 +17,8 @@ try:
     from .inventory_agent import InventoryAgent
     from .appointment_agent import AppointmentAgent
     from .medical_document_agent import MedicalDocumentAgent
+    from .meeting_agent import MeetingAgent  # NEW
+    from .discharge_agent import DischargeAgent  # NEW
     AGENTS_AVAILABLE = True
 except ImportError:
     AGENTS_AVAILABLE = False
@@ -48,7 +50,9 @@ class OrchestratorAgent(BaseAgent):
                 "equipment": EquipmentAgent(),
                 "inventory": InventoryAgent(),
                 "appointment": AppointmentAgent(),
-                "medical_document": MedicalDocumentAgent()
+                "medical_document": MedicalDocumentAgent(),
+                "meeting": MeetingAgent(),  # NEW
+                "discharge": DischargeAgent(),  # NEW
             }
             print(f"✅ Initialized {len(self.agents)} specialized agents")
         except Exception as e:

@@ -738,12 +738,19 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   };
 
   /**
-   * Format message text to render markdown formatting
+   * Format message text to render markdown formatting and detect discharge reports
    */
   const formatMessageText = (text) => {
     if (!text) return '';
     
-    return text
+    // Check if this message contains a discharge report (but exclude download success messages)
+    const isDischargeReport = (text.includes('### Patient Discharge Report') || 
+                              text.includes('**Report Number:**') || 
+                              text.match(/DR-\d{8}-[A-F0-9]{8}/)) &&
+                              !text.includes('PDF Download Complete') &&
+                              !text.includes('downloaded to your Downloads folder');
+    
+    let formattedText = text
       // Bold formatting: **text** -> <strong>text</strong>
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       // Italic formatting: *text* -> <em>text</em>
@@ -754,7 +761,127 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
       .replace(/^• (.*$)/gm, '<div class="ml-4">• $1</div>')
       // Handle double spaces
       .replace(/\s{2}/g, '&nbsp;&nbsp;');
+    
+    // If this is a discharge report, extract the report number and add download button
+    if (isDischargeReport) {
+      const reportNumberMatch = text.match(/DR-\d{8}-[A-F0-9]{8}/);
+      if (reportNumberMatch && !formattedText.includes('downloadDischargeReportPDF')) {
+        const reportNumber = reportNumberMatch[0];
+        
+        // Add download button HTML after the formatted text
+        formattedText += `
+          <div class="mt-1 px-3 py-1.5 bg-gray-800 border border-gray-600 rounded-lg">
+            <div class="flex items-center justify-between">
+              <div class="text-xs text-gray-300 flex items-center space-x-1.5">
+                <span class="w-1.5 h-1.5 bg-green-400 rounded-full"></span>
+                <span><strong>Report Generated: ${reportNumber}</strong></span>
+              </div>
+              <button 
+                onclick="downloadDischargeReportPDF('${reportNumber}')"
+                class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-lg font-medium transition-all duration-200 flex items-center space-x-1.5 shadow-md hover:shadow-lg"
+                title="Download this discharge report as PDF"
+              >
+                <span class="text-xs">📥</span>
+                <span>Download as PDF</span>
+              </button>
+            </div>
+          </div>
+        `;
+      }
+    }
+    
+    return formattedText;
   };
+
+  /**
+   * Download discharge report as PDF - called from dynamically generated buttons
+   */
+  const downloadDischargeReportPDF = async (reportNumber) => {
+    try {
+      console.log('📥 Downloading discharge report PDF:', reportNumber);
+      
+      // Show loading message in chat
+      const loadingMessage = {
+        id: Date.now() + Math.random(),
+        text: `⏳ Downloading discharge report ${reportNumber} as PDF...`,
+        sender: 'assistant',
+        timestamp: new Date(),
+        isLoading: true
+      };
+      setMessages(prev => [...prev, loadingMessage]);
+      
+      // Import PDFDownloadManager
+      const PDFDownloadManager = (await import('../utils/pdfDownloadManager.js')).default;
+      const pdfManager = new PDFDownloadManager();
+      
+      // Extract patient name from the last few messages if available
+      let patientName = 'Patient';
+      const recentMessages = messages.slice(-5);
+      for (const msg of recentMessages) {
+        const nameMatch = msg.text.match(/Patient:\s*([^,\n]+)/i) || 
+                         msg.text.match(/Name:\s*([^,\n]+)/i) ||
+                         msg.text.match(/\*\*Name:\*\*\s*([^,\n]+)/i);
+        if (nameMatch) {
+          patientName = nameMatch[1].trim();
+          break;
+        }
+      }
+      
+      // Download the PDF
+      const result = await pdfManager.downloadDischargeReportPDF(reportNumber, patientName);
+      
+      // Remove loading message
+      setMessages(prev => prev.filter(msg => msg.id !== loadingMessage.id));
+      
+      if (result.success) {
+        // Add success message
+        const successMessage = {
+          id: Date.now() + Math.random(),
+          text: `✅ **PDF Download Complete**\n\n📁 **File:** ${result.filename}\n📊 **Size:** ${pdfManager.formatBytes(result.fileSize)}\n💾 **Saved to:** Local browser storage\n\n🎯 The PDF has been automatically downloaded to your Downloads folder and saved in local storage for future access.`,
+          sender: 'assistant',
+          timestamp: new Date(),
+          isFinalAnswer: true
+        };
+        setMessages(prev => [...prev, successMessage]);
+      } else {
+        // Add error message
+        const errorMessage = {
+          id: Date.now() + Math.random(),
+          text: `❌ **Download Failed**\n\nError: ${result.error}\n\nPlease try again or contact support if the issue persists.`,
+          sender: 'assistant',
+          timestamp: new Date(),
+          isError: true
+        };
+        setMessages(prev => [...prev, errorMessage]);
+      }
+      
+    } catch (error) {
+      console.error('❌ PDF download error:', error);
+      
+      // Remove any loading messages
+      setMessages(prev => prev.filter(msg => !msg.isLoading));
+      
+      // Add error message
+      const errorMessage = {
+        id: Date.now() + Math.random(),
+        text: `❌ **Download Error**\n\nFailed to download PDF: ${error.message}\n\nPlease try again later.`,
+        sender: 'assistant',
+        timestamp: new Date(),
+        isError: true
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    }
+  };
+
+  // Make the download function globally accessible for the dynamically generated buttons
+  useEffect(() => {
+    window.downloadDischargeReportPDF = downloadDischargeReportPDF;
+    
+    // Cleanup when component unmounts
+    return () => {
+      delete window.downloadDischargeReportPDF;
+    };
+  }, [messages]); // Re-register when messages change to capture current state
 
   /**
    * Handle sending messages with Claude-style conversation flow

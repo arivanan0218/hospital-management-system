@@ -14,6 +14,7 @@ from mcp.server.fastmcp import FastMCP
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 # Import database modules
 try:
@@ -525,13 +526,353 @@ def get_medical_timeline(patient_id: str) -> Dict[str, Any]:
     return {"error": "Multi-agent system required for this operation"}
 
 # ================================
+# MEETING SCHEDULING TOOLS
+# ================================
+
+@mcp.tool()
+def schedule_meeting(query: str) -> Dict[str, Any]:
+    """Schedule a meeting using natural language.
+    
+    Args:
+        query: Natural language description of the meeting to schedule
+               (e.g., "Schedule a patient consultation with Dr. Smith tomorrow at 2 PM")
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("schedule_meeting", query=query)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for meeting scheduling"}
+
+@mcp.tool()
+def list_meetings(date_str: str = None, days_ahead: int = 7) -> Dict[str, Any]:
+    """List meetings with optional date filter.
+    
+    Args:
+        date_str: Specific date in YYYY-MM-DD format (optional)
+        days_ahead: Number of days ahead to look for upcoming meetings (default 7)
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("list_meetings",
+                                           date_str=date_str,
+                                           days_ahead=days_ahead)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for listing meetings"}
+
+@mcp.tool()
+def get_meeting_by_id(meeting_id: str) -> Dict[str, Any]:
+    """Get detailed information about a specific meeting.
+    
+    Args:
+        meeting_id: The ID of the meeting to retrieve
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("get_meeting_by_id", meeting_id=meeting_id)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for meeting retrieval"}
+
+@mcp.tool()
+def update_meeting_status(meeting_id: str, status: str) -> Dict[str, Any]:
+    """Update the status of a meeting.
+    
+    Args:
+        meeting_id: The ID of the meeting to update
+        status: New status (scheduled, in_progress, completed, cancelled)
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("update_meeting_status",
+                                           meeting_id=meeting_id,
+                                           status=status)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for meeting updates"}
+
+@mcp.tool()
+def add_meeting_notes(meeting_id: str, notes: str, action_items: str = None) -> Dict[str, Any]:
+    """Add notes to a meeting.
+    
+    Args:
+        meeting_id: The ID of the meeting
+        notes: The notes to add
+        action_items: Optional action items from the meeting
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("add_meeting_notes",
+                                           meeting_id=meeting_id,
+                                           notes=notes,
+                                           action_items=action_items)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for adding meeting notes"}
+
+@mcp.tool()
+def send_email(to_emails: str, subject: str, message: str, from_name: str = "Hospital Management System") -> Dict[str, Any]:
+    """Send email notifications to staff members.
+    
+    Args:
+        to_emails: Comma-separated list of email addresses
+        subject: Email subject line
+        message: Email message content
+        from_name: Sender name (default: Hospital Management System)
+    """
+    try:
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        from dotenv import load_dotenv
+        import os
+        
+        # Load email configuration
+        load_dotenv()
+        
+        smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
+        smtp_port = int(os.getenv('SMTP_PORT', '587'))
+        email_username = os.getenv('EMAIL_USERNAME')
+        email_password = os.getenv('EMAIL_PASSWORD')
+        from_email = os.getenv('EMAIL_FROM_ADDRESS', email_username)
+        
+        if not email_username or not email_password:
+            return {"success": False, "message": "Email credentials not configured"}
+        
+        # Parse email addresses
+        email_list = [email.strip() for email in to_emails.split(',')]
+        
+        # Create email message
+        msg = MIMEMultipart()
+        msg['From'] = f"{from_name} <{from_email}>"
+        msg['Subject'] = subject
+        msg.attach(MIMEText(message, 'plain'))
+        
+        # Send emails
+        sent_count = 0
+        failed_emails = []
+        
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()
+            server.login(email_username, email_password)
+            
+            for email_addr in email_list:
+                try:
+                    msg['To'] = email_addr
+                    server.send_message(msg)
+                    sent_count += 1
+                except Exception as e:
+                    failed_emails.append(f"{email_addr}: {str(e)}")
+                finally:
+                    del msg['To']  # Remove for next iteration
+        
+        return {
+            "success": True,
+            "message": f"Sent {sent_count}/{len(email_list)} emails successfully",
+            "sent_count": sent_count,
+            "total_emails": len(email_list),
+            "failed_emails": failed_emails
+        }
+        
+    except Exception as e:
+        return {"success": False, "message": f"Email sending failed: {str(e)}"}
+
+# ================================
+# DISCHARGE REPORT TOOLS
+# ================================
+
+@mcp.tool()
+def generate_discharge_report(
+    bed_id: str,
+    discharge_condition: str = "stable",
+    discharge_destination: str = "home"
+) -> Dict[str, Any]:
+    """Generate a comprehensive patient discharge report.
+    
+    Args:
+        bed_id: The bed ID where the patient is located
+        discharge_condition: Condition of patient at discharge (default: stable)
+        discharge_destination: Where patient is going (default: home)
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("generate_discharge_report",
+                                           bed_id=bed_id,
+                                           discharge_condition=discharge_condition,
+                                           discharge_destination=discharge_destination)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for discharge report generation"}
+
+@mcp.tool()
+def add_treatment_record_simple(
+    patient_id: str,
+    doctor_id: str,
+    treatment_type: str,
+    treatment_name: str
+) -> Dict[str, Any]:
+    """Add a simple treatment record for discharge reporting.
+    
+    Args:
+        patient_id: The ID of the patient
+        doctor_id: The ID of the doctor who provided treatment
+        treatment_type: Type of treatment
+        treatment_name: Name of the treatment
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("add_treatment_record_simple",
+                                           patient_id=patient_id,
+                                           doctor_id=doctor_id,
+                                           treatment_type=treatment_type,
+                                           treatment_name=treatment_name)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for adding treatment records"}
+
+@mcp.tool()
+def add_equipment_usage_simple(
+    patient_id: str,
+    equipment_id: str,
+    staff_id: str,
+    purpose: str
+) -> Dict[str, Any]:
+    """Add equipment usage record for discharge reporting.
+    
+    Args:
+        patient_id: The ID of the patient
+        equipment_id: The ID of the equipment used
+        staff_id: The ID of the staff member who used the equipment
+        purpose: Purpose of equipment usage
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("add_equipment_usage_simple",
+                                           patient_id=patient_id,
+                                           equipment_id=equipment_id,
+                                           staff_id=staff_id,
+                                           purpose=purpose)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for adding equipment usage records"}
+
+@mcp.tool()
+def assign_staff_to_patient_simple(
+    patient_id: str,
+    staff_id: str,
+    role: str
+) -> Dict[str, Any]:
+    """Assign staff to patient for discharge reporting.
+    
+    Args:
+        patient_id: The ID of the patient
+        staff_id: The ID of the staff member
+        role: Role of staff member in patient care
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("assign_staff_to_patient_simple",
+                                           patient_id=patient_id,
+                                           staff_id=staff_id,
+                                           role=role)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for staff assignment"}
+
+@mcp.tool()
+def complete_equipment_usage_simple(usage_id: str) -> Dict[str, Any]:
+    """Complete equipment usage record.
+    
+    Args:
+        usage_id: The ID of the equipment usage record to complete
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("complete_equipment_usage_simple", usage_id=usage_id)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for completing equipment usage"}
+
+@mcp.tool()
+def list_discharge_reports(patient_id: str = None) -> Dict[str, Any]:
+    """List discharge reports.
+    
+    Args:
+        patient_id: Filter by patient ID (optional)
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("list_discharge_reports", patient_id=patient_id)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for listing discharge reports"}
+
+@mcp.tool()
+def download_discharge_report(report_number: str, download_format: str = "pdf") -> Dict[str, Any]:
+    """Download a discharge report in the specified format.
+    
+    Args:
+        report_number: The report number to download
+        download_format: Format for download - "pdf", "markdown", or "zip" (default: pdf)
+    """
+    try:
+        from report_manager import download_discharge_report as download_report_func
+        result = download_report_func(report_number, format=download_format)  # Fix parameter name
+        return result
+    except Exception as e:
+        return {"success": False, "error": str(e), "message": f"Failed to download report: {str(e)}"}
+
+@mcp.tool()
+def get_discharge_report_storage_stats() -> Dict[str, Any]:
+    """Get storage statistics for discharge reports system."""
+    try:
+        from report_manager import ReportManager
+        manager = ReportManager()
+        result = manager.get_storage_stats()
+        return result
+    except Exception as e:
+        return {"success": False, "error": str(e), "message": f"Failed to get storage stats: {str(e)}"}
+
+@mcp.tool()
+def list_available_discharge_reports(status: str = "all", patient_name: str = None, 
+                                   from_date: str = None, to_date: str = None, 
+                                   limit: int = 50) -> Dict[str, Any]:
+    """List available discharge reports with filtering options.
+    
+    Args:
+        status: Report status filter - "current", "archived", or "all" (default: all)
+        patient_name: Filter by patient name (partial match, optional)
+        from_date: Start date filter in YYYY-MM-DD format (optional)
+        to_date: End date filter in YYYY-MM-DD format (optional)
+        limit: Maximum number of reports to return (default: 50)
+    """
+    try:
+        from report_manager import ReportManager
+        manager = ReportManager()
+        reports = manager.list_reports(
+            status=status, 
+            patient_name=patient_name,
+            from_date=from_date, 
+            to_date=to_date, 
+            limit=limit
+        )
+        return {"success": True, "data": reports, "count": len(reports)}
+    except Exception as e:
+        return {"success": False, "error": str(e), "message": f"Failed to list reports: {str(e)}"}
+
+@mcp.tool()
+def archive_old_discharge_reports(days_old: int = 30) -> Dict[str, Any]:
+    """Archive discharge reports older than specified days.
+    
+    Args:
+        days_old: Reports older than this many days will be archived (default: 30)
+    """
+    try:
+        from report_manager import ReportManager
+        manager = ReportManager()
+        result = manager.archive_old_reports(days_old)
+        return result
+    except Exception as e:
+        return {"success": False, "error": str(e), "message": f"Failed to archive reports: {str(e)}"}
+
+# ================================
 # HTTP ENDPOINTS FOR FRONTEND
 # ================================
 
 # Define request model for tool calls
 from pydantic import BaseModel
 from fastapi import HTTPException, Request, Response
-from starlette.routing import Route
+from starlette.routing import Route, Mount
 from starlette.responses import JSONResponse
 
 class ToolCallRequest(BaseModel):
@@ -551,7 +892,9 @@ async def call_tool_http(request: Request):
             raise HTTPException(status_code=400, detail="Tool name is required")
         
         # System-level tools that should not be routed through orchestrator
-        system_tools = ["get_system_status", "get_agent_info", "list_agents", "execute_workflow"]
+        system_tools = ["get_system_status", "get_agent_info", "list_agents", "execute_workflow", 
+                       "download_discharge_report", "get_discharge_report_storage_stats", 
+                       "list_available_discharge_reports", "archive_old_discharge_reports"]
         
         if tool_name in system_tools:
             # Handle system tools directly
@@ -563,6 +906,14 @@ async def call_tool_http(request: Request):
                 result = list_agents()
             elif tool_name == "execute_workflow":
                 result = execute_workflow(**arguments)
+            elif tool_name == "download_discharge_report":
+                result = download_discharge_report(**arguments)
+            elif tool_name == "get_discharge_report_storage_stats":
+                result = get_discharge_report_storage_stats(**arguments)
+            elif tool_name == "list_available_discharge_reports":
+                result = list_available_discharge_reports(**arguments)
+            elif tool_name == "archive_old_discharge_reports":
+                result = archive_old_discharge_reports(**arguments)
             else:
                 result = {"error": f"System tool {tool_name} not implemented"}
         else:
@@ -690,10 +1041,14 @@ if __name__ == "__main__":
         print("   Health check: http://0.0.0.0:8000/health")
         
         # Add custom routes to the Starlette app
+        import os
+        reports_dir = os.path.join(os.path.dirname(__file__), "reports", "discharge")
+        
         custom_routes = [
             Route("/tools/call", call_tool_http, methods=["POST"]),
             Route("/tools/list", list_tools_http, methods=["GET"]),
             Route("/health", health_check, methods=["GET"]),
+            Mount("/discharge", StaticFiles(directory=reports_dir), name="static"),
         ]
         
         # Add routes to existing app
