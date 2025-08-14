@@ -24,6 +24,180 @@ class DirectHttpAIMCPService {
     this.previousQuestions = []; // Track user's previous questions for duplicate detection
   }
 
+  /**
+   * Calculate Levenshtein distance for fuzzy matching
+   */
+  calculateLevenshteinDistance(str1, str2) {
+    const matrix = [];
+    
+    // Initialize matrix
+    for (let i = 0; i <= str2.length; i++) {
+      matrix[i] = [i];
+    }
+    for (let j = 0; j <= str1.length; j++) {
+      matrix[0][j] = j;
+    }
+    
+    // Fill matrix
+    for (let i = 1; i <= str2.length; i++) {
+      for (let j = 1; j <= str1.length; j++) {
+        if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+          matrix[i][j] = matrix[i - 1][j - 1];
+        } else {
+          matrix[i][j] = Math.min(
+            matrix[i - 1][j - 1] + 1, // substitution
+            matrix[i][j - 1] + 1,     // insertion
+            matrix[i - 1][j] + 1      // deletion
+          );
+        }
+      }
+    }
+    
+    return matrix[str2.length][str1.length];
+  }
+
+  /**
+   * Calculate similarity percentage between two strings
+   */
+  calculateSimilarity(str1, str2) {
+    const distance = this.calculateLevenshteinDistance(str1.toLowerCase(), str2.toLowerCase());
+    const maxLength = Math.max(str1.length, str2.length);
+    return ((maxLength - distance) / maxLength) * 100;
+  }
+
+  /**
+   * Find similar patient names using fuzzy matching
+   */
+  async findSimilarPatientNames(searchName, threshold = 70) {
+    try {
+      // First get all patients
+      const allPatientsResult = await this.mcpClient.callTool('list_patients', {});
+      
+      if (!allPatientsResult.content || !Array.isArray(allPatientsResult.content)) {
+        return [];
+      }
+
+      const patients = allPatientsResult.content;
+      const matches = [];
+
+      // Check each patient for similar names
+      for (const patient of patients) {
+        const fullName = `${patient.first_name} ${patient.last_name}`.trim();
+        const firstNameSimilarity = this.calculateSimilarity(searchName, patient.first_name);
+        const lastNameSimilarity = this.calculateSimilarity(searchName, patient.last_name);
+        const fullNameSimilarity = this.calculateSimilarity(searchName, fullName);
+
+        // Check if any name component has similarity above threshold
+        const maxSimilarity = Math.max(firstNameSimilarity, lastNameSimilarity, fullNameSimilarity);
+        
+        if (maxSimilarity >= threshold) {
+          matches.push({
+            patient,
+            similarity: maxSimilarity,
+            matchType: maxSimilarity === firstNameSimilarity ? 'first_name' : 
+                      maxSimilarity === lastNameSimilarity ? 'last_name' : 'full_name'
+          });
+        }
+      }
+
+      // Sort by similarity (highest first)
+      matches.sort((a, b) => b.similarity - a.similarity);
+      
+      return matches;
+    } catch (error) {
+      console.error('Error finding similar patient names:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Find similar doctor/staff names using fuzzy matching
+   */
+  async findSimilarDoctorNames(searchName, threshold = 70) {
+    try {
+      // First get all staff
+      const allStaffResult = await this.mcpClient.callTool('list_staff', {});
+      
+      if (!allStaffResult.content || !Array.isArray(allStaffResult.content)) {
+        return [];
+      }
+
+      const staff = allStaffResult.content;
+      const matches = [];
+
+      // Check each staff member for similar names (doctors and all staff)
+      for (const member of staff) {
+        const fullName = `${member.first_name} ${member.last_name}`.trim();
+        const firstNameSimilarity = this.calculateSimilarity(searchName, member.first_name);
+        const lastNameSimilarity = this.calculateSimilarity(searchName, member.last_name);
+        const fullNameSimilarity = this.calculateSimilarity(searchName, fullName);
+
+        // Check if any name component has similarity above threshold
+        const maxSimilarity = Math.max(firstNameSimilarity, lastNameSimilarity, fullNameSimilarity);
+        
+        if (maxSimilarity >= threshold) {
+          matches.push({
+            staff: member,
+            similarity: maxSimilarity,
+            matchType: maxSimilarity === firstNameSimilarity ? 'first_name' : 
+                      maxSimilarity === lastNameSimilarity ? 'last_name' : 'full_name'
+          });
+        }
+      }
+
+      // Sort by similarity (highest first)
+      matches.sort((a, b) => b.similarity - a.similarity);
+      
+      return matches;
+    } catch (error) {
+      console.error('Error finding similar doctor/staff names:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Find similar department names using fuzzy matching
+   */
+  async findSimilarDepartmentNames(searchName, threshold = 70) {
+    try {
+      // First get all departments
+      const allDepartmentsResult = await this.mcpClient.callTool('list_departments', {});
+      
+      if (!allDepartmentsResult.content || !Array.isArray(allDepartmentsResult.content)) {
+        return [];
+      }
+
+      const departments = allDepartmentsResult.content;
+      const matches = [];
+
+      // Check each department for similar names
+      for (const dept of departments) {
+        const nameSimilarity = this.calculateSimilarity(searchName, dept.name);
+        const descriptionSimilarity = dept.description ? 
+          this.calculateSimilarity(searchName, dept.description) : 0;
+
+        // Check if name or description has similarity above threshold
+        const maxSimilarity = Math.max(nameSimilarity, descriptionSimilarity);
+        
+        if (maxSimilarity >= threshold) {
+          matches.push({
+            department: dept,
+            similarity: maxSimilarity,
+            matchType: maxSimilarity === nameSimilarity ? 'name' : 'description'
+          });
+        }
+      }
+
+      // Sort by similarity (highest first)
+      matches.sort((a, b) => b.similarity - a.similarity);
+      
+      return matches;
+    } catch (error) {
+      console.error('Error finding similar department names:', error);
+      return [];
+    }
+  }
+
   // Helper function to generate Google Meet-style links
   generateMeetingLink() {
     // Generate a simple Google Meet-style room code
@@ -356,39 +530,92 @@ class DirectHttpAIMCPService {
     const resolvedTool = { ...tool };
     const params = { ...tool.arguments };
     
-    // Resolve department names to IDs
+    // Resolve department names to IDs with fuzzy matching
     if (params.department_name && !params.department_id) {
       try {
         const departments = await this.mcpClient.callTool('list_departments', {});
         const dept = departments.find(d => 
           d.name.toLowerCase().includes(params.department_name.toLowerCase())
         );
+        
         if (dept) {
           params.department_id = dept.id;
           delete params.department_name;
+        } else {
+          // If exact search fails, try fuzzy matching
+          console.log(`🔍 Exact search for department "${params.department_name}" failed, trying fuzzy matching...`);
+          const similarMatches = await this.findSimilarDepartmentNames(params.department_name, 70);
+          
+          if (similarMatches.length > 0) {
+            const bestMatch = similarMatches[0];
+            console.log(`🎯 Found similar department: ${bestMatch.department.name} (${bestMatch.similarity.toFixed(1)}% match)`);
+            params.department_id = bestMatch.department.id;
+            params._fuzzy_match_info = {
+              original_search: params.department_name,
+              matched_name: bestMatch.department.name,
+              similarity: bestMatch.similarity
+            };
+            delete params.department_name;
+          }
         }
-      } catch {
-        console.warn('Could not resolve department name:', params.department_name);
+      } catch (error) {
+        console.warn('Could not resolve department name:', params.department_name, error);
       }
     }
     
-    // Resolve patient names to IDs
-    if (params.patient_name && !params.patient_id) {
+    // Resolve patient names to IDs with fuzzy matching
+    if ((params.patient_name || (params.first_name && params.last_name)) && !params.patient_id) {
       try {
-        const patients = await this.mcpClient.callTool('search_patients', {
-          first_name: params.patient_name.split(' ')[0],
-          last_name: params.patient_name.split(' ')[1]
-        });
+        let searchName = params.patient_name;
+        let searchParams = {};
+        
+        if (params.first_name && params.last_name) {
+          searchName = `${params.first_name} ${params.last_name}`;
+          searchParams = {
+            first_name: params.first_name,
+            last_name: params.last_name
+          };
+        } else if (params.patient_name) {
+          const nameParts = params.patient_name.split(' ');
+          searchParams = {
+            first_name: nameParts[0],
+            last_name: nameParts[1]
+          };
+        }
+        
+        // First try exact search
+        const patients = await this.mcpClient.callTool('search_patients', searchParams);
+        
         if (patients.length > 0) {
           params.patient_id = patients[0].id;
           delete params.patient_name;
+          delete params.first_name;
+          delete params.last_name;
+        } else {
+          // If exact search fails, try fuzzy matching
+          console.log(`🔍 Exact search for "${searchName}" failed, trying fuzzy matching...`);
+          const similarMatches = await this.findSimilarPatientNames(searchName, 70);
+          
+          if (similarMatches.length > 0) {
+            const bestMatch = similarMatches[0];
+            console.log(`🎯 Found similar patient: ${bestMatch.patient.first_name} ${bestMatch.patient.last_name} (${bestMatch.similarity.toFixed(1)}% match)`);
+            params.patient_id = bestMatch.patient.id;
+            params._fuzzy_match_info = {
+              original_search: searchName,
+              matched_name: `${bestMatch.patient.first_name} ${bestMatch.patient.last_name}`,
+              similarity: bestMatch.similarity
+            };
+            delete params.patient_name;
+            delete params.first_name;
+            delete params.last_name;
+          }
         }
-      } catch {
-        console.warn('Could not resolve patient name:', params.patient_name);
+      } catch (error) {
+        console.warn('Could not resolve patient name:', params.patient_name || `${params.first_name} ${params.last_name}`, error);
       }
     }
     
-    // Resolve doctor names to IDs
+    // Resolve doctor names to IDs with fuzzy matching
     if (params.doctor_name && !params.doctor_id) {
       try {
         const staff = await this.mcpClient.callTool('list_staff', {});
@@ -396,12 +623,67 @@ class DirectHttpAIMCPService {
           s.position.toLowerCase().includes('doctor') &&
           (s.first_name + ' ' + s.last_name).toLowerCase().includes(params.doctor_name.toLowerCase())
         );
+        
         if (doctor) {
           params.doctor_id = doctor.id;
           delete params.doctor_name;
+        } else {
+          // If exact search fails, try fuzzy matching for doctors
+          console.log(`🔍 Exact search for doctor "${params.doctor_name}" failed, trying fuzzy matching...`);
+          const similarMatches = await this.findSimilarDoctorNames(params.doctor_name, 70);
+          
+          // Filter to only doctors
+          const doctorMatches = similarMatches.filter(match => 
+            match.staff.position.toLowerCase().includes('doctor')
+          );
+          
+          if (doctorMatches.length > 0) {
+            const bestMatch = doctorMatches[0];
+            console.log(`🎯 Found similar doctor: ${bestMatch.staff.first_name} ${bestMatch.staff.last_name} (${bestMatch.similarity.toFixed(1)}% match)`);
+            params.doctor_id = bestMatch.staff.id;
+            params._fuzzy_match_info = {
+              original_search: params.doctor_name,
+              matched_name: `${bestMatch.staff.first_name} ${bestMatch.staff.last_name}`,
+              similarity: bestMatch.similarity
+            };
+            delete params.doctor_name;
+          }
         }
-      } catch {
-        console.warn('Could not resolve doctor name:', params.doctor_name);
+      } catch (error) {
+        console.warn('Could not resolve doctor name:', params.doctor_name, error);
+      }
+    }
+
+    // Resolve staff names to IDs with fuzzy matching (for general staff, not just doctors)
+    if (params.staff_name && !params.staff_id) {
+      try {
+        const staff = await this.mcpClient.callTool('list_staff', {});
+        const staffMember = staff.find(s => 
+          (s.first_name + ' ' + s.last_name).toLowerCase().includes(params.staff_name.toLowerCase())
+        );
+        
+        if (staffMember) {
+          params.staff_id = staffMember.id;
+          delete params.staff_name;
+        } else {
+          // If exact search fails, try fuzzy matching for staff
+          console.log(`🔍 Exact search for staff "${params.staff_name}" failed, trying fuzzy matching...`);
+          const similarMatches = await this.findSimilarDoctorNames(params.staff_name, 70);
+          
+          if (similarMatches.length > 0) {
+            const bestMatch = similarMatches[0];
+            console.log(`🎯 Found similar staff member: ${bestMatch.staff.first_name} ${bestMatch.staff.last_name} (${bestMatch.similarity.toFixed(1)}% match)`);
+            params.staff_id = bestMatch.staff.id;
+            params._fuzzy_match_info = {
+              original_search: params.staff_name,
+              matched_name: `${bestMatch.staff.first_name} ${bestMatch.staff.last_name}`,
+              similarity: bestMatch.similarity
+            };
+            delete params.staff_name;
+          }
+        }
+      } catch (error) {
+        console.warn('Could not resolve staff name:', params.staff_name, error);
       }
     }
     
@@ -435,6 +717,7 @@ Remember the recent conversation and provide contextually appropriate responses.
 2. **Multi-Tool Operations**: Automatically resolve names to IDs when needed
 3. **Conversation Memory**: Build upon previous exchanges
 4. **Contextual Responses**: Tailor responses based on conversation flow
+5. **Fuzzy Name Matching**: Handle voice-to-text transcription errors and similar-sounding names
 
 **Critical Behaviors:**
 
@@ -447,6 +730,23 @@ Remember the recent conversation and provide contextually appropriate responses.
 - When users mention names instead of IDs, automatically search for matches
 - Explain what you're doing: "Let me find John Doe in our patient records..."
 - If multiple matches found, ask for clarification
+
+**FUZZY NAME MATCHING:**
+- The system automatically handles similar-sounding names for all entities:
+  * Patients: "Nazif" vs "Nasif", "Mohammed" vs "Mohamed"
+  * Doctors: "Ahmad" vs "Ahmed", "Hassan" vs "Hasan"
+  * Staff: "Ali" vs "Aly", "Omar" vs "Umar"
+  * Departments: "Cardiology" vs "Cardio", "Emergency" vs "ER"
+- When fuzzy matching is used, inform the user: "I found a similar name: Mohamed Nazif. Is this the patient you're looking for?"
+- Check tool results for "_fuzzy_match_info" to see if fuzzy matching was used
+- Always confirm fuzzy matches with the user before proceeding
+
+**VOICE-TO-TEXT CORRECTIONS:**
+- Common transcription errors for all entity types:
+  * Names: "Nazif" → "Nasif", "Mohammed" → "Mohamed", "Ahmad" → "Ahmed"
+  * Departments: "Cardiology" → "Cardio", "Emergency" → "ER"
+- When exact search fails, the system automatically tries fuzzy matching (70% similarity threshold)
+- Explain when corrections are made: "I couldn't find 'Nasif' but found 'Nazif' which sounds similar"
 
 **CONVERSATION FLOW:**
 - Remember what the user is trying to accomplish
@@ -461,7 +761,13 @@ ${toolResults.map(result => {
   if (result.error) {
     return `❌ ${result.tool}: ${result.error}`;
   } else {
-    return `✅ ${result.tool}: Success`;
+    // Check for fuzzy match information
+    let resultText = `✅ ${result.tool}: Success`;
+    if (result.content && result.content._fuzzy_match_info) {
+      const fuzzyInfo = result.content._fuzzy_match_info;
+      resultText += ` (Found similar name: "${fuzzyInfo.matched_name}" for search "${fuzzyInfo.original_search}" - ${fuzzyInfo.similarity.toFixed(1)}% match)`;
+    }
+    return resultText;
   }
 }).join('\n')}
 
@@ -538,9 +844,42 @@ Respond naturally, conversationally, and contextually based on the conversation 
       }
     }
     
-    if (message.includes('search patient') || message.includes('find patient')) {
+    if (message.includes('search patient') || message.includes('find patient') || 
+        message.includes('look for patient') || message.includes('show me patient') ||
+        message.includes('patient named') || message.includes('patient called') ||
+        message.includes('looking for') || message.includes('where is') ||
+        // Common patterns from voice input
+        message.match(/\b(nazif|nasif|mohammed|mohammad|ahmed)\b/i) ||
+        // General patterns that might indicate patient search
+        message.includes('patient') && (message.includes('details') || message.includes('information') || message.includes('record')) ||
+        // Simple name patterns (likely from voice input)
+        message.match(/^(mohamed|mohammed|ahmad|ahmed|hassan|ali|omar|nazif|nasif|khalid|saeed|abdullah)\s+\w+$/i) ||
+        message.match(/^(nazif|nasif|mohammed|mohamed|ahmed|hassan|ali|omar|khalid|saeed|abdullah)$/i)) {
       const searchParams = this.extractPatientSearchParameters(userMessage);
       toolsNeeded.push({ name: 'search_patients', arguments: searchParams });
+    }
+
+    // Doctor/Staff search operations with voice input support
+    if (message.includes('find doctor') || message.includes('search doctor') || 
+        message.includes('look for doctor') || message.includes('show me doctor') ||
+        message.includes('doctor named') || message.includes('doctor called') ||
+        message.includes('find staff') || message.includes('search staff') || 
+        message.includes('look for staff') || message.includes('show me staff') ||
+        message.includes('staff named') || message.includes('staff called') ||
+        // Voice patterns for common doctor names
+        message.match(/\b(doctor|dr\.?)\s+(ahmad|ahmed|hassan|ali|omar|khalid|saeed|abdullah|mohamed|mohammed)\b/i)) {
+      const searchParams = this.extractStaffSearchParameters(userMessage);
+      toolsNeeded.push({ name: 'search_staff', arguments: searchParams });
+    }
+
+    // Department search operations with voice input support  
+    if (message.includes('find department') || message.includes('search department') || 
+        message.includes('look for department') || message.includes('show me department') ||
+        message.includes('department named') || message.includes('department called') ||
+        // Voice patterns for common department names
+        message.match(/\b(cardiology|cardio|emergency|er|surgery|orthopedic|pediatric|neurology)\b/i)) {
+      const searchParams = this.extractDepartmentSearchParameters(userMessage);
+      toolsNeeded.push({ name: 'search_departments', arguments: searchParams });
     }
     
     // Staff operations
@@ -1261,19 +1600,155 @@ Respond naturally and helpfully based on the user's request and the tool results
   extractPatientSearchParameters(message) {
     const params = {};
     
-    // Extract name for search
-    const nameMatch = message.match(/find\s+([a-zA-Z]+)(?:\s+([a-zA-Z]+))?/i);
-    if (nameMatch) {
-      params.first_name = nameMatch[1];
-      if (nameMatch[2]) {
-        params.last_name = nameMatch[2];
+    // Enhanced name extraction for voice input
+    let nameFound = false;
+    
+    // Pattern 1: "find [FirstName] [LastName]"
+    const findMatch = message.match(/find\s+([a-zA-Z]+)(?:\s+([a-zA-Z]+))?/i);
+    if (findMatch) {
+      params.first_name = findMatch[1];
+      if (findMatch[2]) {
+        params.last_name = findMatch[2];
       }
+      nameFound = true;
+    }
+    
+    // Pattern 2: "patient named [FirstName] [LastName]" or "patient called [FirstName] [LastName]"
+    const namedMatch = message.match(/patient\s+(?:named|called)\s+([a-zA-Z]+)(?:\s+([a-zA-Z]+))?/i);
+    if (!nameFound && namedMatch) {
+      params.first_name = namedMatch[1];
+      if (namedMatch[2]) {
+        params.last_name = namedMatch[2];
+      }
+      nameFound = true;
+    }
+    
+    // Pattern 3: "looking for [FirstName] [LastName]" or "show me [FirstName] [LastName]"
+    const lookingMatch = message.match(/(?:looking for|show me)\s+([a-zA-Z]+)(?:\s+([a-zA-Z]+))?/i);
+    if (!nameFound && lookingMatch) {
+      params.first_name = lookingMatch[1];
+      if (lookingMatch[2]) {
+        params.last_name = lookingMatch[2];
+      }
+      nameFound = true;
+    }
+    
+    // Pattern 4: Direct name patterns (for voice input like "Mohamed Nazif" or "Nazif")
+    const directNameMatch = message.match(/\b(mohamed|mohammed|ahmad|ahmed|hassan|ali|omar|nazif|nasif|khalid|saeed|abdullah)\s+([a-zA-Z]+)\b/i);
+    if (!nameFound && directNameMatch) {
+      params.first_name = directNameMatch[1];
+      params.last_name = directNameMatch[2];
+      nameFound = true;
+    }
+    
+    // Pattern 5: Single name (could be first or last name)
+    const singleNameMatch = message.match(/\b(nazif|nasif|mohammed|mohamed|ahmed|hassan|ali|omar|khalid|saeed|abdullah)\b/i);
+    if (!nameFound && singleNameMatch) {
+      // Use the name as a general search term
+      params.patient_name = singleNameMatch[1];
+      nameFound = true;
     }
     
     // Extract patient number
     const patientNumMatch = message.match(/patient\s+(\w+)/i);
-    if (patientNumMatch) {
+    if (patientNumMatch && !nameFound) {
       params.patient_number = patientNumMatch[1];
+    }
+    
+    return params;
+  }
+
+  /**
+   * Extract staff search parameters from natural language input
+   */
+  extractStaffSearchParameters(message) {
+    const params = {};
+    
+    // Enhanced name extraction for voice input
+    let nameFound = false;
+    
+    // Pattern 1: "find doctor [FirstName] [LastName]" or "find staff [FirstName] [LastName]"
+    const findMatch = message.match(/find\s+(?:doctor|staff|dr\.?)\s+([a-zA-Z]+)(?:\s+([a-zA-Z]+))?/i);
+    if (findMatch) {
+      params.first_name = findMatch[1];
+      if (findMatch[2]) {
+        params.last_name = findMatch[2];
+      }
+      nameFound = true;
+    }
+    
+    // Pattern 2: "doctor named [FirstName] [LastName]" or "staff named [FirstName] [LastName]"
+    const namedMatch = message.match(/(?:doctor|staff|dr\.?)\s+(?:named|called)\s+([a-zA-Z]+)(?:\s+([a-zA-Z]+))?/i);
+    if (!nameFound && namedMatch) {
+      params.first_name = namedMatch[1];
+      if (namedMatch[2]) {
+        params.last_name = namedMatch[2];
+      }
+      nameFound = true;
+    }
+    
+    // Pattern 3: "looking for doctor [FirstName] [LastName]"
+    const lookingMatch = message.match(/(?:looking for|show me)\s+(?:doctor|staff|dr\.?)\s+([a-zA-Z]+)(?:\s+([a-zA-Z]+))?/i);
+    if (!nameFound && lookingMatch) {
+      params.first_name = lookingMatch[1];
+      if (lookingMatch[2]) {
+        params.last_name = lookingMatch[2];
+      }
+      nameFound = true;
+    }
+    
+    // Pattern 4: Direct name patterns with doctor prefix
+    const directNameMatch = message.match(/\b(?:doctor|dr\.?)\s+(mohamed|mohammed|ahmad|ahmed|hassan|ali|omar|nazif|nasif|khalid|saeed|abdullah)\s+([a-zA-Z]+)\b/i);
+    if (!nameFound && directNameMatch) {
+      params.first_name = directNameMatch[1];
+      params.last_name = directNameMatch[2];
+      nameFound = true;
+    }
+    
+    // If we found names, combine them for fuzzy matching
+    if (params.first_name && params.last_name) {
+      params.staff_name = `${params.first_name} ${params.last_name}`;
+    } else if (params.first_name) {
+      params.staff_name = params.first_name;
+    }
+    
+    return params;
+  }
+
+  /**
+   * Extract department search parameters from natural language input
+   */
+  extractDepartmentSearchParameters(message) {
+    const params = {};
+    
+    // Pattern 1: "find department [Name]"
+    const findMatch = message.match(/find\s+department\s+([a-zA-Z\s]+)/i);
+    if (findMatch) {
+      params.department_name = findMatch[1].trim();
+    }
+    
+    // Pattern 2: "department named [Name]" or "department called [Name]"
+    const namedMatch = message.match(/department\s+(?:named|called)\s+([a-zA-Z\s]+)/i);
+    if (!params.department_name && namedMatch) {
+      params.department_name = namedMatch[1].trim();
+    }
+    
+    // Pattern 3: "looking for department [Name]"
+    const lookingMatch = message.match(/(?:looking for|show me)\s+department\s+([a-zA-Z\s]+)/i);
+    if (!params.department_name && lookingMatch) {
+      params.department_name = lookingMatch[1].trim();
+    }
+    
+    // Pattern 4: Direct department name patterns (common voice variations)
+    const directMatch = message.match(/\b(cardiology|cardio|emergency|er|surgery|orthopedic|pediatric|neurology|radiology|pharmacy|laboratory|lab)\b/i);
+    if (!params.department_name && directMatch) {
+      // Map common voice variations to full names
+      const departmentMap = {
+        'cardio': 'Cardiology',
+        'er': 'Emergency',
+        'lab': 'Laboratory'
+      };
+      params.department_name = departmentMap[directMatch[1].toLowerCase()] || directMatch[1];
     }
     
     return params;
