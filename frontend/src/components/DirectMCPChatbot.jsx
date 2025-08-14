@@ -672,13 +672,13 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
       setMessages(prev => [...prev, userMsg]);
     }
 
-    // Check for patient admission requests and show popup form
+    // Check for patient admission requests (both explicit form requests and intelligent AI processing)
     const admissionKeywords = [
       'admit patient', 'patient admission', 'register patient', 'add new patient', 
       'new patient admission', 'patient register', 'want to admit', 'need to admit',
       'admitting a patient', 'admit a patient', 'patient registration', 'enroll patient',
       'admit new patient', 'register new patient', 'add patient', 'create patient',
-      'patient intake', 'patient enrollment'
+      'patient intake', 'patient enrollment', 'open patient form', 'show patient form'
     ];
     const isAdmissionRequest = admissionKeywords.some(keyword => 
       userMessage.toLowerCase().includes(keyword)
@@ -699,10 +699,11 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
       return;
     }
 
-    // Check for department creation requests
+    // Check for department creation requests (both explicit form requests and intelligent AI processing)
     const departmentKeywords = [
       'create department', 'add department', 'new department', 'department creation',
-      'register department', 'add new department', 'create new department'
+      'register department', 'add new department', 'create new department',
+      'open department form', 'show department form', 'department form popup'
     ];
     const isDepartmentRequest = departmentKeywords.some(keyword => 
       userMessage.toLowerCase().includes(keyword)
@@ -722,16 +723,39 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
       return;
     }
 
-    // Check for staff creation requests
-    const staffKeywords = [
-      'create staff', 'add staff', 'new staff', 'staff creation', 'hire staff',
-      'register staff', 'add new staff', 'create new staff', 'staff registration'
-    ];
-    const isStaffRequest = staffKeywords.some(keyword => 
+    // Check for all creation/addition requests and show appropriate popup forms
+    const formKeywords = {
+      staff: ['create staff', 'add staff', 'new staff', 'staff creation', 'hire staff',
+              'register staff', 'add new staff', 'create new staff', 'staff registration',
+              'open staff form', 'show staff form', 'staff form popup'],
+      user: ['create user', 'add user', 'new user', 'user creation',
+             'register user', 'add new user', 'create new user', 'user registration',
+             'open user form', 'show user form', 'user form popup'],
+      room: ['create room', 'add room', 'new room', 'room creation',
+             'register room', 'add new room', 'create new room',
+             'open room form', 'show room form', 'room form popup'],
+      bed: ['create bed', 'add bed', 'new bed', 'bed creation',
+            'register bed', 'add new bed', 'create new bed',
+            'open bed form', 'show bed form', 'bed form popup'],
+      equipment: ['create equipment', 'add equipment', 'new equipment', 'equipment creation',
+                  'register equipment', 'add new equipment', 'create new equipment',
+                  'open equipment form', 'show equipment form', 'equipment form popup'],
+      supply: ['create supply', 'add supply', 'new supply', 'supply creation',
+               'register supply', 'add new supply', 'create new supply',
+               'open supply form', 'show supply form', 'supply form popup'],
+      appointment: ['create appointment', 'book appointment', 'schedule appointment', 'new appointment',
+                    'appointment booking', 'add appointment', 'create new appointment',
+                    'open appointment form', 'show appointment form', 'appointment form popup'],
+      legacy: ['create legacy user', 'add legacy user', 'new legacy user', 'legacy user creation',
+               'open legacy user form', 'show legacy user form', 'legacy user form popup']
+    };
+
+    // Check for staff form requests
+    const isStaffFormRequest = formKeywords.staff.some(keyword => 
       userMessage.toLowerCase().includes(keyword)
     );
 
-    if (isStaffRequest) {
+    if (isStaffFormRequest) {
       setIsLoading(false);
       setShowStaffForm(true);
       
@@ -745,16 +769,12 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
       return;
     }
 
-    // Check for user creation requests
-    const userKeywords = [
-      'create user', 'add user', 'new user', 'user creation',
-      'register user', 'add new user', 'create new user', 'user registration'
-    ];
-    const isUserRequest = userKeywords.some(keyword => 
+    // Check for user form requests
+    const isUserFormRequest = formKeywords.user.some(keyword => 
       userMessage.toLowerCase().includes(keyword)
     );
 
-    if (isUserRequest) {
+    if (isUserFormRequest) {
       setIsLoading(false);
       setShowUserForm(true);
       
@@ -768,16 +788,12 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
       return;
     }
 
-    // Check for room creation requests
-    const roomKeywords = [
-      'create room', 'add room', 'new room', 'room creation',
-      'register room', 'add new room', 'create new room'
-    ];
-    const isRoomRequest = roomKeywords.some(keyword => 
+    // Check for room form requests
+    const isRoomFormRequest = formKeywords.room.some(keyword => 
       userMessage.toLowerCase().includes(keyword)
     );
 
-    if (isRoomRequest) {
+    if (isRoomFormRequest) {
       setIsLoading(false);
       setShowRoomForm(true);
       
@@ -791,16 +807,12 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
       return;
     }
 
-    // Check for bed creation requests
-    const bedKeywords = [
-      'create bed', 'add bed', 'new bed', 'bed creation',
-      'register bed', 'add new bed', 'create new bed'
-    ];
-    const isBedRequest = bedKeywords.some(keyword => 
+    // Check for bed form requests
+    const isBedFormRequest = formKeywords.bed.some(keyword => 
       userMessage.toLowerCase().includes(keyword)
     );
 
-    if (isBedRequest) {
+    if (isBedFormRequest) {
       setIsLoading(false);
       setShowBedForm(true);
       
@@ -814,16 +826,12 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
       return;
     }
 
-    // Check for equipment creation requests
-    const equipmentKeywords = [
-      'create equipment', 'add equipment', 'new equipment', 'equipment creation',
-      'register equipment', 'add new equipment', 'create new equipment'
-    ];
-    const isEquipmentRequest = equipmentKeywords.some(keyword => 
+    // Check for equipment form requests
+    const isEquipmentFormRequest = formKeywords.equipment.some(keyword => 
       userMessage.toLowerCase().includes(keyword)
     );
 
-    if (isEquipmentRequest) {
+    if (isEquipmentFormRequest) {
       setIsLoading(false);
       setShowEquipmentForm(true);
       
@@ -837,16 +845,12 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
       return;
     }
 
-    // Check for supply creation requests
-    const supplyKeywords = [
-      'create supply', 'add supply', 'new supply', 'supply creation',
-      'register supply', 'add new supply', 'create new supply'
-    ];
-    const isSupplyRequest = supplyKeywords.some(keyword => 
+    // Check for supply form requests
+    const isSupplyFormRequest = formKeywords.supply.some(keyword => 
       userMessage.toLowerCase().includes(keyword)
     );
 
-    if (isSupplyRequest) {
+    if (isSupplyFormRequest) {
       setIsLoading(false);
       setShowSupplyForm(true);
       
@@ -860,16 +864,12 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
       return;
     }
 
-    // Check for appointment creation requests
-    const appointmentKeywords = [
-      'create appointment', 'book appointment', 'schedule appointment', 'new appointment',
-      'appointment booking', 'add appointment', 'create new appointment'
-    ];
-    const isAppointmentRequest = appointmentKeywords.some(keyword => 
+    // Check for appointment form requests
+    const isAppointmentFormRequest = formKeywords.appointment.some(keyword => 
       userMessage.toLowerCase().includes(keyword)
     );
 
-    if (isAppointmentRequest) {
+    if (isAppointmentFormRequest) {
       setIsLoading(false);
       setShowAppointmentForm(true);
       
@@ -883,15 +883,12 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
       return;
     }
 
-    // Check for legacy user creation requests
-    const legacyUserKeywords = [
-      'create legacy user', 'add legacy user', 'new legacy user', 'legacy user creation'
-    ];
-    const isLegacyUserRequest = legacyUserKeywords.some(keyword => 
+    // Check for legacy user form requests
+    const isLegacyUserFormRequest = formKeywords.legacy.some(keyword => 
       userMessage.toLowerCase().includes(keyword)
     );
 
-    if (isLegacyUserRequest) {
+    if (isLegacyUserFormRequest) {
       setIsLoading(false);
       setShowLegacyUserForm(true);
       
@@ -905,8 +902,12 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
       return;
     }
 
-    // Check if this request likely needs tool calls
-    const toolKeywords = ['list', 'show', 'get', 'find', 'search', 'create', 'add', 'update', 'delete', 'assign', 'check', 'manage', 'patient', 'staff', 'bed', 'department', 'appointment', 'equipment', 'supply'];
+    // For all other requests (like "list patients", "show departments", "find patient", etc.), 
+    // let OpenAI intelligently analyze and call appropriate tools
+    // Only creation/addition requests show popup forms, everything else uses AI processing
+
+    // Check if this request likely needs tool calls (but not creation requests which we handle above)
+    const toolKeywords = ['list', 'show', 'get', 'find', 'search', 'update', 'delete', 'assign', 'check', 'manage', 'patient', 'staff', 'bed', 'department', 'appointment', 'equipment', 'supply'];
     const needsTools = toolKeywords.some(keyword => 
       userMessage.toLowerCase().includes(keyword)
     );
