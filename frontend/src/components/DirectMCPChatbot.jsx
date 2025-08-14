@@ -678,6 +678,7 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
       'new patient admission', 'patient register', 'want to admit', 'need to admit',
       'admitting a patient', 'admit a patient', 'patient registration', 'enroll patient',
       'admit new patient', 'register new patient', 'add patient', 'create patient',
+      'create new patient', 'new patient', 'patient creation',
       'patient intake', 'patient enrollment', 'open patient form', 'show patient form'
     ];
     const isAdmissionRequest = admissionKeywords.some(keyword => 
