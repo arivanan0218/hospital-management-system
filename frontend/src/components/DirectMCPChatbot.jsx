@@ -649,6 +649,97 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   };
 
   /**
+   * Use OpenAI to intelligently detect user intent for showing popup forms
+   */
+  const detectIntentWithAI = async (userMessage) => {
+    if (!openaiApiKey.trim()) {
+      return null; // Fall back to keyword matching if no API key
+    }
+
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openaiApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-3.5-turbo',
+          messages: [
+            {
+              role: 'system',
+              content: `You are an intent detection system for a hospital management application. Analyze the user's message and determine if they want to CREATE/ADD/REGISTER a new entity using a popup form.
+
+Available popup forms:
+- patient_admission: For creating/admitting/registering new patients
+- department: For creating new departments
+- staff: For adding new staff/employees
+- user: For creating new system users
+- room: For adding new rooms
+- bed: For adding new beds
+- equipment: For adding new medical equipment
+- supply: For adding new medical supplies
+- appointment: For booking/scheduling new appointments
+- legacy_user: For creating legacy users
+
+Return ONLY one of these values:
+- "patient_admission" if they want to create/admit/register a patient
+- "department" if they want to create a department
+- "staff" if they want to add staff/employee
+- "user" if they want to create a system user
+- "room" if they want to add a room
+- "bed" if they want to add a bed
+- "equipment" if they want to add equipment
+- "supply" if they want to add supplies
+- "appointment" if they want to book/schedule an appointment
+- "legacy_user" if they want to create a legacy user
+- "none" if they want to list/show/find/search/update existing data OR if the intent is unclear
+
+Examples:
+- "I need to register a new patient" -> patient_admission
+- "Can you help me add a patient named John?" -> patient_admission
+- "Add new staff member" -> staff
+- "Create department for cardiology" -> department
+- "Book an appointment" -> appointment
+- "Show me all patients" -> none
+- "List departments" -> none
+- "Find patient John Smith" -> none
+- "Hello" -> none`
+            },
+            {
+              role: 'user',
+              content: userMessage
+            }
+          ],
+          max_tokens: 50,
+          temperature: 0.1
+        })
+      });
+
+      if (!response.ok) {
+        console.warn('Intent detection API call failed:', response.status);
+        return null;
+      }
+
+      const result = await response.json();
+      const intent = result.choices[0].message.content.trim().toLowerCase();
+      
+      console.log('🤖 AI Intent Detection:', userMessage, '->', intent);
+      
+      // Validate the response
+      const validIntents = ['patient_admission', 'department', 'staff', 'user', 'room', 'bed', 'equipment', 'supply', 'appointment', 'legacy_user', 'none'];
+      if (validIntents.includes(intent)) {
+        return intent;
+      }
+      
+      return null;
+    } catch (error) {
+      console.warn('Intent detection error:', error);
+      return null; // Fall back to keyword matching
+    }
+  };
+
+  /**
    * Smart conversation flow: only show thinking when tools are needed
    */
   const sendMessageClaudeStyle = async (customMessage = null, isFromVoiceInput = false) => {
@@ -671,6 +762,132 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
       };
       setMessages(prev => [...prev, userMsg]);
     }
+
+    // 🤖 INTELLIGENT AI INTENT DETECTION FIRST
+    try {
+      const detectedIntent = await detectIntentWithAI(userMessage);
+      
+      if (detectedIntent && detectedIntent !== 'none') {
+        setIsLoading(false);
+        
+        // Show appropriate popup form based on AI detection
+        switch (detectedIntent) {
+          case 'patient_admission':
+            setShowPatientAdmissionForm(true);
+            const patientMsg = {
+              id: Date.now() + 1,
+              text: "I detected you want to register a new patient! I've opened the patient admission form for you.",
+              sender: 'ai',
+              timestamp: new Date().toLocaleTimeString()
+            };
+            setMessages(prev => [...prev, patientMsg]);
+            return;
+            
+          case 'department':
+            setShowDepartmentForm(true);
+            const deptMsg = {
+              id: Date.now() + 1,
+              text: "I detected you want to create a new department! I've opened the department creation form for you.",
+              sender: 'ai',
+              timestamp: new Date().toLocaleTimeString()
+            };
+            setMessages(prev => [...prev, deptMsg]);
+            return;
+            
+          case 'staff':
+            setShowStaffForm(true);
+            const staffMsg = {
+              id: Date.now() + 1,
+              text: "I detected you want to add a new staff member! I've opened the staff creation form for you.",
+              sender: 'ai',
+              timestamp: new Date().toLocaleTimeString()
+            };
+            setMessages(prev => [...prev, staffMsg]);
+            return;
+            
+          case 'user':
+            setShowUserForm(true);
+            const userMsg = {
+              id: Date.now() + 1,
+              text: "I detected you want to create a new user! I've opened the user creation form for you.",
+              sender: 'ai',
+              timestamp: new Date().toLocaleTimeString()
+            };
+            setMessages(prev => [...prev, userMsg]);
+            return;
+            
+          case 'room':
+            setShowRoomForm(true);
+            const roomMsg = {
+              id: Date.now() + 1,
+              text: "I detected you want to create a new room! I've opened the room creation form for you.",
+              sender: 'ai',
+              timestamp: new Date().toLocaleTimeString()
+            };
+            setMessages(prev => [...prev, roomMsg]);
+            return;
+            
+          case 'bed':
+            setShowBedForm(true);
+            const bedMsg = {
+              id: Date.now() + 1,
+              text: "I detected you want to add a new bed! I've opened the bed creation form for you.",
+              sender: 'ai',
+              timestamp: new Date().toLocaleTimeString()
+            };
+            setMessages(prev => [...prev, bedMsg]);
+            return;
+            
+          case 'equipment':
+            setShowEquipmentForm(true);
+            const equipMsg = {
+              id: Date.now() + 1,
+              text: "I detected you want to add new equipment! I've opened the equipment creation form for you.",
+              sender: 'ai',
+              timestamp: new Date().toLocaleTimeString()
+            };
+            setMessages(prev => [...prev, equipMsg]);
+            return;
+            
+          case 'supply':
+            setShowSupplyForm(true);
+            const supplyMsg = {
+              id: Date.now() + 1,
+              text: "I detected you want to add new supplies! I've opened the supply creation form for you.",
+              sender: 'ai',
+              timestamp: new Date().toLocaleTimeString()
+            };
+            setMessages(prev => [...prev, supplyMsg]);
+            return;
+            
+          case 'appointment':
+            setShowAppointmentForm(true);
+            const apptMsg = {
+              id: Date.now() + 1,
+              text: "I detected you want to schedule an appointment! I've opened the appointment booking form for you.",
+              sender: 'ai',
+              timestamp: new Date().toLocaleTimeString()
+            };
+            setMessages(prev => [...prev, apptMsg]);
+            return;
+            
+          case 'legacy_user':
+            setShowLegacyUserForm(true);
+            const legacyMsg = {
+              id: Date.now() + 1,
+              text: "I detected you want to create a legacy user! I've opened the legacy user creation form for you.",
+              sender: 'ai',
+              timestamp: new Date().toLocaleTimeString()
+            };
+            setMessages(prev => [...prev, legacyMsg]);
+            return;
+        }
+      }
+    } catch (error) {
+      console.warn('AI intent detection failed, falling back to keyword matching:', error);
+    }
+
+    // 🔍 FALLBACK: KEYWORD-BASED DETECTION (if AI detection fails or returns 'none')
 
     // Check for patient admission requests (both explicit form requests and intelligent AI processing)
     const admissionKeywords = [
