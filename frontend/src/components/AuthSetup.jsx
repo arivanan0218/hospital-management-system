@@ -288,7 +288,7 @@ const AuthSetup = ({ onComplete }) => {
               >
                 Admin
               </button>
-              <button
+              {/* <button
                 onClick={() => {
                   setFormData(prev => ({
                     ...prev,
@@ -311,7 +311,7 @@ const AuthSetup = ({ onComplete }) => {
                 className="flex-1 px-3 py-2 bg-purple-800/30 hover:bg-purple-700/40 border border-purple-700 rounded-md transition-colors text-xs text-purple-200 hover:text-purple-100 text-center"
               >
                 Nurse
-              </button>
+              </button> */}
             </div>
           </div>
         )}
