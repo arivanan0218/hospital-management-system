@@ -22,6 +22,16 @@ Base = declarative_base()
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+# --- New imports for meeting & legacy models registration ---
+# Note: Meeting models will be imported when needed to avoid circular imports
+
+# Import discharge report models at module level
+try:
+    # We'll import these at the end to avoid circular imports
+    pass
+except ImportError:
+    pass
+
 # Database Models
 
 class User(Base):
@@ -45,6 +55,7 @@ class User(Base):
     appointments_as_doctor = relationship("Appointment", foreign_keys="Appointment.doctor_id", back_populates="doctor")
     inventory_transactions = relationship("InventoryTransaction", back_populates="performed_by_user")
     agent_interactions = relationship("AgentInteraction", back_populates="user")
+    generated_discharge_reports = relationship("DischargeReport", foreign_keys="DischargeReport.generated_by", back_populates="generated_by_user")
 
 class Department(Base):
     """Department table model."""
@@ -89,27 +100,33 @@ class Patient(Base):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
     # Relationships
-    beds = relationship("Bed", back_populates="patient")
+    bed = relationship("Bed", back_populates="patient")
     appointments = relationship("Appointment", back_populates="patient")
     medical_documents = relationship("MedicalDocument", back_populates="patient")
     extracted_medical_data = relationship("ExtractedMedicalData", back_populates="patient")
+    discharge_reports = relationship("DischargeReport", back_populates="patient")
+    # Discharge report related relationships (will be available after models are imported)
+    treatments = relationship("TreatmentRecord", back_populates="patient", lazy="dynamic")
+    equipment_usage = relationship("EquipmentUsage", back_populates="patient", lazy="dynamic")
+    staff_assignments = relationship("StaffAssignment", back_populates="patient", lazy="dynamic")
 
 class Room(Base):
     """Room table model."""
     __tablename__ = "rooms"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    room_number = Column(String(10), nullable=False)
-    department_id = Column(UUID(as_uuid=True), ForeignKey("departments.id"), nullable=False)
-    room_type = Column(String(20))  # general, private, icu, emergency, operation
-    floor_number = Column(Integer)
-    capacity = Column(Integer, default=1)
+    room_number = Column(String(10), unique=True, nullable=False)
+    floor_number = Column(Integer)  # Match the actual database schema
+    room_type = Column(String(20))  # Match database varchar(20)
+    department_id = Column(UUID(as_uuid=True), ForeignKey("departments.id"))
+    capacity = Column(Integer, default=1)  # Add capacity field to match database
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
     # Relationships
     department = relationship("Department", back_populates="rooms")
     beds = relationship("Bed", back_populates="room")
+
 
 class Bed(Base):
     """Bed table model."""
@@ -118,8 +135,8 @@ class Bed(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     bed_number = Column(String(10), nullable=False)
     room_id = Column(UUID(as_uuid=True), ForeignKey("rooms.id"), nullable=False)
-    bed_type = Column(String(20))  # standard, icu, pediatric, maternity
-    status = Column(String(20), default="available")  # available, occupied, maintenance, reserved
+    bed_type = Column(String(50))  # standard, icu, emergency
+    status = Column(String(20), default="available")  # available, occupied, maintenance
     patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"))
     admission_date = Column(DateTime)
     discharge_date = Column(DateTime)
@@ -129,7 +146,9 @@ class Bed(Base):
 
     # Relationships
     room = relationship("Room", back_populates="beds")
-    patient = relationship("Patient", back_populates="beds")
+    patient = relationship("Patient", back_populates="bed")
+    discharge_reports = relationship("DischargeReport", back_populates="bed")
+
 
 class Staff(Base):
     """Staff table model."""
@@ -374,6 +393,41 @@ class LegacyUser(Base):
     address = Column(String, nullable=False)
     phone = Column(String, nullable=False)
 
+class DischargeReport(Base):
+    """Comprehensive discharge report table model."""
+    __tablename__ = "discharge_reports"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
+    bed_id = Column(UUID(as_uuid=True), ForeignKey("beds.id"), nullable=False)
+    generated_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    
+    report_number = Column(String(50), unique=True, nullable=False)
+    admission_date = Column(DateTime, nullable=False)
+    discharge_date = Column(DateTime, nullable=False)
+    length_of_stay_days = Column(Integer)
+    
+    # Report sections as JSON
+    patient_summary = Column(Text)  # JSON
+    treatment_summary = Column(Text)  # JSON
+    equipment_summary = Column(Text)  # JSON
+    staff_summary = Column(Text)  # JSON
+    medications = Column(Text)  # JSON
+    procedures = Column(Text)  # JSON
+    discharge_instructions = Column(Text)
+    follow_up_required = Column(Text)
+    
+    # Discharge conditions
+    discharge_condition = Column(String(50))  # improved, stable, critical, deceased
+    discharge_destination = Column(String(100))  # home, transfer, rehabilitation, nursing_home
+    
+    created_at = Column(DateTime, default=func.now())
+
+    # Relationships
+    patient = relationship("Patient", back_populates="discharge_reports")
+    bed = relationship("Bed")
+    generated_by_user = relationship("User", foreign_keys=[generated_by])
+
 def create_tables():
     """Create all tables in the database."""
     try:
@@ -395,6 +449,11 @@ def get_db():
         yield db
     finally:
         db.close()
+
+# --- Helper for session retrieval expected by some tooling files ---
+def get_db_session():
+    """Return a new database session (convenience wrapper)."""
+    return SessionLocal()
 
 def migrate_json_to_db():
     """Migrate existing users.json data to PostgreSQL database."""
@@ -459,3 +518,22 @@ if __name__ == "__main__":
         print("Migrating data from JSON...")
         migrate_json_to_db()
         print("Database setup complete!")
+
+# Import additional discharge report models after all base models are defined
+# This prevents circular import issues
+try:
+    from discharge_report_models import TreatmentRecord, EquipmentUsage, StaffAssignment
+    # Re-export for convenience
+    __all__ = [
+        'Base', 'engine', 'SessionLocal', 'get_db_session',
+        'User', 'Patient', 'Department', 'Room', 'Bed', 'Staff', 'Appointment', 
+        'Equipment', 'InventoryTransaction', 'AgentInteraction', 'DischargeReport',
+        'TreatmentRecord', 'EquipmentUsage', 'StaffAssignment'
+    ]
+except ImportError as e:
+    # Discharge models not available - continue without them
+    __all__ = [
+        'Base', 'engine', 'SessionLocal', 'get_db_session',
+        'User', 'Patient', 'Department', 'Room', 'Bed', 'Staff', 'Appointment', 
+        'Equipment', 'InventoryTransaction', 'AgentInteraction', 'DischargeReport'
+    ]
