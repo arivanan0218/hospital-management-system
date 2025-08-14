@@ -40,6 +40,24 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   const [patientSearchResult, setPatientSearchResult] = useState(null);
   const [patients, setPatients] = useState([]);
   
+  // Patient admission popup form
+  const [showPatientAdmissionForm, setShowPatientAdmissionForm] = useState(false);
+  const [admissionFormData, setAdmissionFormData] = useState({
+    first_name: '',
+    last_name: '',
+    date_of_birth: '',
+    gender: '',
+    phone: '',
+    email: '',
+    address: '',
+    emergency_contact_name: '',
+    emergency_contact_phone: '',
+    blood_type: '',
+    allergies: '',
+    medical_history: ''
+  });
+  const [isSubmittingAdmission, setIsSubmittingAdmission] = useState(false);
+  
   // Auto-scroll to bottom only when new messages are added, not on timer updates
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -539,6 +557,33 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
         timestamp: new Date().toLocaleTimeString()
       };
       setMessages(prev => [...prev, userMsg]);
+    }
+
+    // Check for patient admission requests and show popup form
+    const admissionKeywords = [
+      'admit patient', 'patient admission', 'register patient', 'add new patient', 
+      'new patient admission', 'patient register', 'want to admit', 'need to admit',
+      'admitting a patient', 'admit a patient', 'patient registration', 'enroll patient',
+      'admit new patient', 'register new patient', 'add patient', 'create patient',
+      'patient intake', 'patient enrollment'
+    ];
+    const isAdmissionRequest = admissionKeywords.some(keyword => 
+      userMessage.toLowerCase().includes(keyword)
+    );
+
+    if (isAdmissionRequest) {
+      setIsLoading(false);
+      setShowPatientAdmissionForm(true);
+      
+      // Add AI response suggesting the form
+      const aiMsg = {
+        id: Date.now() + 1,
+        text: "I'll help you admit a new patient! I've opened the patient admission form for you to fill out with all the required information.",
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, aiMsg]);
+      return;
     }
 
     // Check if this request likely needs tool calls
@@ -1314,6 +1359,107 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
         timestamp: new Date().toLocaleTimeString()
       }]);
     }
+  };
+
+  /**
+   * Handle patient admission form input changes
+   */
+  const handleAdmissionFormChange = (field, value) => {
+    setAdmissionFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  /**
+   * Submit patient admission form
+   */
+  const submitPatientAdmission = async () => {
+    // Validate required fields
+    const requiredFields = ['first_name', 'last_name', 'date_of_birth'];
+    const missingFields = requiredFields.filter(field => !admissionFormData[field].trim());
+    
+    if (missingFields.length > 0) {
+      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
+      return;
+    }
+
+    setIsSubmittingAdmission(true);
+
+    try {
+      // Call the AI service to create the patient
+      const response = await aiMcpServiceRef.current.processRequest(
+        `Create patient: first_name="${admissionFormData.first_name}", last_name="${admissionFormData.last_name}", date_of_birth="${admissionFormData.date_of_birth}", gender="${admissionFormData.gender}", phone="${admissionFormData.phone}", email="${admissionFormData.email}", address="${admissionFormData.address}", emergency_contact_name="${admissionFormData.emergency_contact_name}", emergency_contact_phone="${admissionFormData.emergency_contact_phone}", blood_type="${admissionFormData.blood_type}", allergies="${admissionFormData.allergies}", medical_history="${admissionFormData.medical_history}"`
+      );
+
+      // Close the form and show success message
+      setShowPatientAdmissionForm(false);
+      
+      // Reset form data
+      setAdmissionFormData({
+        first_name: '',
+        last_name: '',
+        date_of_birth: '',
+        gender: '',
+        phone: '',
+        email: '',
+        address: '',
+        emergency_contact_name: '',
+        emergency_contact_phone: '',
+        blood_type: '',
+        allergies: '',
+        medical_history: ''
+      });
+
+      // Add success message to chat
+      let responseText = '';
+      if (typeof response === 'string') {
+        responseText = response;
+      } else if (response && typeof response === 'object') {
+        // If response is an object, try to extract meaningful information
+        responseText = response.message || response.result || JSON.stringify(response, null, 2);
+      } else {
+        responseText = 'Patient created successfully in the database!';
+      }
+
+      const successMsg = {
+        id: Date.now(),
+        text: `✅ Patient admission completed successfully!\n\n${responseText}`,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, successMsg]);
+
+    } catch (error) {
+      console.error('Error submitting patient admission:', error);
+      
+      // Add error message to chat
+      const errorMsg = {
+        id: Date.now(),
+        text: `❌ Error during patient admission: ${error.message || 'Unknown error occurred'}`,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setIsSubmittingAdmission(false);
+    }
+  };
+
+  /**
+   * Close patient admission form
+   */
+  const closePatientAdmissionForm = () => {
+    setShowPatientAdmissionForm(false);
+    
+    // Add message indicating form was closed
+    const cancelMsg = {
+      id: Date.now(),
+      text: "Patient admission form was closed. You can say 'admit patient' anytime to open it again.",
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, cancelMsg]);
   };
 
   // Setup Panel - Dark Chatbot Style
@@ -2251,6 +2397,226 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
                 <p className="text-xs sm:text-sm">Access comprehensive medical records and AI-extracted insights.</p>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Patient Admission Form Popup */}
+      {showPatientAdmissionForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-[#1a1a1a] rounded-lg border border-gray-700 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="border-b border-gray-700 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold text-white">Patient Admission Form</h2>
+                  <p className="text-sm text-gray-400">Fill in the patient information to complete admission</p>
+                </div>
+                <button
+                  onClick={closePatientAdmissionForm}
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Form Content */}
+            <div className="p-6 space-y-6">
+              {/* Required Fields Section */}
+              <div>
+                <h3 className="text-lg font-medium text-white mb-4">Required Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      First Name <span className="text-red-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={admissionFormData.first_name}
+                      onChange={(e) => handleAdmissionFormChange('first_name', e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter first name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Last Name <span className="text-red-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={admissionFormData.last_name}
+                      onChange={(e) => handleAdmissionFormChange('last_name', e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter last name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Date of Birth <span className="text-red-400">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={admissionFormData.date_of_birth}
+                      onChange={(e) => handleAdmissionFormChange('date_of_birth', e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Gender</label>
+                    <select
+                      value={admissionFormData.gender}
+                      onChange={(e) => handleAdmissionFormChange('gender', e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Select gender</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Contact Information */}
+              <div>
+                <h3 className="text-lg font-medium text-white mb-4">Contact Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Phone Number</label>
+                    <input
+                      type="tel"
+                      value={admissionFormData.phone}
+                      onChange={(e) => handleAdmissionFormChange('phone', e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter phone number"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Email Address</label>
+                    <input
+                      type="email"
+                      value={admissionFormData.email}
+                      onChange={(e) => handleAdmissionFormChange('email', e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter email address"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Home Address</label>
+                    <textarea
+                      value={admissionFormData.address}
+                      onChange={(e) => handleAdmissionFormChange('address', e.target.value)}
+                      rows="3"
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter home address"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Emergency Contact */}
+              <div>
+                <h3 className="text-lg font-medium text-white mb-4">Emergency Contact</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Contact Name</label>
+                    <input
+                      type="text"
+                      value={admissionFormData.emergency_contact_name}
+                      onChange={(e) => handleAdmissionFormChange('emergency_contact_name', e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter emergency contact name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Contact Phone</label>
+                    <input
+                      type="tel"
+                      value={admissionFormData.emergency_contact_phone}
+                      onChange={(e) => handleAdmissionFormChange('emergency_contact_phone', e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter emergency contact phone"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Medical Information */}
+              <div>
+                <h3 className="text-lg font-medium text-white mb-4">Medical Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Blood Type</label>
+                    <select
+                      value={admissionFormData.blood_type}
+                      onChange={(e) => handleAdmissionFormChange('blood_type', e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Select blood type</option>
+                      <option value="A+">A+</option>
+                      <option value="A-">A-</option>
+                      <option value="B+">B+</option>
+                      <option value="B-">B-</option>
+                      <option value="AB+">AB+</option>
+                      <option value="AB-">AB-</option>
+                      <option value="O+">O+</option>
+                      <option value="O-">O-</option>
+                    </select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Allergies</label>
+                    <textarea
+                      value={admissionFormData.allergies}
+                      onChange={(e) => handleAdmissionFormChange('allergies', e.target.value)}
+                      rows="3"
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="List any known allergies (medications, food, environmental, etc.)"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Medical History</label>
+                    <textarea
+                      value={admissionFormData.medical_history}
+                      onChange={(e) => handleAdmissionFormChange('medical_history', e.target.value)}
+                      rows="4"
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter relevant medical history, previous conditions, surgeries, etc."
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
+              <button
+                onClick={closePatientAdmissionForm}
+                disabled={isSubmittingAdmission}
+                className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitPatientAdmission}
+                disabled={isSubmittingAdmission}
+                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+              >
+                {isSubmittingAdmission ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Admitting Patient...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Admit Patient</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
