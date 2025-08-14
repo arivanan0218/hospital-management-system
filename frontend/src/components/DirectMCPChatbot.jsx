@@ -58,6 +58,119 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   });
   const [isSubmittingAdmission, setIsSubmittingAdmission] = useState(false);
   
+  // Department creation popup form
+  const [showDepartmentForm, setShowDepartmentForm] = useState(false);
+  const [departmentFormData, setDepartmentFormData] = useState({
+    name: '',
+    description: '',
+    location: '',
+    phone: '',
+    head_of_department: ''
+  });
+  const [isSubmittingDepartment, setIsSubmittingDepartment] = useState(false);
+  
+  // Staff creation popup form
+  const [showStaffForm, setShowStaffForm] = useState(false);
+  const [staffFormData, setStaffFormData] = useState({
+    first_name: '',
+    last_name: '',
+    employee_id: '',
+    position: '',
+    department_id: '',
+    phone: '',
+    email: '',
+    address: '',
+    hire_date: '',
+    salary: '',
+    shift: ''
+  });
+  const [isSubmittingStaff, setIsSubmittingStaff] = useState(false);
+  
+  // User creation popup form
+  const [showUserForm, setShowUserForm] = useState(false);
+  const [userFormData, setUserFormData] = useState({
+    username: '',
+    email: '',
+    password: '',
+    role: '',
+    full_name: '',
+    phone: ''
+  });
+  const [isSubmittingUser, setIsSubmittingUser] = useState(false);
+  
+  // Room creation popup form
+  const [showRoomForm, setShowRoomForm] = useState(false);
+  const [roomFormData, setRoomFormData] = useState({
+    room_number: '',
+    room_type: '',
+    capacity: '',
+    floor: '',
+    department_id: '',
+    status: 'available'
+  });
+  const [isSubmittingRoom, setIsSubmittingRoom] = useState(false);
+  
+  // Bed creation popup form
+  const [showBedForm, setShowBedForm] = useState(false);
+  const [bedFormData, setBedFormData] = useState({
+    bed_number: '',
+    room_id: '',
+    bed_type: '',
+    status: 'available'
+  });
+  const [isSubmittingBed, setIsSubmittingBed] = useState(false);
+  
+  // Equipment creation popup form
+  const [showEquipmentForm, setShowEquipmentForm] = useState(false);
+  const [equipmentFormData, setEquipmentFormData] = useState({
+    name: '',
+    category: '',
+    serial_number: '',
+    manufacturer: '',
+    model: '',
+    purchase_date: '',
+    warranty_expiry: '',
+    location: '',
+    status: 'available'
+  });
+  const [isSubmittingEquipment, setIsSubmittingEquipment] = useState(false);
+  
+  // Supply creation popup form
+  const [showSupplyForm, setShowSupplyForm] = useState(false);
+  const [supplyFormData, setSupplyFormData] = useState({
+    name: '',
+    category: '',
+    quantity: '',
+    unit: '',
+    minimum_threshold: '',
+    supplier: '',
+    cost_per_unit: '',
+    expiry_date: ''
+  });
+  const [isSubmittingSupply, setIsSubmittingSupply] = useState(false);
+  
+  // Appointment creation popup form
+  const [showAppointmentForm, setShowAppointmentForm] = useState(false);
+  const [appointmentFormData, setAppointmentFormData] = useState({
+    patient_id: '',
+    doctor_id: '',
+    appointment_date: '',
+    appointment_time: '',
+    purpose: '',
+    status: 'scheduled',
+    notes: ''
+  });
+  const [isSubmittingAppointment, setIsSubmittingAppointment] = useState(false);
+  
+  // Legacy User creation popup form
+  const [showLegacyUserForm, setShowLegacyUserForm] = useState(false);
+  const [legacyUserFormData, setLegacyUserFormData] = useState({
+    name: '',
+    email: '',
+    role: ''
+  });
+  const [isSubmittingLegacyUser, setIsSubmittingLegacyUser] = useState(false);
+  
   // Auto-scroll to bottom only when new messages are added, not on timer updates
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -579,6 +692,212 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
       const aiMsg = {
         id: Date.now() + 1,
         text: "I'll help you admit a new patient! I've opened the patient admission form for you to fill out with all the required information.",
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, aiMsg]);
+      return;
+    }
+
+    // Check for department creation requests
+    const departmentKeywords = [
+      'create department', 'add department', 'new department', 'department creation',
+      'register department', 'add new department', 'create new department'
+    ];
+    const isDepartmentRequest = departmentKeywords.some(keyword => 
+      userMessage.toLowerCase().includes(keyword)
+    );
+
+    if (isDepartmentRequest) {
+      setIsLoading(false);
+      setShowDepartmentForm(true);
+      
+      const aiMsg = {
+        id: Date.now() + 1,
+        text: "I'll help you create a new department! I've opened the department creation form for you.",
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, aiMsg]);
+      return;
+    }
+
+    // Check for staff creation requests
+    const staffKeywords = [
+      'create staff', 'add staff', 'new staff', 'staff creation', 'hire staff',
+      'register staff', 'add new staff', 'create new staff', 'staff registration'
+    ];
+    const isStaffRequest = staffKeywords.some(keyword => 
+      userMessage.toLowerCase().includes(keyword)
+    );
+
+    if (isStaffRequest) {
+      setIsLoading(false);
+      setShowStaffForm(true);
+      
+      const aiMsg = {
+        id: Date.now() + 1,
+        text: "I'll help you add a new staff member! I've opened the staff creation form for you.",
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, aiMsg]);
+      return;
+    }
+
+    // Check for user creation requests
+    const userKeywords = [
+      'create user', 'add user', 'new user', 'user creation',
+      'register user', 'add new user', 'create new user', 'user registration'
+    ];
+    const isUserRequest = userKeywords.some(keyword => 
+      userMessage.toLowerCase().includes(keyword)
+    );
+
+    if (isUserRequest) {
+      setIsLoading(false);
+      setShowUserForm(true);
+      
+      const aiMsg = {
+        id: Date.now() + 1,
+        text: "I'll help you create a new user! I've opened the user creation form for you.",
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, aiMsg]);
+      return;
+    }
+
+    // Check for room creation requests
+    const roomKeywords = [
+      'create room', 'add room', 'new room', 'room creation',
+      'register room', 'add new room', 'create new room'
+    ];
+    const isRoomRequest = roomKeywords.some(keyword => 
+      userMessage.toLowerCase().includes(keyword)
+    );
+
+    if (isRoomRequest) {
+      setIsLoading(false);
+      setShowRoomForm(true);
+      
+      const aiMsg = {
+        id: Date.now() + 1,
+        text: "I'll help you create a new room! I've opened the room creation form for you.",
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, aiMsg]);
+      return;
+    }
+
+    // Check for bed creation requests
+    const bedKeywords = [
+      'create bed', 'add bed', 'new bed', 'bed creation',
+      'register bed', 'add new bed', 'create new bed'
+    ];
+    const isBedRequest = bedKeywords.some(keyword => 
+      userMessage.toLowerCase().includes(keyword)
+    );
+
+    if (isBedRequest) {
+      setIsLoading(false);
+      setShowBedForm(true);
+      
+      const aiMsg = {
+        id: Date.now() + 1,
+        text: "I'll help you create a new bed! I've opened the bed creation form for you.",
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, aiMsg]);
+      return;
+    }
+
+    // Check for equipment creation requests
+    const equipmentKeywords = [
+      'create equipment', 'add equipment', 'new equipment', 'equipment creation',
+      'register equipment', 'add new equipment', 'create new equipment'
+    ];
+    const isEquipmentRequest = equipmentKeywords.some(keyword => 
+      userMessage.toLowerCase().includes(keyword)
+    );
+
+    if (isEquipmentRequest) {
+      setIsLoading(false);
+      setShowEquipmentForm(true);
+      
+      const aiMsg = {
+        id: Date.now() + 1,
+        text: "I'll help you add new equipment! I've opened the equipment creation form for you.",
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, aiMsg]);
+      return;
+    }
+
+    // Check for supply creation requests
+    const supplyKeywords = [
+      'create supply', 'add supply', 'new supply', 'supply creation',
+      'register supply', 'add new supply', 'create new supply'
+    ];
+    const isSupplyRequest = supplyKeywords.some(keyword => 
+      userMessage.toLowerCase().includes(keyword)
+    );
+
+    if (isSupplyRequest) {
+      setIsLoading(false);
+      setShowSupplyForm(true);
+      
+      const aiMsg = {
+        id: Date.now() + 1,
+        text: "I'll help you add new supply! I've opened the supply creation form for you.",
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, aiMsg]);
+      return;
+    }
+
+    // Check for appointment creation requests
+    const appointmentKeywords = [
+      'create appointment', 'book appointment', 'schedule appointment', 'new appointment',
+      'appointment booking', 'add appointment', 'create new appointment'
+    ];
+    const isAppointmentRequest = appointmentKeywords.some(keyword => 
+      userMessage.toLowerCase().includes(keyword)
+    );
+
+    if (isAppointmentRequest) {
+      setIsLoading(false);
+      setShowAppointmentForm(true);
+      
+      const aiMsg = {
+        id: Date.now() + 1,
+        text: "I'll help you schedule a new appointment! I've opened the appointment booking form for you.",
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, aiMsg]);
+      return;
+    }
+
+    // Check for legacy user creation requests
+    const legacyUserKeywords = [
+      'create legacy user', 'add legacy user', 'new legacy user', 'legacy user creation'
+    ];
+    const isLegacyUserRequest = legacyUserKeywords.some(keyword => 
+      userMessage.toLowerCase().includes(keyword)
+    );
+
+    if (isLegacyUserRequest) {
+      setIsLoading(false);
+      setShowLegacyUserForm(true);
+      
+      const aiMsg = {
+        id: Date.now() + 1,
+        text: "I'll help you create a new legacy user! I've opened the legacy user creation form for you.",
         sender: 'ai',
         timestamp: new Date().toLocaleTimeString()
       };
@@ -1456,6 +1775,641 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
     const cancelMsg = {
       id: Date.now(),
       text: "Patient admission form was closed. You can say 'admit patient' anytime to open it again.",
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, cancelMsg]);
+  };
+
+  // Department Form Handlers
+  const handleDepartmentFormChange = (field, value) => {
+    setDepartmentFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const submitDepartment = async () => {
+    const requiredFields = ['name'];
+    const missingFields = requiredFields.filter(field => !departmentFormData[field].trim());
+    
+    if (missingFields.length > 0) {
+      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
+      return;
+    }
+
+    setIsSubmittingDepartment(true);
+
+    try {
+      const response = await aiMcpServiceRef.current.processRequest(
+        `Create department: name="${departmentFormData.name}", description="${departmentFormData.description}", location="${departmentFormData.location}", phone="${departmentFormData.phone}", head_of_department="${departmentFormData.head_of_department}"`
+      );
+
+      setShowDepartmentForm(false);
+      setDepartmentFormData({
+        name: '',
+        description: '',
+        location: '',
+        phone: '',
+        head_of_department: ''
+      });
+
+      let responseText = typeof response === 'string' ? response : response?.message || response?.result || JSON.stringify(response, null, 2) || 'Department created successfully!';
+
+      const successMsg = {
+        id: Date.now(),
+        text: `✅ Department created successfully!\n\n${responseText}`,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, successMsg]);
+
+    } catch (error) {
+      console.error('Error creating department:', error);
+      
+      const errorMsg = {
+        id: Date.now(),
+        text: `❌ Error creating department: ${error.message || 'Unknown error occurred'}`,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setIsSubmittingDepartment(false);
+    }
+  };
+
+  const closeDepartmentForm = () => {
+    setShowDepartmentForm(false);
+    const cancelMsg = {
+      id: Date.now(),
+      text: "Department creation form was closed. You can say 'create department' anytime to open it again.",
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, cancelMsg]);
+  };
+
+  // Staff Form Handlers
+  const handleStaffFormChange = (field, value) => {
+    setStaffFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const submitStaff = async () => {
+    const requiredFields = ['first_name', 'last_name', 'position'];
+    const missingFields = requiredFields.filter(field => !staffFormData[field].trim());
+    
+    if (missingFields.length > 0) {
+      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
+      return;
+    }
+
+    setIsSubmittingStaff(true);
+
+    try {
+      const response = await aiMcpServiceRef.current.processRequest(
+        `Create staff: first_name="${staffFormData.first_name}", last_name="${staffFormData.last_name}", employee_id="${staffFormData.employee_id}", position="${staffFormData.position}", department_id="${staffFormData.department_id}", phone="${staffFormData.phone}", email="${staffFormData.email}", address="${staffFormData.address}", hire_date="${staffFormData.hire_date}", salary="${staffFormData.salary}", shift="${staffFormData.shift}"`
+      );
+
+      setShowStaffForm(false);
+      setStaffFormData({
+        first_name: '',
+        last_name: '',
+        employee_id: '',
+        position: '',
+        department_id: '',
+        phone: '',
+        email: '',
+        address: '',
+        hire_date: '',
+        salary: '',
+        shift: ''
+      });
+
+      let responseText = typeof response === 'string' ? response : response?.message || response?.result || JSON.stringify(response, null, 2) || 'Staff member created successfully!';
+
+      const successMsg = {
+        id: Date.now(),
+        text: `✅ Staff member created successfully!\n\n${responseText}`,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, successMsg]);
+
+    } catch (error) {
+      console.error('Error creating staff:', error);
+      
+      const errorMsg = {
+        id: Date.now(),
+        text: `❌ Error creating staff: ${error.message || 'Unknown error occurred'}`,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setIsSubmittingStaff(false);
+    }
+  };
+
+  const closeStaffForm = () => {
+    setShowStaffForm(false);
+    const cancelMsg = {
+      id: Date.now(),
+      text: "Staff creation form was closed. You can say 'create staff' anytime to open it again.",
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, cancelMsg]);
+  };
+
+  // User Form Handlers
+  const handleUserFormChange = (field, value) => {
+    setUserFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const submitUser = async () => {
+    const requiredFields = ['username', 'email', 'password', 'role'];
+    const missingFields = requiredFields.filter(field => !userFormData[field].trim());
+    
+    if (missingFields.length > 0) {
+      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
+      return;
+    }
+
+    setIsSubmittingUser(true);
+
+    try {
+      const response = await aiMcpServiceRef.current.processRequest(
+        `Create user: username="${userFormData.username}", email="${userFormData.email}", password="${userFormData.password}", role="${userFormData.role}", full_name="${userFormData.full_name}", phone="${userFormData.phone}"`
+      );
+
+      setShowUserForm(false);
+      setUserFormData({
+        username: '',
+        email: '',
+        password: '',
+        role: '',
+        full_name: '',
+        phone: ''
+      });
+
+      let responseText = typeof response === 'string' ? response : response?.message || response?.result || JSON.stringify(response, null, 2) || 'User created successfully!';
+
+      const successMsg = {
+        id: Date.now(),
+        text: `✅ User created successfully!\n\n${responseText}`,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, successMsg]);
+
+    } catch (error) {
+      console.error('Error creating user:', error);
+      
+      const errorMsg = {
+        id: Date.now(),
+        text: `❌ Error creating user: ${error.message || 'Unknown error occurred'}`,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setIsSubmittingUser(false);
+    }
+  };
+
+  const closeUserForm = () => {
+    setShowUserForm(false);
+    const cancelMsg = {
+      id: Date.now(),
+      text: "User creation form was closed. You can say 'create user' anytime to open it again.",
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, cancelMsg]);
+  };
+
+  // Room Form Handlers
+  const handleRoomFormChange = (field, value) => {
+    setRoomFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const submitRoom = async () => {
+    const requiredFields = ['room_number', 'room_type'];
+    const missingFields = requiredFields.filter(field => !roomFormData[field].trim());
+    
+    if (missingFields.length > 0) {
+      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
+      return;
+    }
+
+    setIsSubmittingRoom(true);
+
+    try {
+      const response = await aiMcpServiceRef.current.processRequest(
+        `Create room: room_number="${roomFormData.room_number}", room_type="${roomFormData.room_type}", capacity="${roomFormData.capacity}", floor="${roomFormData.floor}", department_id="${roomFormData.department_id}", status="${roomFormData.status}"`
+      );
+
+      setShowRoomForm(false);
+      setRoomFormData({
+        room_number: '',
+        room_type: '',
+        capacity: '',
+        floor: '',
+        department_id: '',
+        status: 'available'
+      });
+
+      let responseText = typeof response === 'string' ? response : response?.message || response?.result || JSON.stringify(response, null, 2) || 'Room created successfully!';
+
+      const successMsg = {
+        id: Date.now(),
+        text: `✅ Room created successfully!\n\n${responseText}`,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, successMsg]);
+
+    } catch (error) {
+      console.error('Error creating room:', error);
+      
+      const errorMsg = {
+        id: Date.now(),
+        text: `❌ Error creating room: ${error.message || 'Unknown error occurred'}`,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setIsSubmittingRoom(false);
+    }
+  };
+
+  const closeRoomForm = () => {
+    setShowRoomForm(false);
+    const cancelMsg = {
+      id: Date.now(),
+      text: "Room creation form was closed. You can say 'create room' anytime to open it again.",
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, cancelMsg]);
+  };
+
+  // Bed Form Handlers
+  const handleBedFormChange = (field, value) => {
+    setBedFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const submitBed = async () => {
+    const requiredFields = ['bed_number'];
+    const missingFields = requiredFields.filter(field => !bedFormData[field].trim());
+    
+    if (missingFields.length > 0) {
+      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
+      return;
+    }
+
+    setIsSubmittingBed(true);
+
+    try {
+      const response = await aiMcpServiceRef.current.processRequest(
+        `Create bed: bed_number="${bedFormData.bed_number}", room_id="${bedFormData.room_id}", bed_type="${bedFormData.bed_type}", status="${bedFormData.status}"`
+      );
+
+      setShowBedForm(false);
+      setBedFormData({
+        bed_number: '',
+        room_id: '',
+        bed_type: '',
+        status: 'available'
+      });
+
+      let responseText = typeof response === 'string' ? response : response?.message || response?.result || JSON.stringify(response, null, 2) || 'Bed created successfully!';
+
+      const successMsg = {
+        id: Date.now(),
+        text: `✅ Bed created successfully!\n\n${responseText}`,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, successMsg]);
+
+    } catch (error) {
+      console.error('Error creating bed:', error);
+      
+      const errorMsg = {
+        id: Date.now(),
+        text: `❌ Error creating bed: ${error.message || 'Unknown error occurred'}`,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setIsSubmittingBed(false);
+    }
+  };
+
+  const closeBedForm = () => {
+    setShowBedForm(false);
+    const cancelMsg = {
+      id: Date.now(),
+      text: "Bed creation form was closed. You can say 'create bed' anytime to open it again.",
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, cancelMsg]);
+  };
+
+  // Equipment Form Handlers
+  const handleEquipmentFormChange = (field, value) => {
+    setEquipmentFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const submitEquipment = async () => {
+    const requiredFields = ['name', 'category'];
+    const missingFields = requiredFields.filter(field => !equipmentFormData[field].trim());
+    
+    if (missingFields.length > 0) {
+      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
+      return;
+    }
+
+    setIsSubmittingEquipment(true);
+
+    try {
+      const response = await aiMcpServiceRef.current.processRequest(
+        `Create equipment: name="${equipmentFormData.name}", category="${equipmentFormData.category}", serial_number="${equipmentFormData.serial_number}", manufacturer="${equipmentFormData.manufacturer}", model="${equipmentFormData.model}", purchase_date="${equipmentFormData.purchase_date}", warranty_expiry="${equipmentFormData.warranty_expiry}", location="${equipmentFormData.location}", status="${equipmentFormData.status}"`
+      );
+
+      setShowEquipmentForm(false);
+      setEquipmentFormData({
+        name: '',
+        category: '',
+        serial_number: '',
+        manufacturer: '',
+        model: '',
+        purchase_date: '',
+        warranty_expiry: '',
+        location: '',
+        status: 'available'
+      });
+
+      let responseText = typeof response === 'string' ? response : response?.message || response?.result || JSON.stringify(response, null, 2) || 'Equipment created successfully!';
+
+      const successMsg = {
+        id: Date.now(),
+        text: `✅ Equipment created successfully!\n\n${responseText}`,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, successMsg]);
+
+    } catch (error) {
+      console.error('Error creating equipment:', error);
+      
+      const errorMsg = {
+        id: Date.now(),
+        text: `❌ Error creating equipment: ${error.message || 'Unknown error occurred'}`,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setIsSubmittingEquipment(false);
+    }
+  };
+
+  const closeEquipmentForm = () => {
+    setShowEquipmentForm(false);
+    const cancelMsg = {
+      id: Date.now(),
+      text: "Equipment creation form was closed. You can say 'create equipment' anytime to open it again.",
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, cancelMsg]);
+  };
+
+  // Supply Form Handlers
+  const handleSupplyFormChange = (field, value) => {
+    setSupplyFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const submitSupply = async () => {
+    const requiredFields = ['name', 'category'];
+    const missingFields = requiredFields.filter(field => !supplyFormData[field].trim());
+    
+    if (missingFields.length > 0) {
+      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
+      return;
+    }
+
+    setIsSubmittingSupply(true);
+
+    try {
+      const response = await aiMcpServiceRef.current.processRequest(
+        `Create supply: name="${supplyFormData.name}", category="${supplyFormData.category}", quantity="${supplyFormData.quantity}", unit="${supplyFormData.unit}", minimum_threshold="${supplyFormData.minimum_threshold}", supplier="${supplyFormData.supplier}", cost_per_unit="${supplyFormData.cost_per_unit}", expiry_date="${supplyFormData.expiry_date}"`
+      );
+
+      setShowSupplyForm(false);
+      setSupplyFormData({
+        name: '',
+        category: '',
+        quantity: '',
+        unit: '',
+        minimum_threshold: '',
+        supplier: '',
+        cost_per_unit: '',
+        expiry_date: ''
+      });
+
+      let responseText = typeof response === 'string' ? response : response?.message || response?.result || JSON.stringify(response, null, 2) || 'Supply created successfully!';
+
+      const successMsg = {
+        id: Date.now(),
+        text: `✅ Supply created successfully!\n\n${responseText}`,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, successMsg]);
+
+    } catch (error) {
+      console.error('Error creating supply:', error);
+      
+      const errorMsg = {
+        id: Date.now(),
+        text: `❌ Error creating supply: ${error.message || 'Unknown error occurred'}`,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setIsSubmittingSupply(false);
+    }
+  };
+
+  const closeSupplyForm = () => {
+    setShowSupplyForm(false);
+    const cancelMsg = {
+      id: Date.now(),
+      text: "Supply creation form was closed. You can say 'create supply' anytime to open it again.",
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, cancelMsg]);
+  };
+
+  // Appointment Form Handlers
+  const handleAppointmentFormChange = (field, value) => {
+    setAppointmentFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const submitAppointment = async () => {
+    const requiredFields = ['patient_id', 'doctor_id', 'appointment_date', 'appointment_time'];
+    const missingFields = requiredFields.filter(field => !appointmentFormData[field].trim());
+    
+    if (missingFields.length > 0) {
+      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
+      return;
+    }
+
+    setIsSubmittingAppointment(true);
+
+    try {
+      const response = await aiMcpServiceRef.current.processRequest(
+        `Create appointment: patient_id="${appointmentFormData.patient_id}", doctor_id="${appointmentFormData.doctor_id}", appointment_date="${appointmentFormData.appointment_date}", appointment_time="${appointmentFormData.appointment_time}", purpose="${appointmentFormData.purpose}", status="${appointmentFormData.status}", notes="${appointmentFormData.notes}"`
+      );
+
+      setShowAppointmentForm(false);
+      setAppointmentFormData({
+        patient_id: '',
+        doctor_id: '',
+        appointment_date: '',
+        appointment_time: '',
+        purpose: '',
+        status: 'scheduled',
+        notes: ''
+      });
+
+      let responseText = typeof response === 'string' ? response : response?.message || response?.result || JSON.stringify(response, null, 2) || 'Appointment created successfully!';
+
+      const successMsg = {
+        id: Date.now(),
+        text: `✅ Appointment created successfully!\n\n${responseText}`,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, successMsg]);
+
+    } catch (error) {
+      console.error('Error creating appointment:', error);
+      
+      const errorMsg = {
+        id: Date.now(),
+        text: `❌ Error creating appointment: ${error.message || 'Unknown error occurred'}`,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setIsSubmittingAppointment(false);
+    }
+  };
+
+  const closeAppointmentForm = () => {
+    setShowAppointmentForm(false);
+    const cancelMsg = {
+      id: Date.now(),
+      text: "Appointment creation form was closed. You can say 'create appointment' anytime to open it again.",
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, cancelMsg]);
+  };
+
+  // Legacy User Form Handlers
+  const handleLegacyUserFormChange = (field, value) => {
+    setLegacyUserFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const submitLegacyUser = async () => {
+    const requiredFields = ['name', 'email'];
+    const missingFields = requiredFields.filter(field => !legacyUserFormData[field].trim());
+    
+    if (missingFields.length > 0) {
+      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
+      return;
+    }
+
+    setIsSubmittingLegacyUser(true);
+
+    try {
+      const response = await aiMcpServiceRef.current.processRequest(
+        `Create legacy user: name="${legacyUserFormData.name}", email="${legacyUserFormData.email}", role="${legacyUserFormData.role}"`
+      );
+
+      setShowLegacyUserForm(false);
+      setLegacyUserFormData({
+        name: '',
+        email: '',
+        role: ''
+      });
+
+      let responseText = typeof response === 'string' ? response : response?.message || response?.result || JSON.stringify(response, null, 2) || 'Legacy user created successfully!';
+
+      const successMsg = {
+        id: Date.now(),
+        text: `✅ Legacy user created successfully!\n\n${responseText}`,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, successMsg]);
+
+    } catch (error) {
+      console.error('Error creating legacy user:', error);
+      
+      const errorMsg = {
+        id: Date.now(),
+        text: `❌ Error creating legacy user: ${error.message || 'Unknown error occurred'}`,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setIsSubmittingLegacyUser(false);
+    }
+  };
+
+  const closeLegacyUserForm = () => {
+    setShowLegacyUserForm(false);
+    const cancelMsg = {
+      id: Date.now(),
+      text: "Legacy user creation form was closed. You can say 'create legacy user' anytime to open it again.",
       sender: 'ai',
       timestamp: new Date().toLocaleTimeString()
     };
@@ -2615,6 +3569,314 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
                     <span>Admit Patient</span>
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Department Creation Form Popup */}
+      {showDepartmentForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="border-b border-gray-700 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-white">Department Creation Form</h2>
+                <button
+                  onClick={closeDepartmentForm}
+                  className="text-gray-400 hover:text-white"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+
+            {/* Form Content */}
+            <div className="px-6 py-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Basic Information */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium text-white border-b border-gray-700 pb-2">
+                    Department Information
+                  </h3>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Department Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={departmentFormData.name}
+                      onChange={(e) => handleDepartmentFormChange('name', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="e.g., Cardiology"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Description
+                    </label>
+                    <textarea
+                      value={departmentFormData.description}
+                      onChange={(e) => handleDepartmentFormChange('description', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      rows="3"
+                      placeholder="Department description and services"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Location
+                    </label>
+                    <input
+                      type="text"
+                      value={departmentFormData.location}
+                      onChange={(e) => handleDepartmentFormChange('location', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="e.g., Floor 3, Wing A"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium text-white border-b border-gray-700 pb-2">
+                    Contact & Management
+                  </h3>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Phone
+                    </label>
+                    <input
+                      type="tel"
+                      value={departmentFormData.phone}
+                      onChange={(e) => handleDepartmentFormChange('phone', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="Department phone number"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Head of Department
+                    </label>
+                    <input
+                      type="text"
+                      value={departmentFormData.head_of_department}
+                      onChange={(e) => handleDepartmentFormChange('head_of_department', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="Department head name"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
+              <button
+                onClick={closeDepartmentForm}
+                disabled={isSubmittingDepartment}
+                className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitDepartment}
+                disabled={isSubmittingDepartment}
+                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+              >
+                {isSubmittingDepartment ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Creating Department...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Create Department</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* User Creation Form Popup */}
+      {showUserForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="border-b border-gray-700 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-white">User Creation Form</h2>
+                <button onClick={closeUserForm} className="text-gray-400 hover:text-white">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Username *</label>
+                <input
+                  type="text"
+                  value={userFormData.username}
+                  onChange={(e) => handleUserFormChange('username', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  placeholder="Enter username"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Email *</label>
+                <input
+                  type="email"
+                  value={userFormData.email}
+                  onChange={(e) => handleUserFormChange('email', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  placeholder="Enter email"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Password *</label>
+                <input
+                  type="password"
+                  value={userFormData.password}
+                  onChange={(e) => handleUserFormChange('password', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  placeholder="Enter password"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Role *</label>
+                <select
+                  value={userFormData.role}
+                  onChange={(e) => handleUserFormChange('role', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                >
+                  <option value="">Select role</option>
+                  <option value="admin">Admin</option>
+                  <option value="doctor">Doctor</option>
+                  <option value="nurse">Nurse</option>
+                  <option value="staff">Staff</option>
+                </select>
+              </div>
+            </div>
+            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
+              <button onClick={closeUserForm} disabled={isSubmittingUser} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
+              <button onClick={submitUser} disabled={isSubmittingUser} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
+                {isSubmittingUser ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating User...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create User</span></>)}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Staff Creation Form Popup */}
+      {showStaffForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <div className="border-b border-gray-700 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-white">Staff Creation Form</h2>
+                <button onClick={closeStaffForm} className="text-gray-400 hover:text-white">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            <div className="px-6 py-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">First Name *</label>
+                    <input
+                      type="text"
+                      value={staffFormData.first_name}
+                      onChange={(e) => handleStaffFormChange('first_name', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="Enter first name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Last Name *</label>
+                    <input
+                      type="text"
+                      value={staffFormData.last_name}
+                      onChange={(e) => handleStaffFormChange('last_name', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="Enter last name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Position *</label>
+                    <input
+                      type="text"
+                      value={staffFormData.position}
+                      onChange={(e) => handleStaffFormChange('position', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="e.g., Nurse, Doctor"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Email</label>
+                    <input
+                      type="email"
+                      value={staffFormData.email}
+                      onChange={(e) => handleStaffFormChange('email', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="Email address"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Employee ID</label>
+                    <input
+                      type="text"
+                      value={staffFormData.employee_id}
+                      onChange={(e) => handleStaffFormChange('employee_id', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="Employee ID"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Phone</label>
+                    <input
+                      type="tel"
+                      value={staffFormData.phone}
+                      onChange={(e) => handleStaffFormChange('phone', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="Phone number"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Hire Date</label>
+                    <input
+                      type="date"
+                      value={staffFormData.hire_date}
+                      onChange={(e) => handleStaffFormChange('hire_date', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Salary</label>
+                    <input
+                      type="number"
+                      value={staffFormData.salary}
+                      onChange={(e) => handleStaffFormChange('salary', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="Annual salary"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
+              <button onClick={closeStaffForm} disabled={isSubmittingStaff} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
+              <button onClick={submitStaff} disabled={isSubmittingStaff} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
+                {isSubmittingStaff ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating Staff...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create Staff</span></>)}
               </button>
             </div>
           </div>
