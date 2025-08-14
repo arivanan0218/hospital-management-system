@@ -1480,7 +1480,7 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
           <div className="flex items-center space-x-1 sm:space-x-3">
             {/* User Profile */}
             <div className="flex items-center space-x-1 sm:space-x-2">
-              <div className="w-5 h-5 sm:w-6 sm:h-6 bg-green-600 rounded-full flex items-center justify-center">
+              <div className="w-5 h-5 sm:w-6 sm:h-6 bg-blue-600 rounded-full flex items-center justify-center">
                 <span className="text-white text-xs font-medium">
                   {user?.fullName ? user.fullName.charAt(0).toUpperCase() : user?.email?.charAt(0).toUpperCase() || 'U'}
                 </span>
