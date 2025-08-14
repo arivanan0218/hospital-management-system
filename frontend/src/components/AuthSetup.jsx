@@ -251,7 +251,7 @@ const AuthSetup = ({ onComplete }) => {
 
       {/* Toggle Auth Mode */}
       <div className="text-center space-y-3">
-        <p className="text-gray-400 text-sm">
+{/*         <p className="text-gray-400 text-sm">
           {authMode === 'signin' ? "Don't have an account? " : "Already have an account? "}
           <button
             onClick={() => {
@@ -269,7 +269,7 @@ const AuthSetup = ({ onComplete }) => {
           >
             {authMode === 'signin' ? 'Sign Up' : 'Sign In'}
           </button>
-        </p>
+        </p> */}
         
         {/* Demo Credentials Info */}
         {authMode === 'signin' && (
