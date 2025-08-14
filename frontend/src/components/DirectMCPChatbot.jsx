@@ -3882,6 +3882,431 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
           </div>
         </div>
       )}
+
+      {/* Room Creation Form Popup */}
+      {showRoomForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="border-b border-gray-700 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-white">Room Creation Form</h2>
+                <button onClick={closeRoomForm} className="text-gray-400 hover:text-white">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Room Number *</label>
+                <input
+                  type="text"
+                  value={roomFormData.room_number}
+                  onChange={(e) => handleRoomFormChange('room_number', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  placeholder="e.g., R101"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Room Type *</label>
+                <select
+                  value={roomFormData.room_type}
+                  onChange={(e) => handleRoomFormChange('room_type', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                >
+                  <option value="">Select room type</option>
+                  <option value="patient">Patient Room</option>
+                  <option value="icu">ICU</option>
+                  <option value="operation">Operation Theater</option>
+                  <option value="emergency">Emergency Room</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Capacity</label>
+                <input
+                  type="number"
+                  value={roomFormData.capacity}
+                  onChange={(e) => handleRoomFormChange('capacity', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  placeholder="Number of beds"
+                />
+              </div>
+            </div>
+            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
+              <button onClick={closeRoomForm} disabled={isSubmittingRoom} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
+              <button onClick={submitRoom} disabled={isSubmittingRoom} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
+                {isSubmittingRoom ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating Room...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create Room</span></>)}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bed Creation Form Popup */}
+      {showBedForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="border-b border-gray-700 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-white">Bed Creation Form</h2>
+                <button onClick={closeBedForm} className="text-gray-400 hover:text-white">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Bed Number *</label>
+                <input
+                  type="text"
+                  value={bedFormData.bed_number}
+                  onChange={(e) => handleBedFormChange('bed_number', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  placeholder="e.g., B101"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Room ID</label>
+                <input
+                  type="text"
+                  value={bedFormData.room_id}
+                  onChange={(e) => handleBedFormChange('room_id', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  placeholder="Room ID"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Bed Type</label>
+                <select
+                  value={bedFormData.bed_type}
+                  onChange={(e) => handleBedFormChange('bed_type', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                >
+                  <option value="">Select bed type</option>
+                  <option value="standard">Standard</option>
+                  <option value="icu">ICU</option>
+                  <option value="pediatric">Pediatric</option>
+                  <option value="maternity">Maternity</option>
+                </select>
+              </div>
+            </div>
+            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
+              <button onClick={closeBedForm} disabled={isSubmittingBed} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
+              <button onClick={submitBed} disabled={isSubmittingBed} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
+                {isSubmittingBed ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating Bed...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create Bed</span></>)}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Equipment Creation Form Popup */}
+      {showEquipmentForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <div className="border-b border-gray-700 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-white">Equipment Creation Form</h2>
+                <button onClick={closeEquipmentForm} className="text-gray-400 hover:text-white">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            <div className="px-6 py-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Equipment Name *</label>
+                    <input
+                      type="text"
+                      value={equipmentFormData.name}
+                      onChange={(e) => handleEquipmentFormChange('name', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="e.g., X-Ray Machine"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Category *</label>
+                    <input
+                      type="text"
+                      value={equipmentFormData.category}
+                      onChange={(e) => handleEquipmentFormChange('category', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="e.g., Diagnostic, Surgical"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Serial Number</label>
+                    <input
+                      type="text"
+                      value={equipmentFormData.serial_number}
+                      onChange={(e) => handleEquipmentFormChange('serial_number', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="Equipment serial number"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Model</label>
+                    <input
+                      type="text"
+                      value={equipmentFormData.model}
+                      onChange={(e) => handleEquipmentFormChange('model', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="Equipment model"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Purchase Date</label>
+                    <input
+                      type="date"
+                      value={equipmentFormData.purchase_date}
+                      onChange={(e) => handleEquipmentFormChange('purchase_date', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Location</label>
+                    <input
+                      type="text"
+                      value={equipmentFormData.location}
+                      onChange={(e) => handleEquipmentFormChange('location', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="Equipment location"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
+              <button onClick={closeEquipmentForm} disabled={isSubmittingEquipment} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
+              <button onClick={submitEquipment} disabled={isSubmittingEquipment} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
+                {isSubmittingEquipment ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating Equipment...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create Equipment</span></>)}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Supply Creation Form Popup */}
+      {showSupplyForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <div className="border-b border-gray-700 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-white">Supply Creation Form</h2>
+                <button onClick={closeSupplyForm} className="text-gray-400 hover:text-white">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            <div className="px-6 py-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Supply Name *</label>
+                    <input
+                      type="text"
+                      value={supplyFormData.name}
+                      onChange={(e) => handleSupplyFormChange('name', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="e.g., Surgical Gloves"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Category *</label>
+                    <input
+                      type="text"
+                      value={supplyFormData.category}
+                      onChange={(e) => handleSupplyFormChange('category', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="e.g., Medical Supplies"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Quantity</label>
+                    <input
+                      type="number"
+                      value={supplyFormData.quantity}
+                      onChange={(e) => handleSupplyFormChange('quantity', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="Stock quantity"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Unit</label>
+                    <input
+                      type="text"
+                      value={supplyFormData.unit}
+                      onChange={(e) => handleSupplyFormChange('unit', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="e.g., pieces, boxes"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Supplier</label>
+                    <input
+                      type="text"
+                      value={supplyFormData.supplier}
+                      onChange={(e) => handleSupplyFormChange('supplier', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="Supplier name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Cost per Unit</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={supplyFormData.cost_per_unit}
+                      onChange={(e) => handleSupplyFormChange('cost_per_unit', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="Cost per unit"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
+              <button onClick={closeSupplyForm} disabled={isSubmittingSupply} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
+              <button onClick={submitSupply} disabled={isSubmittingSupply} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
+                {isSubmittingSupply ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating Supply...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create Supply</span></>)}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Appointment Creation Form Popup */}
+      {showAppointmentForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="border-b border-gray-700 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-white">Appointment Creation Form</h2>
+                <button onClick={closeAppointmentForm} className="text-gray-400 hover:text-white">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Patient ID *</label>
+                <input
+                  type="text"
+                  value={appointmentFormData.patient_id}
+                  onChange={(e) => handleAppointmentFormChange('patient_id', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  placeholder="Patient ID"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Doctor ID *</label>
+                <input
+                  type="text"
+                  value={appointmentFormData.doctor_id}
+                  onChange={(e) => handleAppointmentFormChange('doctor_id', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  placeholder="Doctor ID"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Appointment Date *</label>
+                <input
+                  type="date"
+                  value={appointmentFormData.appointment_date}
+                  onChange={(e) => handleAppointmentFormChange('appointment_date', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Appointment Time *</label>
+                <input
+                  type="time"
+                  value={appointmentFormData.appointment_time}
+                  onChange={(e) => handleAppointmentFormChange('appointment_time', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Purpose</label>
+                <input
+                  type="text"
+                  value={appointmentFormData.purpose}
+                  onChange={(e) => handleAppointmentFormChange('purpose', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  placeholder="Appointment purpose"
+                />
+              </div>
+            </div>
+            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
+              <button onClick={closeAppointmentForm} disabled={isSubmittingAppointment} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
+              <button onClick={submitAppointment} disabled={isSubmittingAppointment} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
+                {isSubmittingAppointment ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating Appointment...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create Appointment</span></>)}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Legacy User Creation Form Popup */}
+      {showLegacyUserForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="border-b border-gray-700 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-white">Legacy User Creation Form</h2>
+                <button onClick={closeLegacyUserForm} className="text-gray-400 hover:text-white">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Name *</label>
+                <input
+                  type="text"
+                  value={legacyUserFormData.name}
+                  onChange={(e) => handleLegacyUserFormChange('name', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  placeholder="Enter full name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Email *</label>
+                <input
+                  type="email"
+                  value={legacyUserFormData.email}
+                  onChange={(e) => handleLegacyUserFormChange('email', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  placeholder="Enter email address"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Role</label>
+                <select
+                  value={legacyUserFormData.role}
+                  onChange={(e) => handleLegacyUserFormChange('role', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                >
+                  <option value="">Select role</option>
+                  <option value="admin">Admin</option>
+                  <option value="user">User</option>
+                  <option value="guest">Guest</option>
+                </select>
+              </div>
+            </div>
+            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
+              <button onClick={closeLegacyUserForm} disabled={isSubmittingLegacyUser} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
+              <button onClick={submitLegacyUser} disabled={isSubmittingLegacyUser} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
+                {isSubmittingLegacyUser ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating Legacy User...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create Legacy User</span></>)}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
