@@ -428,6 +428,135 @@ class DischargeReport(Base):
     bed = relationship("Bed")
     generated_by_user = relationship("User", foreign_keys=[generated_by])
 
+# Bed Turnover Management Models
+
+class BedTurnover(Base):
+    """Bed turnover process tracking model."""
+    __tablename__ = "bed_turnovers"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    bed_id = Column(UUID(as_uuid=True), ForeignKey("beds.id"), nullable=False)
+    previous_patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"))
+    next_patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"))
+    
+    # Turnover process stages
+    status = Column(String(20), default="initiated")  # initiated, cleaning, cleaning_complete, ready, assigned
+    turnover_type = Column(String(20), default="standard")  # standard, deep_clean, maintenance
+    
+    # Time tracking
+    discharge_time = Column(DateTime, nullable=False)
+    cleaning_start_time = Column(DateTime)
+    cleaning_end_time = Column(DateTime)
+    ready_time = Column(DateTime)
+    next_assignment_time = Column(DateTime)
+    
+    # Estimated times (in minutes)
+    estimated_cleaning_duration = Column(Integer, default=45)  # 45 minutes standard
+    
+    # Staff assignments
+    assigned_cleaner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    assigned_inspector_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    
+    # Equipment management
+    equipment_requiring_cleaning = Column(Text)  # JSON array of equipment IDs
+    equipment_to_be_returned = Column(Text)  # JSON array of equipment IDs
+    equipment_cleaning_complete = Column(Boolean, default=False)
+    
+    # Quality control
+    cleaning_checklist = Column(Text)  # JSON checklist
+    inspection_passed = Column(Boolean, default=False)
+    inspector_notes = Column(Text)
+    
+    # Priority and notes
+    priority_level = Column(String(10), default="normal")  # urgent, high, normal, low
+    notes = Column(Text)
+    
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    bed = relationship("Bed")
+    previous_patient = relationship("Patient", foreign_keys=[previous_patient_id])
+    next_patient = relationship("Patient", foreign_keys=[next_patient_id])
+    assigned_cleaner = relationship("User", foreign_keys=[assigned_cleaner_id])
+    assigned_inspector = relationship("User", foreign_keys=[assigned_inspector_id])
+
+class PatientQueue(Base):
+    """Patient queue management for bed assignments."""
+    __tablename__ = "patient_queue"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
+    department_id = Column(UUID(as_uuid=True), ForeignKey("departments.id"), nullable=False)
+    
+    # Queue details
+    queue_position = Column(Integer, nullable=False)
+    bed_type_required = Column(String(20))  # ICU, General, Private, etc.
+    priority_level = Column(String(10), default="normal")  # urgent, high, normal, low
+    admission_type = Column(String(20))  # emergency, scheduled, transfer
+    
+    # Time tracking
+    queue_entry_time = Column(DateTime, default=func.now())
+    estimated_wait_time = Column(Integer)  # minutes
+    target_bed_id = Column(UUID(as_uuid=True), ForeignKey("beds.id"))  # Specific bed if assigned
+    
+    # Patient condition and requirements
+    medical_condition = Column(String(100))
+    special_requirements = Column(Text)  # JSON for equipment, isolation, etc.
+    doctor_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    
+    # Status tracking
+    status = Column(String(20), default="waiting")  # waiting, assigned, admitted, cancelled
+    assigned_bed_id = Column(UUID(as_uuid=True), ForeignKey("beds.id"))
+    assignment_time = Column(DateTime)
+    
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    patient = relationship("Patient")
+    department = relationship("Department")
+    target_bed = relationship("Bed", foreign_keys=[target_bed_id])
+    assigned_bed = relationship("Bed", foreign_keys=[assigned_bed_id])
+    doctor = relationship("User", foreign_keys=[doctor_id])
+
+class EquipmentTurnover(Base):
+    """Track equipment usage during bed turnovers."""
+    __tablename__ = "equipment_turnovers"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    bed_turnover_id = Column(UUID(as_uuid=True), ForeignKey("bed_turnovers.id"), nullable=False)
+    equipment_id = Column(UUID(as_uuid=True), ForeignKey("equipment.id"), nullable=False)
+    
+    # Equipment status during turnover
+    status = Column(String(20), default="in_use")  # in_use, needs_cleaning, cleaning, clean, returned
+    cleaning_required = Column(Boolean, default=True)
+    cleaning_type = Column(String(20))  # surface, deep, sterilization
+    
+    # Time tracking
+    release_time = Column(DateTime)
+    cleaning_start_time = Column(DateTime)
+    cleaning_end_time = Column(DateTime)
+    return_time = Column(DateTime)
+    
+    # Staff assignments
+    released_by_staff_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    cleaned_by_staff_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    
+    # Quality control
+    cleaning_checklist = Column(Text)  # JSON
+    inspection_passed = Column(Boolean, default=False)
+    notes = Column(Text)
+    
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    bed_turnover = relationship("BedTurnover")
+    equipment = relationship("Equipment")
+    released_by_staff = relationship("User", foreign_keys=[released_by_staff_id])
+    cleaned_by_staff = relationship("User", foreign_keys=[cleaned_by_staff_id])
+
 def create_tables():
     """Create all tables in the database."""
     try:
@@ -528,6 +657,7 @@ try:
         'Base', 'engine', 'SessionLocal', 'get_db_session',
         'User', 'Patient', 'Department', 'Room', 'Bed', 'Staff', 'Appointment', 
         'Equipment', 'InventoryTransaction', 'AgentInteraction', 'DischargeReport',
+        'BedTurnover', 'PatientQueue', 'EquipmentTurnover',
         'TreatmentRecord', 'EquipmentUsage', 'StaffAssignment'
     ]
 except ImportError as e:
@@ -535,5 +665,6 @@ except ImportError as e:
     __all__ = [
         'Base', 'engine', 'SessionLocal', 'get_db_session',
         'User', 'Patient', 'Department', 'Room', 'Bed', 'Staff', 'Appointment', 
-        'Equipment', 'InventoryTransaction', 'AgentInteraction', 'DischargeReport'
+        'Equipment', 'InventoryTransaction', 'AgentInteraction', 'DischargeReport',
+        'BedTurnover', 'PatientQueue', 'EquipmentTurnover'
     ]
