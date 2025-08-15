@@ -34,6 +34,53 @@ except ImportError:
 
 # Database Models
 
+class Meeting(Base):
+    """Meeting table model."""
+    __tablename__ = "meetings"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    title = Column(String(100), nullable=False)
+    description = Column(Text)
+    meeting_datetime = Column(DateTime, nullable=False)
+    duration_minutes = Column(Integer)
+    location = Column(String(100))
+    google_meet_link = Column(String(255))
+    google_event_id = Column(String(255))
+    google_meet_room_code = Column(String(50))
+    organizer_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    department_id = Column(UUID(as_uuid=True), ForeignKey("departments.id"))
+    meeting_type = Column(String(50))
+    status = Column(String(50))
+    priority = Column(String(20))
+    email_sent = Column(Boolean)
+    calendar_invites_sent = Column(Boolean)
+    reminder_sent = Column(Boolean)
+    agenda = Column(Text)
+    meeting_notes = Column(Text)
+    action_items = Column(Text)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    cancelled_at = Column(DateTime)
+
+    # Relationships
+    organizer = relationship("User", foreign_keys=[organizer_id])
+    department = relationship("Department")
+    participants = relationship("MeetingParticipant", back_populates="meeting")
+
+class MeetingParticipant(Base):
+    """Meeting participant table model."""
+    __tablename__ = "meeting_participants"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    meeting_id = Column(UUID(as_uuid=True), ForeignKey("meetings.id"), nullable=False)
+    staff_id = Column(UUID(as_uuid=True), ForeignKey("staff.id"), nullable=False)
+    attendance_status = Column(String(50))
+    response_datetime = Column(DateTime)
+    join_datetime = Column(DateTime)
+    leave_datetime = Column(DateTime)
+
+    # Relationships
+    meeting = relationship("Meeting", back_populates="participants")
+    staff = relationship("Staff")
+
 class User(Base):
     """User table model for authentication and basic user info."""
     __tablename__ = "users"
@@ -557,6 +604,233 @@ class EquipmentTurnover(Base):
     released_by_staff = relationship("User", foreign_keys=[released_by_staff_id])
     cleaned_by_staff = relationship("User", foreign_keys=[cleaned_by_staff_id])
 
+# === MISSING MODELS FOR COMPLETE TABLE COVERAGE ===
+
+class BedCleaningTask(Base):
+    """Individual cleaning tasks for bed turnover."""
+    __tablename__ = "bed_cleaning_tasks"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    turnover_log_id = Column(UUID(as_uuid=True), ForeignKey("bed_turnover_logs.id"), nullable=False)
+    task_name = Column(String(100), nullable=False)
+    task_description = Column(Text)
+    estimated_duration = Column(Integer)  # minutes
+    actual_duration = Column(Integer)  # minutes
+    status = Column(String(20))  # pending, in_progress, completed, failed
+    started_at = Column(DateTime)
+    completed_at = Column(DateTime)
+    assigned_staff_id = Column(UUID(as_uuid=True), ForeignKey("staff.id"))
+    quality_check_passed = Column(Boolean)
+    notes = Column(Text)
+    
+    # Relationships
+    turnover_log = relationship("BedTurnoverLog")
+    assigned_staff = relationship("Staff")
+
+class BedEquipmentAssignment(Base):
+    """Track equipment assignments to beds."""
+    __tablename__ = "bed_equipment_assignments"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    bed_id = Column(UUID(as_uuid=True), ForeignKey("beds.id"), nullable=False)
+    equipment_id = Column(UUID(as_uuid=True), ForeignKey("equipment.id"), nullable=False)
+    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"))
+    assigned_at = Column(DateTime)
+    released_at = Column(DateTime)
+    status = Column(String(20))  # assigned, in_use, released, maintenance
+    assigned_by_staff_id = Column(UUID(as_uuid=True), ForeignKey("staff.id"))
+    notes = Column(Text)
+    
+    # Relationships
+    bed = relationship("Bed")
+    equipment = relationship("Equipment")
+    patient = relationship("Patient")
+    assigned_by_staff = relationship("Staff")
+
+class BedStaffAssignment(Base):
+    """Track staff assignments to beds."""
+    __tablename__ = "bed_staff_assignments"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    bed_id = Column(UUID(as_uuid=True), ForeignKey("beds.id"), nullable=False)
+    staff_id = Column(UUID(as_uuid=True), ForeignKey("staff.id"), nullable=False)
+    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"))
+    assignment_type = Column(String(50))  # primary_nurse, secondary_nurse, doctor, etc.
+    assigned_at = Column(DateTime)
+    released_at = Column(DateTime)
+    status = Column(String(20))  # active, completed, transferred
+    shift_type = Column(String(20))  # day, night, evening
+    
+    # Relationships
+    bed = relationship("Bed")
+    staff = relationship("Staff")
+    patient = relationship("Patient")
+
+class BedTurnoverLog(Base):
+    """Detailed bed turnover process tracking."""
+    __tablename__ = "bed_turnover_logs"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    bed_id = Column(UUID(as_uuid=True), ForeignKey("beds.id"), nullable=False)
+    previous_patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"))
+    next_patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"))
+    
+    # Process timestamps
+    discharge_started_at = Column(DateTime, nullable=False)
+    discharge_completed_at = Column(DateTime)
+    cleaning_started_at = Column(DateTime)
+    cleaning_expected_duration = Column(Integer)  # minutes
+    cleaning_estimated_completion = Column(DateTime)
+    cleaning_actual_completion = Column(DateTime)
+    cleaning_status = Column(String(30))  # pending, in_progress, completed, failed
+    cleaning_assigned_staff_id = Column(UUID(as_uuid=True), ForeignKey("staff.id"))
+    cleaning_notes = Column(Text)
+    
+    # Resource management
+    equipment_released_at = Column(DateTime)
+    equipment_reassigned_at = Column(DateTime)
+    staff_released_at = Column(DateTime)
+    staff_reassigned_at = Column(DateTime)
+    next_patient_assigned_at = Column(DateTime)
+    turnover_completed_at = Column(DateTime)
+    
+    # Tracking and metrics
+    status = Column(String(30))  # initiated, in_progress, completed, delayed
+    total_turnover_time = Column(Integer)  # minutes
+    delays = Column(Text)  # JSON array of delay reasons
+    priority = Column(String(20))  # low, normal, high, urgent
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    bed = relationship("Bed")
+    previous_patient = relationship("Patient", foreign_keys=[previous_patient_id])
+    next_patient = relationship("Patient", foreign_keys=[next_patient_id])
+    cleaning_assigned_staff = relationship("Staff", foreign_keys=[cleaning_assigned_staff_id])
+    cleaning_tasks = relationship("BedCleaningTask", back_populates="turnover_log")
+
+class EquipmentUsage(Base):
+    """Track equipment usage by patients."""
+    __tablename__ = "equipment_usage"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
+    equipment_id = Column(UUID(as_uuid=True), ForeignKey("equipment.id"), nullable=False)
+    staff_id = Column(UUID(as_uuid=True), ForeignKey("staff.id"), nullable=False)
+    bed_id = Column(UUID(as_uuid=True), ForeignKey("beds.id"))
+    start_time = Column(DateTime, nullable=False)
+    end_time = Column(DateTime)
+    duration_minutes = Column(Integer)
+    purpose = Column(String(100))  # monitoring, treatment, diagnostic
+    settings = Column(Text)  # JSON of equipment settings
+    readings = Column(Text)  # JSON of readings/measurements
+    status = Column(String(20))  # active, completed, interrupted
+    notes = Column(Text)
+    created_at = Column(DateTime, default=func.now())
+    
+    # Relationships
+    patient = relationship("Patient")
+    equipment = relationship("Equipment")
+    staff = relationship("Staff")
+    bed = relationship("Bed")
+
+class StaffAssignment(Base):
+    """Track staff assignments to patients."""
+    __tablename__ = "staff_assignments"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
+    staff_id = Column(UUID(as_uuid=True), ForeignKey("staff.id"), nullable=False)
+    bed_id = Column(UUID(as_uuid=True), ForeignKey("beds.id"))
+    assignment_type = Column(String(50), nullable=False)  # primary_care, secondary_care, consultation
+    start_date = Column(DateTime, nullable=False)
+    end_date = Column(DateTime)
+    shift = Column(String(20))  # day, night, evening
+    responsibilities = Column(Text)
+    notes = Column(Text)
+    created_at = Column(DateTime, default=func.now())
+    
+    # Relationships
+    patient = relationship("Patient")
+    staff = relationship("Staff")
+    bed = relationship("Bed")
+
+class StaffInteraction(Base):
+    """Track staff interactions with patients."""
+    __tablename__ = "staff_interactions"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)  # Using Integer as per DB schema
+    patient_id = Column(String(50), nullable=False)  # Using String as per DB schema
+    staff_name = Column(String(100), nullable=False)
+    staff_role = Column(String(50))
+    interaction_type = Column(String(50))  # consultation, treatment, monitoring, etc.
+    description = Column(Text)
+    interaction_date = Column(Date)
+    duration_minutes = Column(Integer)
+    created_at = Column(DateTime, default=func.now())
+
+class StaffMeetingParticipant(Base):
+    """Link staff to staff meetings."""
+    __tablename__ = "staff_meeting_participants"
+    
+    meeting_id = Column(UUID(as_uuid=True), ForeignKey("staff_meetings.id"), primary_key=True)
+    staff_id = Column(UUID(as_uuid=True), ForeignKey("staff.id"), primary_key=True)
+    
+    # Relationships
+    meeting = relationship("StaffMeeting")
+    staff = relationship("Staff")
+
+class StaffMeeting(Base):
+    """Staff meetings management."""
+    __tablename__ = "staff_meetings"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    title = Column(String(200), nullable=False)
+    description = Column(String(500))
+    meeting_time = Column(DateTime, nullable=False)
+    duration_minutes = Column(Integer)
+    location = Column(String(100))
+    organizer_id = Column(UUID(as_uuid=True), ForeignKey("staff.id"), nullable=False)
+    department_id = Column(UUID(as_uuid=True), ForeignKey("departments.id"))
+    status = Column(String(30))  # scheduled, in_progress, completed, cancelled
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    organizer = relationship("Staff", foreign_keys=[organizer_id])
+    department = relationship("Department")
+    participants = relationship("StaffMeetingParticipant", back_populates="meeting")
+
+class TreatmentRecord(Base):
+    """Patient treatment records."""
+    __tablename__ = "treatment_records"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
+    doctor_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    appointment_id = Column(UUID(as_uuid=True), ForeignKey("appointments.id"))
+    bed_id = Column(UUID(as_uuid=True), ForeignKey("beds.id"))
+    treatment_type = Column(String(50), nullable=False)  # medication, procedure, therapy
+    treatment_name = Column(String(100), nullable=False)
+    description = Column(Text)
+    dosage = Column(String(50))
+    frequency = Column(String(50))  # daily, twice_daily, weekly, etc.
+    duration = Column(String(50))  # 7_days, 2_weeks, ongoing
+    start_date = Column(DateTime, nullable=False)
+    end_date = Column(DateTime)
+    status = Column(String(30))  # active, completed, discontinued
+    notes = Column(Text)
+    side_effects = Column(Text)
+    effectiveness = Column(String(30))  # excellent, good, fair, poor
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    patient = relationship("Patient")
+    doctor = relationship("User", foreign_keys=[doctor_id])
+    appointment = relationship("Appointment")
+    bed = relationship("Bed")
+
 def create_tables():
     """Create all tables in the database."""
     try:
@@ -651,20 +925,33 @@ if __name__ == "__main__":
 # Import additional discharge report models after all base models are defined
 # This prevents circular import issues
 try:
-    from discharge_report_models import TreatmentRecord, EquipmentUsage, StaffAssignment
+    # Don't import TreatmentRecord, EquipmentUsage, StaffAssignment as they're now defined in this file
+    # from discharge_report_models import TreatmentRecord, EquipmentUsage, StaffAssignment
+    pass
     # Re-export for convenience
     __all__ = [
         'Base', 'engine', 'SessionLocal', 'get_db_session',
         'User', 'Patient', 'Department', 'Room', 'Bed', 'Staff', 'Appointment', 
-        'Equipment', 'InventoryTransaction', 'AgentInteraction', 'DischargeReport',
-        'BedTurnover', 'PatientQueue', 'EquipmentTurnover',
-        'TreatmentRecord', 'EquipmentUsage', 'StaffAssignment'
+        'Equipment', 'EquipmentCategory', 'Supply', 'SupplyCategory', 'InventoryTransaction', 
+        'AgentInteraction', 'DischargeReport', 'BedTurnover', 'PatientQueue', 'EquipmentTurnover',
+        'Meeting', 'MeetingParticipant', 'MedicalDocument', 'ExtractedMedicalData', 'DocumentEmbedding',
+        'LegacyUser',
+        # New missing models
+        'BedCleaningTask', 'BedEquipmentAssignment', 'BedStaffAssignment', 'BedTurnoverLog',
+        'EquipmentUsage', 'StaffAssignment', 'StaffInteraction', 'StaffMeetingParticipant',
+        'StaffMeeting', 'TreatmentRecord'
     ]
 except ImportError as e:
     # Discharge models not available - continue without them
     __all__ = [
         'Base', 'engine', 'SessionLocal', 'get_db_session',
         'User', 'Patient', 'Department', 'Room', 'Bed', 'Staff', 'Appointment', 
-        'Equipment', 'InventoryTransaction', 'AgentInteraction', 'DischargeReport',
-        'BedTurnover', 'PatientQueue', 'EquipmentTurnover'
+        'Equipment', 'EquipmentCategory', 'Supply', 'SupplyCategory', 'InventoryTransaction', 
+        'AgentInteraction', 'DischargeReport', 'BedTurnover', 'PatientQueue', 'EquipmentTurnover',
+        'Meeting', 'MeetingParticipant', 'MedicalDocument', 'ExtractedMedicalData', 'DocumentEmbedding',
+        'LegacyUser',
+        # New missing models
+        'BedCleaningTask', 'BedEquipmentAssignment', 'BedStaffAssignment', 'BedTurnoverLog',
+        'EquipmentUsage', 'StaffAssignment', 'StaffInteraction', 'StaffMeetingParticipant',
+        'StaffMeeting', 'TreatmentRecord'
     ]

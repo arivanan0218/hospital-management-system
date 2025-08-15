@@ -679,8 +679,10 @@ Available popup forms:
 - bed: For adding new beds
 - equipment: For adding new medical equipment
 - supply: For adding new medical supplies
-- appointment: For booking/scheduling new appointments
+- appointment: For booking/scheduling patient medical appointments ONLY
 - legacy_user: For creating legacy users
+
+IMPORTANT: Staff meetings, team meetings, or scheduling meetings with staff/employees should return "none" - these are handled by the AI meeting system, NOT the appointment form.
 
 Return ONLY one of these values:
 - "patient_admission" if they want to create/admit/register a patient
@@ -691,16 +693,21 @@ Return ONLY one of these values:
 - "bed" if they want to add a bed
 - "equipment" if they want to add equipment
 - "supply" if they want to add supplies
-- "appointment" if they want to book/schedule an appointment
+- "appointment" if they want to book/schedule a PATIENT medical appointment (doctor-patient meeting)
 - "legacy_user" if they want to create a legacy user
-- "none" if they want to list/show/find/search/update existing data OR if the intent is unclear
+- "none" if they want to list/show/find/search/update existing data OR schedule staff meetings OR if the intent is unclear
 
 Examples:
 - "I need to register a new patient" -> patient_admission
 - "Can you help me add a patient named John?" -> patient_admission
 - "Add new staff member" -> staff
 - "Create department for cardiology" -> department
-- "Book an appointment" -> appointment
+- "Book an appointment for a patient" -> appointment
+- "Schedule a patient appointment" -> appointment
+- "I need to schedule a meeting with all the staff" -> none
+- "Schedule a team meeting" -> none
+- "Can we have a meeting with the doctors?" -> none
+- "Set up a staff meeting for today" -> none
 - "Show me all patients" -> none
 - "List departments" -> none
 - "Find patient John Smith" -> none
@@ -961,9 +968,11 @@ Examples:
       supply: ['create supply', 'add supply', 'new supply', 'supply creation',
                'register supply', 'add new supply', 'create new supply',
                'open supply form', 'show supply form', 'supply form popup'],
-      appointment: ['create appointment', 'book appointment', 'schedule appointment', 'new appointment',
+      appointment: ['create appointment', 'book appointment', 'new appointment',
                     'appointment booking', 'add appointment', 'create new appointment',
-                    'open appointment form', 'show appointment form', 'appointment form popup'],
+                    'open appointment form', 'show appointment form', 'appointment form popup',
+                    'schedule patient appointment', 'book doctor appointment', 'patient appointment',
+                    'medical appointment', 'doctor visit', 'book patient visit'],
       legacy: ['create legacy user', 'add legacy user', 'new legacy user', 'legacy user creation',
                'open legacy user form', 'show legacy user form', 'legacy user form popup']
     };
@@ -1082,23 +1091,42 @@ Examples:
       return;
     }
 
-    // Check for appointment form requests
-    const isAppointmentFormRequest = formKeywords.appointment.some(keyword => 
+    // Check for meeting scheduling requests (should be handled by AI, not forms)
+    const meetingKeywords = [
+      'schedule meeting', 'create meeting', 'book meeting', 'new meeting', 
+      'meeting scheduling', 'i need to schedule a meeting', 'schedule a meeting',
+      'create a meeting', 'book a meeting', 'set up meeting', 'organize meeting',
+      'schedule meeting with staff', 'team meeting', 'staff meeting', 'meeting with all',
+      'meeting with the staff', 'meeting today', 'meeting tomorrow'
+    ];
+    const isMeetingRequest = meetingKeywords.some(keyword => 
       userMessage.toLowerCase().includes(keyword)
     );
 
-    if (isAppointmentFormRequest) {
-      setIsLoading(false);
-      setShowAppointmentForm(true);
-      
-      const aiMsg = {
-        id: Date.now() + 1,
-        text: "I'll help you schedule a new appointment! I've opened the appointment booking form for you.",
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, aiMsg]);
-      return;
+    if (isMeetingRequest) {
+      // Meeting requests should go directly to AI processing (not form popup)
+      // The AI will use schedule_meeting tool which creates Google Meet links and sends emails
+      console.log('🤝 Meeting request detected - routing to AI system');
+      // Fall through to AI processing below
+    } else {
+      // Check for appointment form requests (only if NOT a meeting)
+      const isAppointmentFormRequest = formKeywords.appointment.some(keyword => 
+        userMessage.toLowerCase().includes(keyword)
+      );
+
+      if (isAppointmentFormRequest) {
+        setIsLoading(false);
+        setShowAppointmentForm(true);
+        
+        const aiMsg = {
+          id: Date.now() + 1,
+          text: "I'll help you schedule a new appointment! I've opened the appointment booking form for you.",
+          sender: 'ai',
+          timestamp: new Date().toLocaleTimeString()
+        };
+        setMessages(prev => [...prev, aiMsg]);
+        return;
+      }
     }
 
     // Check for legacy user form requests
