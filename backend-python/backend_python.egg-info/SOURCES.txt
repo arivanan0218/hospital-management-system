@@ -3,9 +3,11 @@ agents/__init__.py
 agents/appointment_agent.py
 agents/base_agent.py
 agents/department_agent.py
+agents/discharge_agent.py
 agents/equipment_agent.py
 agents/inventory_agent.py
 agents/medical_document_agent.py
+agents/meeting_agent.py
 agents/orchestrator_agent.py
 agents/patient_agent.py
 agents/room_bed_agent.py
