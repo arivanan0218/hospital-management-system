@@ -928,6 +928,17 @@ Respond naturally, conversationally, and contextually based on the conversation 
         return [{ name: '_ask_for_appointment_details', needsInput: true }];
       }
     }
+
+    // Meeting scheduling - Check for meeting requests BEFORE appointment
+    if (message.includes('schedule meeting') || message.includes('create meeting') || 
+        message.includes('book meeting') || message.includes('meeting') && 
+        (message.includes('schedule') || message.includes('book') || message.includes('create') || 
+         message.includes('need') || message.includes('want'))) {
+      const meetingParams = this.extractMeetingParameters(userMessage);
+      // Always use schedule_meeting tool which handles parameter collection internally
+      const query = userMessage; // Pass the full user message as query
+      toolsNeeded.push({ name: 'schedule_meeting', arguments: { query } });
+    }
     
     // Bed operations
     if (message.includes('list beds') || message.includes('show beds') || message.includes('all beds') || message.includes('beds')) {
@@ -1567,6 +1578,121 @@ Respond naturally and helpfully based on the user's request and the tool results
         params.appointment_date = `${dateMatch[1]} ${timeMatch[1]}`;
       } else {
         params.appointment_date = dateMatch[1];
+      }
+    }
+    
+    return params;
+  }
+
+  /**
+   * Extract meeting parameters from natural language input
+   */
+  extractMeetingParameters(message) {
+    const params = {};
+    
+    // Extract meeting topic/purpose
+    const topicPatterns = [
+      /meeting\s+about\s+([^,\n]+)/i,
+      /discuss\s+([^,\n]+)/i,
+      /regarding\s+([^,\n]+)/i,
+      /concerning\s+([^,\n]+)/i,
+      /for\s+([^,\n]+)\s+meeting/i
+    ];
+    
+    for (const pattern of topicPatterns) {
+      const match = message.match(pattern);
+      if (match) {
+        params.purpose = match[1].trim();
+        break;
+      }
+    }
+    
+    // Extract participants
+    const participantPatterns = [
+      /between\s+([^,\n]+)\s+and\s+([^,\n]+)/i,
+      /with\s+([^,\n]+)/i,
+      /participants?\s*:?\s*([^,\n]+)/i
+    ];
+    
+    for (const pattern of participantPatterns) {
+      const match = message.match(pattern);
+      if (match) {
+        if (match[2]) {
+          // "between X and Y" pattern
+          params.participants = [match[1].trim(), match[2].trim()];
+        } else {
+          // Single participant or list
+          params.participants = match[1].split(/\s+and\s+|\s*,\s*/).map(p => p.trim());
+        }
+        break;
+      }
+    }
+    
+    // Extract date
+    const datePatterns = [
+      /(\d{4}-\d{2}-\d{2})/,
+      /tomorrow/i,
+      /today/i,
+      /next\s+(\w+)/i,
+      /on\s+(\w+)/i
+    ];
+    
+    for (const pattern of datePatterns) {
+      const match = message.match(pattern);
+      if (match) {
+        if (match[0].toLowerCase() === 'tomorrow') {
+          const tomorrow = new Date();
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          params.date = tomorrow.toISOString().split('T')[0];
+        } else if (match[0].toLowerCase() === 'today') {
+          params.date = new Date().toISOString().split('T')[0];
+        } else if (match[1] && pattern.toString().includes('next')) {
+          // Handle "next Monday", etc. - simplified for now
+          params.date_description = match[0];
+        } else {
+          params.date = match[1] || match[0];
+        }
+        break;
+      }
+    }
+    
+    // Extract time
+    const timePatterns = [
+      /at\s+(\d{1,2}:\d{2}(?:\s*[ap]m)?)/i,
+      /(\d{1,2}:\d{2})/,
+      /at\s+(\d{1,2})\s*([ap]m)/i
+    ];
+    
+    for (const pattern of timePatterns) {
+      const match = message.match(pattern);
+      if (match) {
+        if (match[2] && match[2].toLowerCase() === 'am' || match[2].toLowerCase() === 'pm') {
+          params.time = `${match[1]}${match[2]}`;
+        } else {
+          params.time = match[1];
+        }
+        break;
+      }
+    }
+    
+    // Extract duration
+    const durationPatterns = [
+      /for\s+(\d+)\s*minutes?/i,
+      /(\d+)\s*minutes?/i,
+      /for\s+(\d+)\s*hours?/i,
+      /(\d+)\s*hours?/i
+    ];
+    
+    for (const pattern of durationPatterns) {
+      const match = message.match(pattern);
+      if (match) {
+        const value = parseInt(match[1]);
+        if (pattern.toString().includes('hour')) {
+          params.duration_minutes = value * 60;
+        } else {
+          params.duration_minutes = value;
+        }
+        break;
       }
     }
     

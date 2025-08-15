@@ -7,8 +7,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from sqlalchemy import and_, or_
-from database import Staff, Appointment, User, Department, SessionLocal
-from staff_meetings import StaffMeeting, staff_meeting_participants
+from database import Staff, Appointment, User, Department, SessionLocal, StaffMeeting, StaffMeetingParticipant
 from google_meet_api import GoogleMeetAPIIntegration
 from meeting_management import MeetingManager, Meeting, MeetingParticipant
 import os
@@ -848,10 +847,8 @@ Best regards,
                     duration_minutes=duration_minutes,  # Use parsed duration
                     google_meet_link=meet_link,
                     google_event_id=google_event_id,
-                    organizer_staff_id=staff_ids[0],  # First staff as organizer
+                    organizer_id=staff_ids[0],  # First staff as organizer
                     department_id=str(first_staff.department_id) if first_staff and first_staff.department_id else None,
-                    meeting_type='staff',
-                    priority='normal',
                     agenda="• Discussion of key topics\n• Team coordination\n• Q&A session"
                 )
                 
