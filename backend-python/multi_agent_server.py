@@ -327,27 +327,8 @@ def create_department(name: str, description: str = None, head_doctor_id: str = 
                                            name=name, description=description, head_doctor_id=head_doctor_id,
                                            floor_number=floor_number, phone=phone, email=email)
         return result.get("result", result)
-    # Direct DB fallback
-    if not DATABASE_AVAILABLE:
-        return {"success": False, "message": "Database not available"}
-    try:
-        db = get_db_session()
-        department = Department(
-            name=name,
-            description=description,
-            head_doctor_id=uuid.UUID(head_doctor_id) if head_doctor_id else None,
-            floor_number=floor_number,
-            phone=phone,
-            email=email
-        )
-        db.add(department)
-        db.commit()
-        db.refresh(department)
-        result = serialize_model(department)
-        db.close()
-        return {"success": True, "message": "Department created successfully", "data": result}
-    except Exception as e:
-        return {"success": False, "message": f"Failed to create department: {str(e)}"}
+    
+    return {"success": False, "message": "Multi-agent system required for this operation"}
 
 @mcp.tool()
 def list_departments() -> Dict[str, Any]:
@@ -380,26 +361,8 @@ def create_room(room_number: str, department_id: str, room_type: str = None,
                                            room_number=room_number, department_id=department_id,
                                            room_type=room_type, capacity=capacity, status=status)
         return result.get("result", result)
-    # Direct DB fallback
-    if not DATABASE_AVAILABLE:
-        return {"success": False, "message": "Database not available"}
-    try:
-        db = get_db_session()
-        room = Room(
-            room_number=room_number,
-            department_id=uuid.UUID(department_id),
-            room_type=room_type,
-            capacity=capacity,
-            status=status
-        )
-        db.add(room)
-        db.commit()
-        db.refresh(room)
-        result = serialize_model(room)
-        db.close()
-        return {"success": True, "message": "Room created successfully", "data": result}
-    except Exception as e:
-        return {"success": False, "message": f"Failed to create room: {str(e)}"}
+    
+    return {"success": False, "message": "Multi-agent system required for this operation"}
 
 @mcp.tool()
 def list_rooms(department_id: str = None, status: str = None) -> Dict[str, Any]:
@@ -418,25 +381,8 @@ def create_bed(bed_number: str, room_id: str, bed_type: str = None, status: str 
                                            bed_number=bed_number, room_id=room_id,
                                            bed_type=bed_type, status=status)
         return result.get("result", result)
-    # Direct DB fallback
-    if not DATABASE_AVAILABLE:
-        return {"success": False, "message": "Database not available"}
-    try:
-        db = get_db_session()
-        bed = Bed(
-            bed_number=bed_number,
-            room_id=uuid.UUID(room_id),
-            bed_type=bed_type,
-            status=status
-        )
-        db.add(bed)
-        db.commit()
-        db.refresh(bed)
-        result = serialize_model(bed)
-        db.close()
-        return {"success": True, "message": "Bed created successfully", "data": result}
-    except Exception as e:
-        return {"success": False, "message": f"Failed to create bed: {str(e)}"}
+    
+    return {"success": False, "message": "Multi-agent system required for this operation"}
 
 @mcp.tool()
 def list_beds(status: str = None, room_id: str = None) -> Dict[str, Any]:
@@ -468,87 +414,6 @@ def discharge_bed(bed_id: str, discharge_date: str = None) -> Dict[str, Any]:
 
 # ================================
 # STAFF MANAGEMENT TOOLS
-@mcp.tool()
-def create_equipment(equipment_id: str, name: str, category_id: str, model: str = None,
-                    manufacturer: str = None, serial_number: str = None, purchase_date: str = None,
-                    warranty_expiry: str = None, location: str = None, department_id: str = None,
-                    cost: float = None) -> Dict[str, Any]:
-    """Create a new equipment item."""
-    if MULTI_AGENT_AVAILABLE and orchestrator:
-        result = orchestrator.route_request("create_equipment",
-                                           equipment_id=equipment_id, name=name, category_id=category_id,
-                                           model=model, manufacturer=manufacturer, serial_number=serial_number,
-                                           purchase_date=purchase_date, warranty_expiry=warranty_expiry,
-                                           location=location, department_id=department_id, cost=cost)
-        return result.get("result", result)
-    # Direct DB fallback
-    if not DATABASE_AVAILABLE:
-        return {"success": False, "message": "Database not available"}
-    try:
-        db = get_db_session()
-        equipment = Equipment(
-            equipment_id=equipment_id,
-            name=name,
-            category_id=uuid.UUID(category_id),
-            model=model,
-            manufacturer=manufacturer,
-            serial_number=serial_number,
-            purchase_date=datetime.strptime(purchase_date, "%Y-%m-%d").date() if purchase_date else None,
-            warranty_expiry=datetime.strptime(warranty_expiry, "%Y-%m-%d").date() if warranty_expiry else None,
-            location=location,
-            department_id=uuid.UUID(department_id) if department_id else None,
-            cost=Decimal(str(cost)) if cost else None
-        )
-        db.add(equipment)
-        db.commit()
-        db.refresh(equipment)
-        result = serialize_model(equipment)
-        db.close()
-        return {"success": True, "message": "Equipment created successfully", "data": result}
-    except Exception as e:
-        return {"success": False, "message": f"Failed to create equipment: {str(e)}"}
-
-@mcp.tool()
-def create_supply(item_code: str, name: str, category_id: str, unit_of_measure: str,
-                 description: str = None, minimum_stock_level: int = 0, maximum_stock_level: int = None,
-                 current_stock: int = 0, unit_cost: float = None, supplier: str = None,
-                 expiry_date: str = None, location: str = None) -> Dict[str, Any]:
-    """Create a new supply item."""
-    if MULTI_AGENT_AVAILABLE and orchestrator:
-        result = orchestrator.route_request("create_supply",
-                                           item_code=item_code, name=name, category_id=category_id,
-                                           unit_of_measure=unit_of_measure, description=description,
-                                           minimum_stock_level=minimum_stock_level, maximum_stock_level=maximum_stock_level,
-                                           current_stock=current_stock, unit_cost=unit_cost, supplier=supplier,
-                                           expiry_date=expiry_date, location=location)
-        return result.get("result", result)
-    # Direct DB fallback
-    if not DATABASE_AVAILABLE:
-        return {"success": False, "message": "Database not available"}
-    try:
-        db = get_db_session()
-        supply = Supply(
-            item_code=item_code,
-            name=name,
-            category_id=uuid.UUID(category_id),
-            description=description,
-            unit_of_measure=unit_of_measure,
-            minimum_stock_level=minimum_stock_level,
-            maximum_stock_level=maximum_stock_level,
-            current_stock=current_stock,
-            unit_cost=Decimal(str(unit_cost)) if unit_cost else None,
-            supplier=supplier,
-            expiry_date=datetime.strptime(expiry_date, "%Y-%m-%d").date() if expiry_date else None,
-            location=location
-        )
-        db.add(supply)
-        db.commit()
-        db.refresh(supply)
-        result = serialize_model(supply)
-        db.close()
-        return {"success": True, "message": "Supply created successfully", "data": result}
-    except Exception as e:
-        return {"success": False, "message": f"Failed to create supply: {str(e)}"}
 # ================================
 
 @mcp.tool()
@@ -560,28 +425,8 @@ def create_staff(user_id: str, employee_id: str, department_id: str, position: s
                                            user_id=user_id, employee_id=employee_id, department_id=department_id,
                                            position=position, hire_date=hire_date, salary=salary, status=status)
         return result.get("result", result)
-    # Direct DB fallback
-    if not DATABASE_AVAILABLE:
-        return {"success": False, "message": "Database not available"}
-    try:
-        db = get_db_session()
-        staff = Staff(
-            user_id=uuid.UUID(user_id),
-            employee_id=employee_id,
-            department_id=uuid.UUID(department_id),
-            position=position,
-            hire_date=datetime.strptime(hire_date, "%Y-%m-%d").date() if hire_date else date.today(),
-            salary=Decimal(str(salary)) if salary else None,
-            status=status
-        )
-        db.add(staff)
-        db.commit()
-        db.refresh(staff)
-        result = serialize_model(staff)
-        db.close()
-        return {"success": True, "message": "Staff created successfully", "data": result}
-    except Exception as e:
-        return {"success": False, "message": f"Failed to create staff: {str(e)}"}
+    
+    return {"success": False, "message": "Multi-agent system required for this operation"}
 
 @mcp.tool()
 def list_staff(department_id: str = None, status: str = None, position: str = None) -> Dict[str, Any]:
