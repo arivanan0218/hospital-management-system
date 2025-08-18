@@ -29,6 +29,12 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/hospital_management
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - SMTP_SERVER=${SMTP_SERVER}
+      - SMTP_PORT=${SMTP_PORT}
+      - EMAIL_USERNAME=${EMAIL_USERNAME}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
+      - EMAIL_FROM_NAME=${EMAIL_FROM_NAME}
+      - EMAIL_FROM_ADDRESS=${EMAIL_FROM_ADDRESS}
     ports:
       - "8000:8000"
     depends_on:
