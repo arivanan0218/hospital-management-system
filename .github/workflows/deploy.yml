@@ -10,7 +10,7 @@ env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY_BACKEND: hospital-backend
   ECR_REPOSITORY_FRONTEND: hospital-frontend
-  EC2_HOST: 34.207.201.88
+  EC2_HOST: 54.85.118.65
   # Environment variables for the entire workflow
   VITE_OPENAI_API_KEY: ${{ secrets.VITE_OPENAI_API_KEY }}
   VITE_LANGSMITH_API_KEY: ${{ secrets.VITE_LANGSMITH_API_KEY }}
