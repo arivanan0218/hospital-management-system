@@ -21,12 +21,36 @@
         {
           "name": "DATABASE_URL",
           "value": "postgresql://postgres:PASSWORD@RDS_ENDPOINT:5432/hospital_management"
+        },
+        {
+          "name": "SMTP_SERVER",
+          "value": "smtp.gmail.com"
+        },
+        {
+          "name": "SMTP_PORT",
+          "value": "587"
+        },
+        {
+          "name": "EMAIL_FROM_NAME",
+          "value": "Hospital Management System"
         }
       ],
       "secrets": [
         {
           "name": "GEMINI_API_KEY",
           "valueFrom": "arn:aws:ssm:us-east-1:ACCOUNT_ID:parameter/hospital/gemini-api-key"
+        },
+        {
+          "name": "EMAIL_USERNAME",
+          "valueFrom": "arn:aws:ssm:us-east-1:ACCOUNT_ID:parameter/hospital/email-username"
+        },
+        {
+          "name": "EMAIL_PASSWORD",
+          "valueFrom": "arn:aws:ssm:us-east-1:ACCOUNT_ID:parameter/hospital/email-password"
+        },
+        {
+          "name": "EMAIL_FROM_ADDRESS",
+          "valueFrom": "arn:aws:ssm:us-east-1:ACCOUNT_ID:parameter/hospital/email-from-address"
         }
       ],
       "logConfiguration": {
