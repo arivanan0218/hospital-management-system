@@ -81,7 +81,7 @@ jobs:
         echo "VITE_LANGSMITH_API_KEY=${{ secrets.VITE_LANGSMITH_API_KEY }}" >> .env
         echo "VITE_LANGSMITH_PROJECT=hospital-management-system" >> .env
         echo "VITE_LANGSMITH_TRACING=true" >> .env
-        echo "VITE_MCP_BRIDGE_URL=${{ secrets.VITE_MCP_BRIDGE_URL }}" >> .env
+        echo "VITE_MCP_BRIDGE_URL=http://${{ env.EC2_HOST }}" >> .env
         echo "✅ Frontend .env file created"
 
     - name: Build and push frontend image
