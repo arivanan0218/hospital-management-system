@@ -44,6 +44,17 @@
             └─────────────┘ └─────────┘ └─────────────┘
 ```
 
+### Email System Integration
+The system includes automatic email notifications for:
+- Meeting confirmations and reminders
+- Staff notifications
+- System alerts and updates
+
+**Email Configuration Required:**
+- SMTP server settings (Gmail recommended)
+- App-specific passwords for Gmail
+- Environment variables for secure credential storage
+
 ---
 
 ## ✅ Prerequisites
@@ -185,6 +196,59 @@ docker run -d \
 # Test database connection
 cd backend-python
 python setup_database.py
+```
+
+### Step 5: Email Configuration Setup
+
+The system requires email configuration for meeting confirmations and notifications.
+
+#### Gmail Setup (Recommended)
+1. **Enable 2-Factor Authentication** on your Gmail account
+2. **Generate App Password**:
+   - Go to Google Account settings
+   - Security → 2-Step Verification → App passwords
+   - Generate app password for "Mail"
+   - Save the 16-character password
+
+#### Environment Variables
+Create `.env` file in `backend-python/` directory:
+```bash
+# Email Configuration
+SMTP_SERVER=smtp.gmail.com
+SMTP_PORT=587
+EMAIL_USERNAME=your-email@gmail.com
+EMAIL_PASSWORD=your-app-password-here
+EMAIL_FROM_NAME=Hospital Management System
+EMAIL_FROM_ADDRESS=your-email@gmail.com
+
+# Other configurations...
+GEMINI_API_KEY=your_gemini_api_key
+DATABASE_URL=postgresql://hospital_user:hospital_pass@localhost:5432/hospital_db
+```
+
+#### Test Email Configuration
+```bash
+cd backend-python
+python ../test-email-config.py
+```
+
+**Expected Output:**
+```
+Testing Email Configuration...
+==================================================
+SMTP Server: smtp.gmail.com
+SMTP Port: 587
+Email Username: your-email@gmail.com
+From Email: your-email@gmail.com
+Password Set: Yes
+
+Connecting to SMTP server...
+Starting TLS encryption...
+Logging in...
+Sending test email...
+
+✅ SUCCESS: Test email sent successfully!
+Check your inbox at: your-email@gmail.com
 ```
 
 ---
@@ -357,7 +421,91 @@ Run the deployment:
 
 ---
 
-## 🚀 Application Deployment
+## � Email Configuration for Deployment
+
+Before deploying to AWS, ensure email functionality is properly configured for both Docker and AWS ECS deployments.
+
+### Step 1: Setup Environment Variables for Docker
+
+Create `.env` file in the root directory (alongside `docker-compose.yml`):
+
+```bash
+# Google Gemini API Key (required for AI features)
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# Email Configuration for SMTP
+SMTP_SERVER=smtp.gmail.com
+SMTP_PORT=587
+EMAIL_USERNAME=your-email@gmail.com
+EMAIL_PASSWORD=your-gmail-app-password
+EMAIL_FROM_NAME=Hospital Management System
+EMAIL_FROM_ADDRESS=your-email@gmail.com
+
+# Frontend API Keys (if needed)
+VITE_CLAUDE_API_KEY=your_claude_api_key_here
+VITE_OPENAI_API_KEY=your_openai_api_key_here
+VITE_GROQ_API_KEY=your_groq_api_key_here
+VITE_GOOGLE_API_KEY=your_google_api_key_here
+```
+
+### Step 2: Setup AWS Parameter Store for ECS (Production)
+
+Run the setup script to store email credentials securely in AWS:
+
+```bash
+# Make sure AWS CLI is configured with proper permissions
+aws configure
+
+# Run the email parameter setup script
+./setup-email-aws-params.ps1
+```
+
+This script creates the following AWS Systems Manager parameters:
+- `/hospital/email-username` (SecureString)
+- `/hospital/email-password` (SecureString) 
+- `/hospital/email-from-address` (SecureString)
+
+### Step 3: Test Email Configuration
+
+```bash
+# Test locally with Docker
+python test-email-config.py
+
+# Test in Docker container
+docker-compose up backend
+docker exec -it hospital_backend python ../test-email-config.py
+```
+
+### Step 4: Verify Deployment Configuration
+
+The following files have been updated with email support:
+
+**Docker Compose (`docker-compose.yml`):**
+- Added email environment variables to backend service
+- Variables are read from root `.env` file
+
+**ECS Task Definition (`backend-task-definition.json`):**
+- Added email environment variables 
+- Sensitive credentials stored as AWS Parameter Store secrets
+- Non-sensitive settings (SMTP server, port) as environment variables
+
+**Common Issues & Solutions:**
+
+1. **Gmail App Password Required:**
+   - Must use App Password, not regular Gmail password
+   - Enable 2-Factor Authentication first
+   
+2. **Docker Environment Variables:**
+   - Ensure `.env` file is in root directory (not backend-python)
+   - Check variable names match exactly
+   
+3. **AWS Parameter Store Access:**
+   - ECS task role needs `ssm:GetParameter` permission
+   - Parameter names must match task definition exactly
+
+---
+
+## �🚀 Application Deployment
 
 ### Step 1: Build and Push Images
 ```bash
