@@ -174,18 +174,18 @@ jobs:
         
         # Login to ECR
         echo "🔐 Logging into ECR..."
-        aws ecr get-login-password --region us-east-1 | sudo docker login --username AWS --password-stdin 324037286635.dkr.ecr.us-east-1.amazonaws.com
+        aws ecr get-login-password --region us-east-1 | sudo docker login --username AWS --password-stdin 135878023409.dkr.ecr.us-east-1.amazonaws.com
         
         # Pull latest images one at a time to reduce memory pressure
         echo "📥 Pulling backend image..."
-        if ! sudo docker pull 324037286635.dkr.ecr.us-east-1.amazonaws.com/hospital-backend:latest; then
+        if ! sudo docker pull 135878023409.dkr.ecr.us-east-1.amazonaws.com/hospital-backend:latest; then
           echo "❌ Failed to pull backend image. Checking disk space..."
           df -h
           exit 1
         fi
         
         echo "📥 Pulling frontend image..."
-        if ! sudo docker pull 324037286635.dkr.ecr.us-east-1.amazonaws.com/hospital-frontend:latest; then
+        if ! sudo docker pull 135878023409.dkr.ecr.us-east-1.amazonaws.com/hospital-frontend:latest; then
           echo "❌ Failed to pull frontend image. Checking disk space..."
           df -h
           exit 1
@@ -252,7 +252,7 @@ jobs:
           --network hospital-network \
           --restart unless-stopped \
           -e DATABASE_URL="postgresql://postgres:postgres@postgres:5432/hospital_db" \
-          324037286635.dkr.ecr.us-east-1.amazonaws.com/hospital-backend:latest
+          135878023409.dkr.ecr.us-east-1.amazonaws.com/hospital-backend:latest
         
         # Start new frontend container
         echo "🔄 Starting new frontend container..."
@@ -260,7 +260,7 @@ jobs:
           --name hospital-frontend \
           --network hospital-network \
           --restart unless-stopped \
-          324037286635.dkr.ecr.us-east-1.amazonaws.com/hospital-frontend:latest
+          135878023409.dkr.ecr.us-east-1.amazonaws.com/hospital-frontend:latest
         
         # Setup nginx proxy for routing
         echo "🌐 Setting up nginx proxy..."
@@ -403,7 +403,7 @@ jobs:
       env:
         PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
         HOST: ${{ env.EC2_HOST }}
-        USER: ubuntu
+        USER: ec2-user
       run: |
         echo "🔐 Setting up SSH..."
         echo "$PRIVATE_KEY" > private_key.pem
