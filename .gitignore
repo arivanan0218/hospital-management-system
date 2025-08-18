@@ -190,8 +190,8 @@ coverage/
 google_credentials.json
 oauth_credentials.json
 client_secret.json
-token.pickle
-backend-python/token.pickle
+# token.pickle
+# backend-python/token.pickle
 
 # ================================
 # PROJECT SPECIFIC
