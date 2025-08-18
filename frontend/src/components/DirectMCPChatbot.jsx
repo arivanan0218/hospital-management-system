@@ -650,6 +650,7 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
 
   /**
    * Use OpenAI to intelligently detect user intent for showing popup forms
+   * Only specific CREATE tools trigger popup forms, all other tools use AI processing
    */
   const detectIntentWithAI = async (userMessage) => {
     if (!openaiApiKey.trim()) {
@@ -668,50 +669,63 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
           messages: [
             {
               role: 'system',
-              content: `You are an intent detection system for a hospital management application. Analyze the user's message and determine if they want to CREATE/ADD/REGISTER a new entity using a popup form.
+              content: `You are an intelligent intent detection system for a hospital management application with multi-agent backend tools. 
 
-Available popup forms:
-- patient_admission: For creating/admitting/registering new patients
-- department: For creating new departments
-- staff: For adding new staff/employees
-- user: For creating new system users
-- room: For adding new rooms
-- bed: For adding new beds
-- equipment: For adding new medical equipment
-- supply: For adding new medical supplies
-- appointment: For booking/scheduling patient medical appointments ONLY
-- legacy_user: For creating legacy users
+POPUP FORM TRIGGERS (Only these EXACT 10 CREATE tools should show popup forms):
+1. create_user: User creation popup form
+2. create_patient: Patient admission popup form  
+3. create_legacy_user: Legacy user creation popup form
+4. create_department: Department creation popup form
+5. create_room: Room creation popup form
+6. create_bed: Bed creation popup form
+7. create_staff: Staff creation popup form
+8. create_equipment: Equipment creation popup form (ONLY this exact tool)
+9. create_supply: Supply creation popup form (ONLY this exact tool)
+10. create_appointment: Appointment booking popup form
 
-IMPORTANT: Staff meetings, team meetings, or scheduling meetings with staff/employees should return "none" - these are handled by the AI meeting system, NOT the appointment form.
+CRITICAL: These tools should use AI processing (NOT popup forms):
+- create_equipment_category (AI processing, NOT popup)
+- create_supply_category (AI processing, NOT popup)
+- All other tools like list, get, update, delete, search, etc.
+
+IMPORTANT DISTINCTION:
+- "create equipment" or "add equipment" → create_equipment popup form
+- "create equipment category" → ai_processing (no popup)
+- "create supply" or "add supply" → create_supply popup form  
+- "create supply category" → ai_processing (no popup)
+
+RULES:
+1. Only the exact 10 CREATE tools above trigger popup forms
+2. Equipment/Supply categories are handled by AI processing
+3. All listing, searching, updating, deleting operations use AI processing
+4. Staff meetings = AI processing (schedule_meeting tool)
+5. Patient appointments = create_appointment popup form
 
 Return ONLY one of these values:
-- "patient_admission" if they want to create/admit/register a patient
-- "department" if they want to create a department
-- "staff" if they want to add staff/employee
-- "user" if they want to create a system user
-- "room" if they want to add a room
-- "bed" if they want to add a bed
-- "equipment" if they want to add equipment
-- "supply" if they want to add supplies
-- "appointment" if they want to book/schedule a PATIENT medical appointment (doctor-patient meeting)
-- "legacy_user" if they want to create a legacy user
-- "none" if they want to list/show/find/search/update existing data OR schedule staff meetings OR if the intent is unclear
+- "create_user" for system user creation
+- "create_patient" for patient registration/admission  
+- "create_legacy_user" for legacy user creation
+- "create_department" for department creation
+- "create_room" for room creation
+- "create_bed" for bed creation
+- "create_staff" for staff hiring/registration
+- "create_equipment" for equipment registration (NOT categories)
+- "create_supply" for supply registration (NOT categories)
+- "create_appointment" for patient medical appointments
+- "ai_processing" for everything else
 
 Examples:
-- "I need to register a new patient" -> patient_admission
-- "Can you help me add a patient named John?" -> patient_admission
-- "Add new staff member" -> staff
-- "Create department for cardiology" -> department
-- "Book an appointment for a patient" -> appointment
-- "Schedule a patient appointment" -> appointment
-- "I need to schedule a meeting with all the staff" -> none
-- "Schedule a team meeting" -> none
-- "Can we have a meeting with the doctors?" -> none
-- "Set up a staff meeting for today" -> none
-- "Show me all patients" -> none
-- "List departments" -> none
-- "Find patient John Smith" -> none
-- "Hello" -> none`
+- "Register a new patient" → create_patient
+- "Add new staff member" → create_staff  
+- "Create cardiology department" → create_department
+- "Add new equipment" → create_equipment
+- "Create equipment category" → ai_processing
+- "Add new supply" → create_supply
+- "Create supply category" → ai_processing
+- "Book patient appointment" → create_appointment
+- "Schedule staff meeting" → ai_processing
+- "List all patients" → ai_processing
+- "Update bed status" → ai_processing`
             },
             {
               role: 'user',
@@ -733,21 +747,23 @@ Examples:
       
       console.log('🤖 AI Intent Detection:', userMessage, '->', intent);
       
-      // Validate the response
-      const validIntents = ['patient_admission', 'department', 'staff', 'user', 'room', 'bed', 'equipment', 'supply', 'appointment', 'legacy_user', 'none'];
-      if (validIntents.includes(intent)) {
+      // Validate the response - only these exact 10 create tools should show popup forms
+      const validPopupIntents = ['create_user', 'create_patient', 'create_legacy_user', 'create_department', 'create_room', 'create_bed', 'create_staff', 'create_equipment', 'create_supply', 'create_appointment'];
+      if (validPopupIntents.includes(intent)) {
         return intent;
       }
       
-      return null;
+      return 'ai_processing'; // Default to AI processing if uncertain
     } catch (error) {
       console.warn('Intent detection error:', error);
-      return null; // Fall back to keyword matching
+      return 'ai_processing'; // Default to AI processing on error
     }
   };
 
   /**
-   * Smart conversation flow: only show thinking when tools are needed
+   * Smart conversation flow: 
+   * - CREATE tools (create_user, create_patient, etc.) → Show popup forms
+   * - ALL OTHER tools (list, search, update, delete, etc.) → Intelligent AI processing
    */
   const sendMessageClaudeStyle = async (customMessage = null, isFromVoiceInput = false) => {
     const messageToSend = customMessage || inputMessage.trim();
@@ -774,12 +790,12 @@ Examples:
     try {
       const detectedIntent = await detectIntentWithAI(userMessage);
       
-      if (detectedIntent && detectedIntent !== 'none') {
+      if (detectedIntent && detectedIntent !== 'ai_processing') {
         setIsLoading(false);
         
         // Show appropriate popup form based on AI detection
         switch (detectedIntent) {
-          case 'patient_admission':
+          case 'create_patient':
             setShowPatientAdmissionForm(true);
             const patientMsg = {
               id: Date.now() + 1,
@@ -790,7 +806,7 @@ Examples:
             setMessages(prev => [...prev, patientMsg]);
             return;
             
-          case 'department':
+          case 'create_department':
             setShowDepartmentForm(true);
             const deptMsg = {
               id: Date.now() + 1,
@@ -801,7 +817,7 @@ Examples:
             setMessages(prev => [...prev, deptMsg]);
             return;
             
-          case 'staff':
+          case 'create_staff':
             setShowStaffForm(true);
             const staffMsg = {
               id: Date.now() + 1,
@@ -812,7 +828,7 @@ Examples:
             setMessages(prev => [...prev, staffMsg]);
             return;
             
-          case 'user':
+          case 'create_user':
             setShowUserForm(true);
             const userMsg = {
               id: Date.now() + 1,
@@ -823,7 +839,7 @@ Examples:
             setMessages(prev => [...prev, userMsg]);
             return;
             
-          case 'room':
+          case 'create_room':
             setShowRoomForm(true);
             const roomMsg = {
               id: Date.now() + 1,
@@ -834,7 +850,7 @@ Examples:
             setMessages(prev => [...prev, roomMsg]);
             return;
             
-          case 'bed':
+          case 'create_bed':
             setShowBedForm(true);
             const bedMsg = {
               id: Date.now() + 1,
@@ -845,7 +861,7 @@ Examples:
             setMessages(prev => [...prev, bedMsg]);
             return;
             
-          case 'equipment':
+          case 'create_equipment':
             setShowEquipmentForm(true);
             const equipMsg = {
               id: Date.now() + 1,
@@ -856,7 +872,7 @@ Examples:
             setMessages(prev => [...prev, equipMsg]);
             return;
             
-          case 'supply':
+          case 'create_supply':
             setShowSupplyForm(true);
             const supplyMsg = {
               id: Date.now() + 1,
@@ -867,7 +883,7 @@ Examples:
             setMessages(prev => [...prev, supplyMsg]);
             return;
             
-          case 'appointment':
+          case 'create_appointment':
             setShowAppointmentForm(true);
             const apptMsg = {
               id: Date.now() + 1,
@@ -878,7 +894,7 @@ Examples:
             setMessages(prev => [...prev, apptMsg]);
             return;
             
-          case 'legacy_user':
+          case 'create_legacy_user':
             setShowLegacyUserForm(true);
             const legacyMsg = {
               id: Date.now() + 1,
@@ -890,326 +906,71 @@ Examples:
             return;
         }
       }
-    } catch (error) {
-      console.warn('AI intent detection failed, falling back to keyword matching:', error);
-    }
-
-    // 🔍 FALLBACK: KEYWORD-BASED DETECTION (if AI detection fails or returns 'none')
-
-    // Check for patient admission requests (both explicit form requests and intelligent AI processing)
-    const admissionKeywords = [
-      'admit patient', 'patient admission', 'register patient', 'add new patient', 
-      'new patient admission', 'patient register', 'want to admit', 'need to admit',
-      'admitting a patient', 'admit a patient', 'patient registration', 'enroll patient',
-      'admit new patient', 'register new patient', 'add patient', 'create patient',
-      'create new patient', 'new patient', 'patient creation',
-      'patient intake', 'patient enrollment', 'open patient form', 'show patient form'
-    ];
-    const isAdmissionRequest = admissionKeywords.some(keyword => 
-      userMessage.toLowerCase().includes(keyword)
-    );
-
-    if (isAdmissionRequest) {
-      setIsLoading(false);
-      setShowPatientAdmissionForm(true);
       
-      // Add AI response suggesting the form
-      const aiMsg = {
-        id: Date.now() + 1,
-        text: "I'll help you admit a new patient! I've opened the patient admission form for you to fill out with all the required information.",
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, aiMsg]);
-      return;
-    }
-
-    // Check for department creation requests (both explicit form requests and intelligent AI processing)
-    const departmentKeywords = [
-      'create department', 'add department', 'new department', 'department creation',
-      'register department', 'add new department', 'create new department',
-      'open department form', 'show department form', 'department form popup'
-    ];
-    const isDepartmentRequest = departmentKeywords.some(keyword => 
-      userMessage.toLowerCase().includes(keyword)
-    );
-
-    if (isDepartmentRequest) {
-      setIsLoading(false);
-      setShowDepartmentForm(true);
-      
-      const aiMsg = {
-        id: Date.now() + 1,
-        text: "I'll help you create a new department! I've opened the department creation form for you.",
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, aiMsg]);
-      return;
-    }
-
-    // Check for all creation/addition requests and show appropriate popup forms
-    const formKeywords = {
-      staff: ['create staff', 'add staff', 'new staff', 'staff creation', 'hire staff',
-              'register staff', 'add new staff', 'create new staff', 'staff registration',
-              'open staff form', 'show staff form', 'staff form popup'],
-      user: ['create user', 'add user', 'new user', 'user creation',
-             'register user', 'add new user', 'create new user', 'user registration',
-             'open user form', 'show user form', 'user form popup'],
-      room: ['create room', 'add room', 'new room', 'room creation',
-             'register room', 'add new room', 'create new room',
-             'open room form', 'show room form', 'room form popup'],
-      bed: ['create bed', 'add bed', 'new bed', 'bed creation',
-            'register bed', 'add new bed', 'create new bed',
-            'open bed form', 'show bed form', 'bed form popup'],
-      equipment: ['create equipment', 'add equipment', 'new equipment', 'equipment creation',
-                  'register equipment', 'add new equipment', 'create new equipment',
-                  'open equipment form', 'show equipment form', 'equipment form popup'],
-      supply: ['create supply', 'add supply', 'new supply', 'supply creation',
-               'register supply', 'add new supply', 'create new supply',
-               'open supply form', 'show supply form', 'supply form popup'],
-      appointment: ['create appointment', 'book appointment', 'new appointment',
-                    'appointment booking', 'add appointment', 'create new appointment',
-                    'open appointment form', 'show appointment form', 'appointment form popup',
-                    'schedule patient appointment', 'book doctor appointment', 'patient appointment',
-                    'medical appointment', 'doctor visit', 'book patient visit'],
-      legacy: ['create legacy user', 'add legacy user', 'new legacy user', 'legacy user creation',
-               'open legacy user form', 'show legacy user form', 'legacy user form popup']
-    };
-
-    // Check for staff form requests
-    const isStaffFormRequest = formKeywords.staff.some(keyword => 
-      userMessage.toLowerCase().includes(keyword)
-    );
-
-    if (isStaffFormRequest) {
-      setIsLoading(false);
-      setShowStaffForm(true);
-      
-      const aiMsg = {
-        id: Date.now() + 1,
-        text: "I'll help you add a new staff member! I've opened the staff creation form for you.",
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, aiMsg]);
-      return;
-    }
-
-    // Check for user form requests
-    const isUserFormRequest = formKeywords.user.some(keyword => 
-      userMessage.toLowerCase().includes(keyword)
-    );
-
-    if (isUserFormRequest) {
-      setIsLoading(false);
-      setShowUserForm(true);
-      
-      const aiMsg = {
-        id: Date.now() + 1,
-        text: "I'll help you create a new user! I've opened the user creation form for you.",
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, aiMsg]);
-      return;
-    }
-
-    // Check for room form requests
-    const isRoomFormRequest = formKeywords.room.some(keyword => 
-      userMessage.toLowerCase().includes(keyword)
-    );
-
-    if (isRoomFormRequest) {
-      setIsLoading(false);
-      setShowRoomForm(true);
-      
-      const aiMsg = {
-        id: Date.now() + 1,
-        text: "I'll help you create a new room! I've opened the room creation form for you.",
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, aiMsg]);
-      return;
-    }
-
-    // Check for bed form requests
-    const isBedFormRequest = formKeywords.bed.some(keyword => 
-      userMessage.toLowerCase().includes(keyword)
-    );
-
-    if (isBedFormRequest) {
-      setIsLoading(false);
-      setShowBedForm(true);
-      
-      const aiMsg = {
-        id: Date.now() + 1,
-        text: "I'll help you create a new bed! I've opened the bed creation form for you.",
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, aiMsg]);
-      return;
-    }
-
-    // Check for equipment form requests
-    const isEquipmentFormRequest = formKeywords.equipment.some(keyword => 
-      userMessage.toLowerCase().includes(keyword)
-    );
-
-    if (isEquipmentFormRequest) {
-      setIsLoading(false);
-      setShowEquipmentForm(true);
-      
-      const aiMsg = {
-        id: Date.now() + 1,
-        text: "I'll help you add new equipment! I've opened the equipment creation form for you.",
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, aiMsg]);
-      return;
-    }
-
-    // Check for supply form requests
-    const isSupplyFormRequest = formKeywords.supply.some(keyword => 
-      userMessage.toLowerCase().includes(keyword)
-    );
-
-    if (isSupplyFormRequest) {
-      setIsLoading(false);
-      setShowSupplyForm(true);
-      
-      const aiMsg = {
-        id: Date.now() + 1,
-        text: "I'll help you add new supply! I've opened the supply creation form for you.",
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, aiMsg]);
-      return;
-    }
-
-    // Check for meeting scheduling requests (should be handled by AI, not forms)
-    const meetingKeywords = [
-      'schedule meeting', 'create meeting', 'book meeting', 'new meeting', 
-      'meeting scheduling', 'i need to schedule a meeting', 'schedule a meeting',
-      'create a meeting', 'book a meeting', 'set up meeting', 'organize meeting',
-      'schedule meeting with staff', 'team meeting', 'staff meeting', 'meeting with all',
-      'meeting with the staff', 'meeting today', 'meeting tomorrow'
-    ];
-    const isMeetingRequest = meetingKeywords.some(keyword => 
-      userMessage.toLowerCase().includes(keyword)
-    );
-
-    if (isMeetingRequest) {
-      // Meeting requests should go directly to AI processing (not form popup)
-      // The AI will use schedule_meeting tool which creates Google Meet links and sends emails
-      console.log('🤝 Meeting request detected - routing to AI system');
-      // Fall through to AI processing below
-    } else {
-      // Check for appointment form requests (only if NOT a meeting)
-      const isAppointmentFormRequest = formKeywords.appointment.some(keyword => 
-        userMessage.toLowerCase().includes(keyword)
-      );
-
-      if (isAppointmentFormRequest) {
-        setIsLoading(false);
-        setShowAppointmentForm(true);
-        
-        const aiMsg = {
-          id: Date.now() + 1,
-          text: "I'll help you schedule a new appointment! I've opened the appointment booking form for you.",
-          sender: 'ai',
-          timestamp: new Date().toLocaleTimeString()
-        };
-        setMessages(prev => [...prev, aiMsg]);
-        return;
+      // If AI detected 'ai_processing' or no specific form intent, proceed with intelligent AI processing
+      if (detectedIntent === 'ai_processing' || !detectedIntent) {
+        console.log('🤖 AI Processing Mode: Using intelligent backend agent tools');
+        // Skip fallback keyword detection and go directly to AI processing
       }
-    }
-
-    // Check for legacy user form requests
-    const isLegacyUserFormRequest = formKeywords.legacy.some(keyword => 
-      userMessage.toLowerCase().includes(keyword)
-    );
-
-    if (isLegacyUserFormRequest) {
-      setIsLoading(false);
-      setShowLegacyUserForm(true);
       
-      const aiMsg = {
-        id: Date.now() + 1,
-        text: "I'll help you create a new legacy user! I've opened the legacy user creation form for you.",
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, aiMsg]);
-      return;
+    } catch (error) {
+      console.warn('AI intent detection failed, proceeding with AI processing:', error);
     }
 
-    // For all other requests (like "list patients", "show departments", "find patient", etc.), 
-    // let OpenAI intelligently analyze and call appropriate tools
-    // Only creation/addition requests show popup forms, everything else uses AI processing
-
-    // Check if this request likely needs tool calls (but not creation requests which we handle above)
-    const toolKeywords = ['list', 'show', 'get', 'find', 'search', 'update', 'delete', 'assign', 'check', 'manage', 'patient', 'staff', 'bed', 'department', 'appointment', 'equipment', 'supply'];
-    const needsTools = toolKeywords.some(keyword => 
-      userMessage.toLowerCase().includes(keyword)
-    );
+    // For all other requests, use intelligent AI processing with the backend agents
+    // The AI will analyze the request and call the appropriate backend tools automatically
+    console.log('🤖 Proceeding with Intelligent AI Processing');
 
     let thinkingMessageId = null;
     let thinkingStartTime = null;
 
     try {
-      // Only show thinking if we expect tool usage
-      if (needsTools) {
-        thinkingStartTime = Date.now();
-        thinkingMessageId = Date.now() + Math.random();
-        
-        // Generate contextual thinking message based on user input
-        let thinkingText = 'Thinking about ';
-        if (userMessage.toLowerCase().includes('list') || userMessage.toLowerCase().includes('show')) {
-          thinkingText += 'listing ';
-        } else if (userMessage.toLowerCase().includes('create') || userMessage.toLowerCase().includes('add')) {
-          thinkingText += 'creating ';
-        } else if (userMessage.toLowerCase().includes('find') || userMessage.toLowerCase().includes('search')) {
-          thinkingText += 'finding ';
-        } else if (userMessage.toLowerCase().includes('update') || userMessage.toLowerCase().includes('assign')) {
-          thinkingText += 'updating ';
-        } else {
-          thinkingText += 'processing ';
-        }
-
-        // Add the subject based on keywords
-        if (userMessage.toLowerCase().includes('patient')) {
-          thinkingText += 'patient information';
-        } else if (userMessage.toLowerCase().includes('staff')) {
-          thinkingText += 'staff records';
-        } else if (userMessage.toLowerCase().includes('bed')) {
-          thinkingText += 'available beds';
-        } else if (userMessage.toLowerCase().includes('department')) {
-          thinkingText += 'departments';
-        } else if (userMessage.toLowerCase().includes('appointment')) {
-          thinkingText += 'appointments';
-        } else if (userMessage.toLowerCase().includes('equipment')) {
-          thinkingText += 'equipment status';
-        } else if (userMessage.toLowerCase().includes('supply')) {
-          thinkingText += 'supply inventory';
-        } else {
-          thinkingText += 'your request';
-        }
-
-        const thinkingMessage = {
-          id: thinkingMessageId,
-          text: thinkingText,
-          sender: 'ai',
-          timestamp: new Date().toLocaleTimeString(),
-          isThinking: true,
-          startTime: thinkingStartTime
-        };
-        setMessages(prev => [...prev, thinkingMessage]);
+      // Show contextual thinking for all requests (since AI will determine the right tools)
+      thinkingStartTime = Date.now();
+      thinkingMessageId = Date.now() + Math.random();
+      
+      // Generate contextual thinking message based on user input
+      let thinkingText = 'Processing ';
+      if (userMessage.toLowerCase().includes('list') || userMessage.toLowerCase().includes('show')) {
+        thinkingText = 'Retrieving ';
+      } else if (userMessage.toLowerCase().includes('find') || userMessage.toLowerCase().includes('search')) {
+        thinkingText = 'Searching for ';
+      } else if (userMessage.toLowerCase().includes('update') || userMessage.toLowerCase().includes('assign')) {
+        thinkingText = 'Updating ';
+      } else if (userMessage.toLowerCase().includes('meeting') || userMessage.toLowerCase().includes('schedule')) {
+        thinkingText = 'Scheduling ';
       }
+
+      // Add the subject based on keywords
+      if (userMessage.toLowerCase().includes('patient')) {
+        thinkingText += 'patient information';
+      } else if (userMessage.toLowerCase().includes('staff')) {
+        thinkingText += 'staff records';
+      } else if (userMessage.toLowerCase().includes('bed')) {
+        thinkingText += 'bed information';
+      } else if (userMessage.toLowerCase().includes('department')) {
+        thinkingText += 'department data';
+      } else if (userMessage.toLowerCase().includes('appointment')) {
+        thinkingText += 'appointment details';
+      } else if (userMessage.toLowerCase().includes('equipment')) {
+        thinkingText += 'equipment status';
+      } else if (userMessage.toLowerCase().includes('supply')) {
+        thinkingText += 'supply inventory';
+      } else if (userMessage.toLowerCase().includes('meeting')) {
+        thinkingText += 'meeting details';
+      } else {
+        thinkingText += 'your request';
+      }
+
+      const thinkingMessage = {
+        id: thinkingMessageId,
+        text: thinkingText,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString(),
+        isThinking: true,
+        startTime: thinkingStartTime
+      };
+      setMessages(prev => [...prev, thinkingMessage]);
 
       // Process the request
       const response = await aiMcpServiceRef.current.processRequest(userMessage);
