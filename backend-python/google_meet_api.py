@@ -17,10 +17,18 @@ try:
     from google_auth_oauthlib.flow import InstalledAppFlow
     from googleapiclient.discovery import build
     from googleapiclient.errors import HttpError
+    GOOGLE_APIS_AVAILABLE = True
     print("Google API libraries imported successfully")
 except ImportError as e:
+    GOOGLE_APIS_AVAILABLE = False
     print(f"Google API libraries not installed: {e}")
     print("Run: pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client")
+    # Create dummy functions for fallback
+    Request = None
+    Credentials = None
+    InstalledAppFlow = None
+    build = None
+    HttpError = Exception
 
 class GoogleMeetAPIIntegration:
     """Real Google Meet integration using Google Calendar API."""
@@ -35,6 +43,10 @@ class GoogleMeetAPIIntegration:
     
     def setup_credentials(self):
         """Set up Google API credentials."""
+        if not GOOGLE_APIS_AVAILABLE:
+            print("Google API libraries not available - using fallback mode")
+            return False
+            
         try:
             creds = None
             token_file = Path("token.pickle")

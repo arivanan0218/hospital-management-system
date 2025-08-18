@@ -30,3 +30,5 @@ Requires-Dist: python-magic>=0.4.27
 Requires-Dist: filetype>=1.2.0
 Requires-Dist: python-dateutil>=2.8.0
 Requires-Dist: regex>=2023.0.0
+Requires-Dist: reportlab>=4.0.0
+Requires-Dist: markdown2>=2.4.0
