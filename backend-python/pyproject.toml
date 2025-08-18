@@ -22,6 +22,11 @@ dependencies = [
     "sqlalchemy>=2.0.0",
     "fastapi>=0.104.0",
     "uvicorn[standard]>=0.24.0",
+    # Google API Dependencies for Calendar and Meet Integration
+    "google-auth>=2.0.0",
+    "google-auth-oauthlib>=1.0.0",
+    "google-auth-httplib2>=0.2.0",
+    "google-api-python-client>=2.0.0",
     # Medical Document Processing Dependencies
     "python-multipart>=0.0.6",
     "pytesseract>=0.3.10",
@@ -43,9 +48,14 @@ dependencies = [
     "filetype>=1.2.0",
     # Date and text processing
     "python-dateutil>=2.8.0",
+    # HTTP requests for testing and API calls
+    "requests>=2.31.0",
     # Temporarily commented out for deployment - large NLP model
     # "spacy>=3.7.0",
     "regex>=2023.0.0",
+     # Document generation and markdown processing
+    "reportlab>=4.0.0",
+    "markdown2>=2.4.0",
 ]
 
 [tool.setuptools.packages.find]

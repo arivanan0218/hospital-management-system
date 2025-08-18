@@ -29,7 +29,7 @@ frontend/.env
 backend/.env
 backend-python/.env
 credentials.json
-token.pickle
+
 
 # ================================
 # PYTHON / BACKEND
@@ -190,6 +190,8 @@ coverage/
 google_credentials.json
 oauth_credentials.json
 client_secret.json
+token.pickle
+backend-python/token.pickle
 
 # ================================
 # PROJECT SPECIFIC
