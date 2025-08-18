@@ -11,6 +11,7 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [showSetup, setShowSetup] = useState(false); // Start with false since auth is handled by parent
+  const [showActionButtons, setShowActionButtons] = useState(true); // Track whether to show action buttons
   
   // Configuration state - get API key from environment variables
   const [openaiApiKey] = useState(import.meta.env.VITE_OPENAI_API_KEY || '');
@@ -774,6 +775,11 @@ Examples:
       setInputMessage('');
     }
     setIsLoading(true);
+    
+    // Hide action buttons after first query
+    if (showActionButtons) {
+      setShowActionButtons(false);
+    }
 
     // Add user message only if it's not from voice input (voice input already adds the message)
     if (!isFromVoiceInput) {
@@ -2910,76 +2916,78 @@ Examples:
       </div>
 
       {/* Action Buttons Above Input */}
-      <div className="bg-[#1a1a1a] px-4 py-1">
-        <div className="max-w-4xl mx-auto">
-          {/* Desktop: 1 row 4 columns, Mobile: 2 rows 2 columns */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
-            {/* View All Patients */}
-            <button
-              onClick={() => {
-                setInputMessage("List all patients");
-                setTimeout(() => {
-                  if (inputFieldRef.current) {
-                    inputFieldRef.current.focus();
-                  }
-                }, 100);
-              }}
-              className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md px-1.5 py-1 sm:px-2 sm:py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
-              title="View all patients"
-            >
-              <span className="font-medium">View Patients</span>
-            </button>
+      {showActionButtons && (
+        <div className="bg-[#1a1a1a] px-4 py-1">
+          <div className="max-w-4xl mx-auto">
+            {/* Desktop: 1 row 4 columns, Mobile: 2 rows 2 columns */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
+              {/* View All Patients */}
+              <button
+                onClick={() => {
+                  setInputMessage("List all patients");
+                  setTimeout(() => {
+                    if (inputFieldRef.current) {
+                      inputFieldRef.current.focus();
+                    }
+                  }, 100);
+                }}
+                className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-1.5 py-1 sm:px-3 sm:py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
+                title="View all patients"
+              >
+                <span className="font-medium whitespace-nowrap">View Patients</span>
+              </button>
 
-            {/* Check Bed Status */}
-            <button
-              onClick={() => {
-                setInputMessage("Show bed availability");
-                setTimeout(() => {
-                  if (inputFieldRef.current) {
-                    inputFieldRef.current.focus();
-                  }
-                }, 100);
-              }}
-              className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md px-1.5 py-1 sm:px-2 sm:py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
-              title="Check bed availability"
-            >
-              <span className="font-medium">Bed Status</span>
-            </button>
+              {/* Check Bed Status */}
+              <button
+                onClick={() => {
+                  setInputMessage("Show bed availability");
+                  setTimeout(() => {
+                    if (inputFieldRef.current) {
+                      inputFieldRef.current.focus();
+                    }
+                  }, 100);
+                }}
+                className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-1.5 py-1 sm:px-3 sm:py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
+                title="Check bed availability"
+              >
+                <span className="font-medium whitespace-nowrap">Bed Status</span>
+              </button>
 
-            {/* Emergency Alert */}
-            <button
-              onClick={() => {
-                setInputMessage("Show emergency status and available emergency beds");
-                setTimeout(() => {
-                  if (inputFieldRef.current) {
-                    inputFieldRef.current.focus();
-                  }
-                }, 100);
-              }}
-              className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md px-1.5 py-1 sm:px-2 sm:py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
-              title="Emergency status"
-            >
-              <span className="font-medium">Emergency</span>
-            </button>
+              {/* Emergency Alert */}
+              <button
+                onClick={() => {
+                  setInputMessage("Show emergency status and available emergency beds");
+                  setTimeout(() => {
+                    if (inputFieldRef.current) {
+                      inputFieldRef.current.focus();
+                    }
+                  }, 100);
+                }}
+                className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-1.5 py-1 sm:px-3 sm:py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
+                title="Emergency status"
+              >
+                <span className="font-medium whitespace-nowrap">Emergency</span>
+              </button>
 
-            {/* Today's Schedule */}
-            <button
-              onClick={() => {
-                setInputMessage("Show today's appointments");
-                setTimeout(() => {
-                  if (inputFieldRef.current) {
-                    inputFieldRef.current.focus();
-                  }
-                }, 100);
-              }}
-              className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md px-1.5 py-1 sm:px-2 sm:py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
-              title="Today's appointments"
-            >
-              <span className="font-medium">Today's Schedule</span>
-            </button>
+              {/* Today's Schedule */}
+              <button
+                onClick={() => {
+                  setInputMessage("Show today's appointments");
+                  setTimeout(() => {
+                    if (inputFieldRef.current) {
+                      inputFieldRef.current.focus();
+                    }
+                  }, 100);
+                }}
+                className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-1.5 py-1 sm:px-3 sm:py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
+                title="Today's appointments"
+              >
+                <span className="font-medium whitespace-nowrap">Today's Schedule</span>
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Modern Chat Input - Two Row Layout */}
       <div className="bg-[#1a1a1a] px-3 sm:px-4 py-2">
