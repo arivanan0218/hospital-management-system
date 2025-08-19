@@ -1415,6 +1415,54 @@ Examples:
     };
   }, [messages]); // Re-register when messages change to capture current state
 
+  // Handle mobile viewport and keyboard behavior
+  useEffect(() => {
+    if (typeof window !== 'undefined' && isMobileDevice()) {
+      // Set viewport height custom property for mobile
+      const setVH = () => {
+        const vh = window.innerHeight * 0.01;
+        document.documentElement.style.setProperty('--vh', `${vh}px`);
+      };
+      
+      // Set initial viewport height
+      setVH();
+      
+      // Throttled resize handler
+      let timeoutId;
+      const handleResize = () => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(setVH, 150);
+      };
+      
+      // Listen for viewport changes
+      window.addEventListener('resize', handleResize);
+      window.addEventListener('orientationchange', () => {
+        setTimeout(setVH, 500); // Delay for orientation change
+      });
+      
+      // Prevent page scroll when focusing input on mobile
+      const preventScroll = (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+          setTimeout(() => {
+            window.scrollTo(0, 0);
+            document.body.scrollTop = 0;
+            document.documentElement.scrollTop = 0;
+          }, 100);
+        }
+      };
+      
+      document.addEventListener('focusin', preventScroll);
+      
+      // Cleanup
+      return () => {
+        window.removeEventListener('resize', handleResize);
+        window.removeEventListener('orientationchange', handleResize);
+        document.removeEventListener('focusin', preventScroll);
+        clearTimeout(timeoutId);
+      };
+    }
+  }, []);
+
   /**
    * Handle sending messages with Claude-style conversation flow
    */
@@ -2737,9 +2785,9 @@ Examples:
 
   // Main Chat Interface - Claude Desktop Style with Responsive Design
   return (
-    <div className="h-screen bg-[#1a1a1a] flex flex-col text-white overflow-hidden">
+    <div className="h-screen bg-[#1a1a1a] flex flex-col text-white overflow-hidden relative" style={{ height: '100vh', height: 'calc(var(--vh, 1vh) * 100)' }}>
       {/* Claude-style Header - FIXED */}
-      <div className="flex-shrink-0 border-b border-gray-700 px-3 sm:px-4 py-3 bg-[#1a1a1a]">
+      <div className="flex-shrink-0 border-b border-gray-700 px-3 sm:px-4 py-3 bg-[#1a1a1a] relative z-10">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2 sm:space-x-3">
             <div className="w-6 h-6 sm:w-7 sm:h-7 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs sm:text-sm font-medium shadow-lg">
@@ -2899,11 +2947,11 @@ Examples:
 
       {/* Content Area - MAIN SCROLLABLE CONTAINER */}
       {activeTab === 'chat' && (
-        <div className="flex-1 flex flex-col min-h-0">
+        <div className="flex-1 flex flex-col min-h-0 sm:mb-0 mb-20">
           {/* Messages Container - ONLY THIS SCROLLS */}
           <div 
             ref={messagesContainerRef} 
-            className="flex-1 overflow-y-auto overflow-x-hidden bg-[#1a1a1a]"
+            className="flex-1 overflow-y-auto overflow-x-hidden bg-[#1a1a1a] pb-4 sm:pb-0"
             onClick={() => {
               // Smart focus input when clicking anywhere in the chat area, but not when selecting text
               const selection = window.getSelection();
@@ -3088,7 +3136,7 @@ Examples:
 
           {/* Action Buttons Above Input - FIXED (NOT SCROLLABLE) */}
           {showActionButtons && (
-            <div className="bg-[#1a1a1a] px-4 py-1 flex-shrink-0">
+            <div className="bg-[#1a1a1a] px-4 py-1 flex-shrink-0 sm:relative absolute bottom-16 left-0 right-0 z-10 border-t border-gray-700 sm:border-t-0">
               <div className="max-w-4xl mx-auto">
             {/* Desktop: 1 row 4 columns, Mobile: 2 rows 2 columns */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
@@ -3145,7 +3193,7 @@ Examples:
       )}
 
         {/* Modern Chat Input - Fixed at bottom */}
-        <div className="bg-[#1a1a1a] px-3 sm:px-4 py-2 flex-shrink-0">
+        <div className="bg-[#1a1a1a] px-3 sm:px-4 py-2 flex-shrink-0 sm:relative absolute bottom-0 left-0 right-0 z-20 border-t border-gray-700 sm:border-t-0">
           <div className="max-w-4xl mx-auto">
               {/* Voice Status Indicator */}
               {(isRecording || isProcessingVoice || isSpeaking) && (
