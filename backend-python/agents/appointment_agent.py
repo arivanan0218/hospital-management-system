@@ -47,24 +47,39 @@ class AppointmentAgent(BaseAgent):
         ]
     
     def create_appointment(self, patient_id: str, doctor_id: str, department_id: str, 
-                          appointment_date: str, appointment_time: str, reason: str = None,
+                          appointment_date: str, reason: str = None,
                           notes: str = None, duration_minutes: int = 30, status: str = "scheduled") -> Dict[str, Any]:
-        """Create a new appointment."""
+        """Create a new appointment.
+        
+        Args:
+            patient_id: UUID of the patient
+            doctor_id: UUID of the doctor
+            department_id: UUID of the department
+            appointment_date: DateTime string in ISO format (e.g., "2024-12-25T14:30:00")
+            reason: Appointment reason
+            notes: Additional notes
+            duration_minutes: Duration in minutes
+            status: Appointment status
+        """
         if not DATABASE_AVAILABLE:
             return {"success": False, "message": "Database not available"}
         
         try:
-            # Parse date and time into single datetime
-            appt_date = datetime.strptime(appointment_date, "%Y-%m-%d").date()
-            appt_time = datetime.strptime(appointment_time, "%H:%M").time()
-            appt_datetime = datetime.combine(appt_date, appt_time)
+            # Parse the datetime string
+            appt_datetime = datetime.fromisoformat(appointment_date.replace('Z', '+00:00'))
             
-            # Check for conflicts
-            conflict_check = self.check_appointment_conflicts(doctor_id, appointment_date, appointment_time)
-            if conflict_check.get("conflict"):
-                return {"success": False, "message": f"Appointment conflict detected: {conflict_check.get('message')}"}
-            
+            # Check for conflicts (simplified - check if doctor has appointment at same time)
             db = self.get_db_session()
+            existing = db.query(Appointment).filter(
+                Appointment.doctor_id == uuid.UUID(doctor_id),
+                Appointment.appointment_date == appt_datetime,
+                Appointment.status.in_(['scheduled', 'confirmed'])
+            ).first()
+            
+            if existing:
+                db.close()
+                return {"success": False, "message": f"Doctor already has an appointment at {appt_datetime}"}
+            
             appointment = Appointment(
                 patient_id=uuid.UUID(patient_id),
                 doctor_id=uuid.UUID(doctor_id),
@@ -83,7 +98,7 @@ class AppointmentAgent(BaseAgent):
             
             # Log the interaction
             self.log_interaction(
-                query=f"Create appointment: Patient {patient_id} with Doctor {doctor_id} on {appointment_date} at {appointment_time}",
+                query=f"Create appointment: Patient {patient_id} with Doctor {doctor_id} on {appointment_date}",
                 response=f"Appointment created successfully with ID: {result['id']}",
                 tool_used="create_appointment"
             )
@@ -121,8 +136,8 @@ class AppointmentAgent(BaseAgent):
                 query = query.filter(Appointment.department_id == uuid.UUID(department_id))
                 filters.append(f"department_id: {department_id}")
             
-            # Order by appointment date and time
-            query = query.order_by(Appointment.appointment_date, Appointment.appointment_time)
+            # Order by appointment date (which includes time)
+            query = query.order_by(Appointment.appointment_date)
             
             appointments = query.all()
             result = [self.serialize_model(appointment) for appointment in appointments]
@@ -155,7 +170,7 @@ class AppointmentAgent(BaseAgent):
                 # Log the interaction
                 self.log_interaction(
                     query=f"Get appointment by ID: {appointment_id}",
-                    response=f"Appointment found: {result.get('appointment_date')} at {result.get('appointment_time')}",
+                    response=f"Appointment found: {result.get('appointment_date')}",
                     tool_used="get_appointment_by_id"
                 )
                 return {"data": result}
@@ -165,9 +180,18 @@ class AppointmentAgent(BaseAgent):
             return {"error": f"Failed to get appointment: {str(e)}"}
 
     def update_appointment(self, appointment_id: str, appointment_date: str = None,
-                          appointment_time: str = None, purpose: str = None,
-                          notes: str = None, status: str = None) -> Dict[str, Any]:
-        """Update appointment information."""
+                          reason: str = None, notes: str = None, status: str = None, 
+                          duration_minutes: int = None) -> Dict[str, Any]:
+        """Update appointment information.
+        
+        Args:
+            appointment_id: UUID of the appointment to update
+            appointment_date: DateTime string in ISO format (e.g., "2024-12-25T14:30:00")
+            reason: Appointment reason (formerly purpose)
+            notes: Additional notes
+            status: Appointment status
+            duration_minutes: Duration in minutes
+        """
         if not DATABASE_AVAILABLE:
             return {"success": False, "message": "Database not available"}
         
@@ -182,32 +206,21 @@ class AppointmentAgent(BaseAgent):
             # Update provided fields
             update_fields = []
             if appointment_date is not None:
-                appointment.appointment_date = datetime.strptime(appointment_date, "%Y-%m-%d").date()
+                # Parse the datetime string
+                appointment.appointment_date = datetime.fromisoformat(appointment_date.replace('Z', '+00:00'))
                 update_fields.append("appointment_date")
-            if appointment_time is not None:
-                appointment.appointment_time = datetime.strptime(appointment_time, "%H:%M").time()
-                update_fields.append("appointment_time")
-            if purpose is not None:
-                appointment.purpose = purpose
-                update_fields.append("purpose")
+            if reason is not None:
+                appointment.reason = reason
+                update_fields.append("reason")
             if notes is not None:
                 appointment.notes = notes
                 update_fields.append("notes")
             if status is not None:
                 appointment.status = status
                 update_fields.append("status")
-            
-            # Check for conflicts if date/time changed
-            if appointment_date or appointment_time:
-                conflict_check = self.check_appointment_conflicts(
-                    str(appointment.doctor_id), 
-                    appointment.appointment_date.strftime("%Y-%m-%d"),
-                    appointment.appointment_time.strftime("%H:%M"),
-                    exclude_appointment_id=appointment_id
-                )
-                if conflict_check.get("conflict"):
-                    db.close()
-                    return {"success": False, "message": f"Appointment conflict detected: {conflict_check.get('message')}"}
+            if duration_minutes is not None:
+                appointment.duration_minutes = duration_minutes
+                update_fields.append("duration_minutes")
             
             db.commit()
             db.refresh(appointment)
@@ -271,23 +284,26 @@ class AppointmentAgent(BaseAgent):
                 db.close()
                 return {"success": False, "message": "Appointment not found"}
             
+            # Combine new date and time into single datetime for conflict check
+            new_datetime = datetime.combine(
+                datetime.strptime(new_date, "%Y-%m-%d").date(),
+                datetime.strptime(new_time, "%H:%M").time()
+            )
+            
             # Check for conflicts at new time
             conflict_check = self.check_appointment_conflicts(
                 str(appointment.doctor_id), 
-                new_date, 
-                new_time,
+                new_datetime.strftime("%Y-%m-%d %H:%M"),
                 exclude_appointment_id=appointment_id
             )
             if conflict_check.get("conflict"):
                 db.close()
                 return {"success": False, "message": f"Cannot reschedule - conflict detected: {conflict_check.get('message')}"}
             
-            old_date = appointment.appointment_date
-            old_time = appointment.appointment_time
+            old_datetime = appointment.appointment_date
             
-            appointment.appointment_date = datetime.strptime(new_date, "%Y-%m-%d").date()
-            appointment.appointment_time = datetime.strptime(new_time, "%H:%M").time()
-            appointment.notes = f"{appointment.notes or ''}\nRescheduled from {old_date} {old_time} to {new_date} {new_time}".strip()
+            appointment.appointment_date = new_datetime
+            appointment.notes = f"{appointment.notes or ''}\nRescheduled from {old_datetime} to {new_datetime}".strip()
             
             db.commit()
             db.refresh(appointment)
@@ -296,7 +312,7 @@ class AppointmentAgent(BaseAgent):
             
             # Log the interaction
             self.log_interaction(
-                query=f"Reschedule appointment {appointment_id} from {old_date} {old_time} to {new_date} {new_time}",
+                query=f"Reschedule appointment {appointment_id} from {old_datetime} to {new_datetime}",
                 response=f"Appointment rescheduled successfully",
                 tool_used="reschedule_appointment"
             )
@@ -323,7 +339,7 @@ class AppointmentAgent(BaseAgent):
                     Appointment.appointment_date == appt_date,
                     Appointment.status.in_(["scheduled", "confirmed"])
                 )
-            ).order_by(Appointment.appointment_time).all()
+            ).order_by(Appointment.appointment_date).all()
             
             result = [self.serialize_model(appointment) for appointment in appointments]
             db.close()
@@ -352,8 +368,7 @@ class AppointmentAgent(BaseAgent):
                 query = query.filter(Appointment.status == status)
             
             appointments = query.order_by(
-                Appointment.appointment_date.desc(), 
-                Appointment.appointment_time.desc()
+                Appointment.appointment_date.desc()
             ).all()
             
             result = [self.serialize_model(appointment) for appointment in appointments]
@@ -371,23 +386,21 @@ class AppointmentAgent(BaseAgent):
         except Exception as e:
             return {"error": f"Failed to get patient appointments: {str(e)}"}
 
-    def check_appointment_conflicts(self, doctor_id: str, appointment_date: str, 
-                                   appointment_time: str, exclude_appointment_id: str = None) -> Dict[str, Any]:
-        """Check for appointment conflicts for a doctor at a specific time."""
+    def check_appointment_conflicts(self, doctor_id: str, appointment_datetime: str,
+                                   exclude_appointment_id: str = None) -> Dict[str, Any]:
+        """Check for appointment conflicts for a doctor at a specific datetime."""
         if not DATABASE_AVAILABLE:
             return {"conflict": False, "message": "Database not available"}
         
         try:
-            # Combine date and time into single datetime for comparison
-            appt_date = datetime.strptime(appointment_date, "%Y-%m-%d").date()
-            appt_time = datetime.strptime(appointment_time, "%H:%M").time()
-            appt_datetime = datetime.combine(appt_date, appt_time)
+            # Parse the datetime string
+            appt_datetime = datetime.fromisoformat(appointment_datetime.replace('Z', '+00:00')) if 'T' in appointment_datetime else datetime.strptime(appointment_datetime, "%Y-%m-%d %H:%M")
             
             db = self.get_db_session()
             query = db.query(Appointment).filter(
                 and_(
                     Appointment.doctor_id == uuid.UUID(doctor_id),
-                    Appointment.appointment_date == appt_datetime,  # Use combined datetime
+                    Appointment.appointment_date == appt_datetime,
                     Appointment.status.in_(["scheduled", "confirmed"])
                 )
             )
@@ -402,7 +415,7 @@ class AppointmentAgent(BaseAgent):
             if conflicting_appointment:
                 return {
                     "conflict": True, 
-                    "message": f"Doctor already has an appointment at {appointment_time} on {appointment_date}",
+                    "message": f"Doctor already has an appointment at {appt_datetime.strftime('%H:%M')} on {appt_datetime.strftime('%Y-%m-%d')}",
                     "conflicting_appointment_id": str(conflicting_appointment.id)
                 }
             else:
@@ -432,7 +445,7 @@ class AppointmentAgent(BaseAgent):
                     Appointment.appointment_date == appt_date,
                     Appointment.status.in_(["scheduled", "confirmed"])
                 )
-            ).order_by(Appointment.appointment_time).all()
+            ).order_by(Appointment.appointment_date).all()
             
             db.close()
             
@@ -448,7 +461,7 @@ class AppointmentAgent(BaseAgent):
                 # Check if this slot conflicts with existing appointments
                 is_available = True
                 for appointment in existing_appointments:
-                    if appointment.appointment_time == slot_time:
+                    if appointment.appointment_date.time() == slot_time:
                         is_available = False
                         break
                 
