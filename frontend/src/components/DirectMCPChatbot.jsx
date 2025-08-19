@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LogOut, User, Settings, Upload, FileText, History, CheckCircle, Plus, X } from 'lucide-react';
+import { LogOut, User, Settings, Upload, FileText, History, CheckCircle, Plus, X, Mic, MicOff, VolumeX } from 'lucide-react';
 import DirectHttpAIMCPService from '../services/directHttpAiMcpService.js';
 import MedicalDocumentUpload from './MedicalDocumentUpload.jsx';
 import EnhancedMedicalDocumentUpload from './EnhancedMedicalDocumentUpload.jsx';
 import MedicalHistoryViewer from './MedicalHistoryViewer.jsx';
 
 const DirectMCPChatbot = ({ user, onLogout }) => {
+  // Mobile-responsive CSS classes for consistent mobile experience
+  const mobileInputClass = "w-full px-3 py-3 sm:py-2 text-base sm:text-sm";
+  const mobileSelectClass = "w-full px-3 py-3 sm:py-2 text-base sm:text-sm";
+  
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -185,6 +189,15 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   });
   const [isSubmittingLegacyUser, setIsSubmittingLegacyUser] = useState(false);
   
+  // Dropdown options state for foreign keys
+  const [departmentOptions, setDepartmentOptions] = useState([]);
+  const [userOptions, setUserOptions] = useState([]);
+  const [roomOptions, setRoomOptions] = useState([]);
+  const [patientOptions, setPatientOptions] = useState([]);
+  const [equipmentCategoryOptions, setEquipmentCategoryOptions] = useState([]);
+  const [supplyCategoryOptions, setSupplyCategoryOptions] = useState([]);
+  const [loadingDropdowns, setLoadingDropdowns] = useState(false);
+  
   // Auto-scroll to bottom only when new messages are added, not on timer updates
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -312,6 +325,35 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
 
     checkMicrophoneAvailability();
   }, []);
+
+  // Mobile detection utility function
+  const isMobileDevice = () => {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+           (window.innerWidth <= 768) || // Also check for small screen width
+           ('ontouchstart' in window); // Check for touch capability
+  };
+
+  // Smart focus function - focuses input but prevents keyboard popup on mobile
+  const smartFocusInput = (delay = 100) => {
+    setTimeout(() => {
+      if (inputFieldRef.current) {
+        if (isMobileDevice()) {
+          // On mobile: focus without triggering keyboard, set readonly temporarily
+          inputFieldRef.current.setAttribute('readonly', true);
+          inputFieldRef.current.focus({ preventScroll: true });
+          // Remove readonly after a short delay to allow manual interaction
+          setTimeout(() => {
+            if (inputFieldRef.current && inputFieldRef.current.hasAttribute('readonly')) {
+              inputFieldRef.current.removeAttribute('readonly');
+            }
+          }, 100);
+        } else {
+          // On desktop: normal focus behavior
+          inputFieldRef.current.focus();
+        }
+      }
+    }, delay);
+  };
 
   // OpenAI Text-to-Speech function for voice output
   const speakTextWithOpenAI = async (text, isResponseToVoiceInput = false) => {
@@ -643,12 +685,8 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
           timestamp: new Date().toLocaleTimeString()
         }]);
         
-        // Auto-focus the input field after successful connection
-        setTimeout(() => {
-          if (inputFieldRef.current) {
-            inputFieldRef.current.focus();
-          }
-        }, 100); // Reduced delay for faster UI response
+        // Auto-focus the input field after successful connection (smart focus)
+        smartFocusInput(100);
         
       } else {
         throw new Error('Failed to initialize service');
@@ -659,6 +697,80 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
       setConnectionError(`Connection failed: ${error.message}`);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  /**
+   * Load dropdown options for foreign key fields
+   */
+  const loadDropdownOptions = async () => {
+    if (!aiMcpServiceRef.current || loadingDropdowns) return;
+    
+    setLoadingDropdowns(true);
+    try {
+      // Load departments
+      const departmentsResponse = await aiMcpServiceRef.current.mcpClient.callTool('list_departments', {});
+      console.log('🏥 Departments response:', departmentsResponse);
+      const departments = departmentsResponse?.result?.content?.[0]?.text 
+        ? JSON.parse(departmentsResponse.result.content[0].text)?.result?.data || []
+        : departmentsResponse?.result?.data || departmentsResponse || [];
+      console.log('🏥 Departments parsed:', departments);
+      setDepartmentOptions(Array.isArray(departments) ? departments : []);
+      
+      // Load users
+      const usersResponse = await aiMcpServiceRef.current.mcpClient.callTool('list_users', {});
+      console.log('👥 Users response:', usersResponse);
+      const users = usersResponse?.result?.content?.[0]?.text 
+        ? JSON.parse(usersResponse.result.content[0].text)?.result?.data || []
+        : usersResponse?.result?.data || usersResponse || [];
+      console.log('👥 Users parsed:', users);
+      setUserOptions(Array.isArray(users) ? users : []);
+      
+      // Load rooms
+      const roomsResponse = await aiMcpServiceRef.current.mcpClient.callTool('list_rooms', {});
+      const rooms = roomsResponse?.result?.content?.[0]?.text 
+        ? JSON.parse(roomsResponse.result.content[0].text)?.result?.data || []
+        : roomsResponse?.result?.data || roomsResponse || [];
+      console.log('🚪 Rooms parsed:', rooms);
+      setRoomOptions(Array.isArray(rooms) ? rooms : []);
+      
+      // Load patients
+      const patientsResponse = await aiMcpServiceRef.current.mcpClient.callTool('list_patients', {});
+      const patients = patientsResponse?.result?.content?.[0]?.text 
+        ? JSON.parse(patientsResponse.result.content[0].text)?.result?.data || []
+        : patientsResponse?.result?.data || patientsResponse || [];
+      console.log('🤒 Patients parsed:', patients);
+      setPatientOptions(Array.isArray(patients) ? patients : []);
+      
+      // Load equipment categories
+      try {
+        const equipmentCategoriesResponse = await aiMcpServiceRef.current.mcpClient.callTool('list_equipment_categories', {});
+        const equipmentCategories = equipmentCategoriesResponse?.result?.content?.[0]?.text 
+          ? JSON.parse(equipmentCategoriesResponse.result.content[0].text)?.result?.data || []
+          : equipmentCategoriesResponse?.result?.data || equipmentCategoriesResponse || [];
+        setEquipmentCategoryOptions(Array.isArray(equipmentCategories) ? equipmentCategories : []);
+      } catch (e) {
+        console.warn('Equipment categories not available:', e);
+        setEquipmentCategoryOptions([]);
+      }
+      
+      // Load supply categories
+      try {
+        const supplyCategoriesResponse = await aiMcpServiceRef.current.mcpClient.callTool('list_supply_categories', {});
+        const supplyCategories = supplyCategoriesResponse?.result?.content?.[0]?.text 
+          ? JSON.parse(supplyCategoriesResponse.result.content[0].text)?.result?.data || []
+          : supplyCategoriesResponse?.result?.data || supplyCategoriesResponse || [];
+        setSupplyCategoryOptions(Array.isArray(supplyCategories) ? supplyCategories : []);
+      } catch (e) {
+        console.warn('Supply categories not available:', e);
+        setSupplyCategoryOptions([]);
+      }
+      
+      console.log('✅ Dropdown options loaded successfully');
+    } catch (error) {
+      console.error('❌ Failed to load dropdown options:', error);
+    } finally {
+      setLoadingDropdowns(false);
     }
   };
 
@@ -845,10 +957,11 @@ Examples:
             
           case 'create_department':
             console.log('🏥 Opening Department Creation Form');
+            await loadDropdownOptions(); // Load users for head_doctor_id
             setShowDepartmentForm(true);
             const deptMsg = {
               id: Date.now() + 1,
-              text: "I detected you want to create a new department! I've opened the department creation form for you.",
+              text: "I detected you want to create a new department! I've opened the department creation form for you. The dropdown menus are being populated with available users for the head doctor selection.",
               sender: 'ai',
               timestamp: new Date().toLocaleTimeString()
             };
@@ -857,10 +970,11 @@ Examples:
             
           case 'create_staff':
             console.log('👥 Opening Staff Creation Form');
+            await loadDropdownOptions(); // Load users and departments
             setShowStaffForm(true);
             const staffMsg = {
               id: Date.now() + 1,
-              text: "I detected you want to add a new staff member! I've opened the staff creation form for you.",
+              text: "I detected you want to add a new staff member! I've opened the staff creation form for you. Please select a user and department from the dropdown menus.",
               sender: 'ai',
               timestamp: new Date().toLocaleTimeString()
             };
@@ -872,7 +986,7 @@ Examples:
             setShowUserForm(true);
             const userMsg = {
               id: Date.now() + 1,
-              text: "I detected you want to create a new user! I've opened the user creation form for you.",
+              text: "I detected you want to create a new user! I've opened the user creation form for you. This form doesn't require foreign key selections.",
               sender: 'ai',
               timestamp: new Date().toLocaleTimeString()
             };
@@ -881,10 +995,11 @@ Examples:
             
           case 'create_room':
             console.log('🏠 Opening Room Creation Form');
+            await loadDropdownOptions(); // Load departments
             setShowRoomForm(true);
             const roomMsg = {
               id: Date.now() + 1,
-              text: "I detected you want to create a new room! I've opened the room creation form for you.",
+              text: "I detected you want to create a new room! I've opened the room creation form for you. Please select a department from the dropdown menu.",
               sender: 'ai',
               timestamp: new Date().toLocaleTimeString()
             };
@@ -893,10 +1008,11 @@ Examples:
             
           case 'create_bed':
             console.log('🛏️ Opening Bed Creation Form');
+            await loadDropdownOptions(); // Load rooms
             setShowBedForm(true);
             const bedMsg = {
               id: Date.now() + 1,
-              text: "I detected you want to add a new bed! I've opened the bed creation form for you.",
+              text: "I detected you want to add a new bed! I've opened the bed creation form for you. Please select a room from the dropdown menu.",
               sender: 'ai',
               timestamp: new Date().toLocaleTimeString()
             };
@@ -905,10 +1021,11 @@ Examples:
             
           case 'create_equipment':
             console.log('⚙️ Opening Equipment Creation Form');
+            await loadDropdownOptions(); // Load departments and categories
             setShowEquipmentForm(true);
             const equipMsg = {
               id: Date.now() + 1,
-              text: "I detected you want to add new equipment! I've opened the equipment creation form for you.",
+              text: "I detected you want to add new equipment! I've opened the equipment creation form for you. Please select a department and category from the dropdown menus.",
               sender: 'ai',
               timestamp: new Date().toLocaleTimeString()
             };
@@ -917,10 +1034,11 @@ Examples:
             
           case 'create_supply':
             console.log('📦 Opening Supply Creation Form');
+            await loadDropdownOptions(); // Load categories
             setShowSupplyForm(true);
             const supplyMsg = {
               id: Date.now() + 1,
-              text: "I detected you want to add new supplies! I've opened the supply creation form for you.",
+              text: "I detected you want to add new supplies! I've opened the supply creation form for you. Please select a category from the dropdown menu.",
               sender: 'ai',
               timestamp: new Date().toLocaleTimeString()
             };
@@ -929,10 +1047,11 @@ Examples:
             
           case 'create_appointment':
             console.log('📅 Opening Appointment Creation Form');
+            await loadDropdownOptions(); // Load patients, users (doctors), and departments
             setShowAppointmentForm(true);
             const apptMsg = {
               id: Date.now() + 1,
-              text: "I detected you want to schedule an appointment! I've opened the appointment booking form for you.",
+              text: "I detected you want to schedule an appointment! I've opened the appointment booking form for you. Please select a patient, doctor, and department from the dropdown menus.",
               sender: 'ai',
               timestamp: new Date().toLocaleTimeString()
             };
@@ -1150,12 +1269,8 @@ Examples:
     } finally {
       setIsLoading(false);
       
-      // Auto-focus the input field after sending message
-      setTimeout(() => {
-        if (inputFieldRef.current) {
-          inputFieldRef.current.focus();
-        }
-      }, 100); // Small delay to ensure state updates are complete
+      // Auto-focus the input field after AI response (smart focus prevents mobile keyboard popup)
+      smartFocusInput(100);
     }
   };
 
@@ -2789,16 +2904,22 @@ Examples:
 
       {/* Content Area */}
       {activeTab === 'chat' && (
-        <>
+        <div className="flex-1 flex flex-col min-h-0">
           {/* Messages Container - Claude Style - Responsive */}
           <div 
             ref={messagesContainerRef} 
             className="flex-1 overflow-y-auto bg-[#1a1a1a]"
             onClick={() => {
-              // Focus input when clicking anywhere in the chat area, but not when selecting text
+              // Smart focus input when clicking anywhere in the chat area, but not when selecting text
               const selection = window.getSelection();
               if (inputFieldRef.current && isConnected && selection.toString().length === 0) {
-                inputFieldRef.current.focus();
+                if (isMobileDevice()) {
+                  // On mobile: focus without keyboard popup
+                  smartFocusInput(0);
+                } else {
+                  // On desktop: normal focus
+                  inputFieldRef.current.focus();
+                }
               }
             }}
           >
@@ -2980,11 +3101,7 @@ Examples:
               <button
                 onClick={() => {
                   setInputMessage("List all patients");
-                  setTimeout(() => {
-                    if (inputFieldRef.current) {
-                      inputFieldRef.current.focus();
-                    }
-                  }, 100);
+                  smartFocusInput(100);
                 }}
                 className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-1.5 py-1 sm:px-3 sm:py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
                 title="View all patients"
@@ -2996,11 +3113,7 @@ Examples:
               <button
                 onClick={() => {
                   setInputMessage("Show bed availability");
-                  setTimeout(() => {
-                    if (inputFieldRef.current) {
-                      inputFieldRef.current.focus();
-                    }
-                  }, 100);
+                  smartFocusInput(100);
                 }}
                 className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-1.5 py-1 sm:px-3 sm:py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
                 title="Check bed availability"
@@ -3012,11 +3125,7 @@ Examples:
               <button
                 onClick={() => {
                   setInputMessage("Show emergency status and available emergency beds");
-                  setTimeout(() => {
-                    if (inputFieldRef.current) {
-                      inputFieldRef.current.focus();
-                    }
-                  }, 100);
+                  smartFocusInput(100);
                 }}
                 className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-1.5 py-1 sm:px-3 sm:py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
                 title="Emergency status"
@@ -3028,11 +3137,7 @@ Examples:
               <button
                 onClick={() => {
                   setInputMessage("Show today's appointments");
-                  setTimeout(() => {
-                    if (inputFieldRef.current) {
-                      inputFieldRef.current.focus();
-                    }
-                  }, 100);
+                  smartFocusInput(100);
                 }}
                 className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-1.5 py-1 sm:px-3 sm:py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
                 title="Today's appointments"
@@ -3043,208 +3148,206 @@ Examples:
           </div>
         </div>
       )}
-
-      {/* Modern Chat Input - Two Row Layout */}
-      <div className="bg-[#1a1a1a] px-3 sm:px-4 py-2">
-        <div className="max-w-4xl mx-auto">
-          {/* Voice Status Indicator */}
-          {(isRecording || isProcessingVoice || isSpeaking) && (
-            <div className="mb-3 px-3 py-2 bg-[#2a2a2a] border border-gray-600 rounded-lg">
-              <div className="flex items-center space-x-2">
-                {isRecording && (
-                  <>
-                    <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                    <span className="text-sm text-red-400">
-                      🎤 Recording with OpenAI Whisper...
-                    </span>
-                  </>
-                )}
-                {isProcessingVoice && (
-                  <>
-                    <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
-                    <span className="text-sm text-yellow-400">
-                      🔄 Processing speech with OpenAI...
-                    </span>
-                  </>
-                )}
-                {isSpeaking && (
-                  <>
-                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                    <span className="text-sm text-blue-400">
-                      🔊 Speaking with OpenAI TTS...
-                    </span>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
           
-          <div className="relative">
-            {/* Main Input Container - Rounded Rectangle */}
-            <div className={`bg-[#2a2a2a] rounded-2xl sm:rounded-3xl border px-3 sm:px-4 py-3 sm:py-4 transition-colors duration-200 ${
-              isInputFocused ? 'border-blue-500' : 'border-gray-600'
-            }`}>
-              
-              {/* First Row - Text Input (Full Width) */}
-              <div className="mb-2 sm:mb-3">
-                <textarea
-                  ref={inputFieldRef}
-                  value={inputMessage}
-                  onChange={(e) => setInputMessage(e.target.value)}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }
-                  }}
-                  onFocus={() => setIsInputFocused(true)}
-                  onBlur={() => setIsInputFocused(false)}
-                  placeholder={isConnected ? "Ask anything (Ctrl+/ to focus)" : "Ask anything"}
-                  disabled={!isConnected || isLoading}
-                  rows={1}
-                  className="w-full bg-transparent border-none outline-none resize-none text-white placeholder-gray-400 text-sm sm:text-base"
-                  style={{
-                    minHeight: '20px',
-                    maxHeight: '120px'
-                  }}
-                  onInput={(e) => {
-                    e.target.style.height = 'auto';
-                    e.target.style.height = e.target.scrollHeight + 'px';
-                  }}
-                />
-              </div>
-              
-              {/* Second Row - Icons */}
-              <div className="flex items-center justify-between">
-                {/* Left Side - Plus and Tools Icons */}
-                <div className="flex items-center space-x-2 sm:space-x-3">
-                  {/* Plus Button with Dropdown */}
-                  <div className="relative" ref={plusMenuRef}>
-                    {/* <button
-                      onClick={() => setShowPlusMenu(!showPlusMenu)}
-                      className="text-gray-400 hover:text-white transition-colors p-1"
-                      title="Upload documents or view medical history"
-                    >
-                      <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-                    </button> */}
-                    
-                    {/* Dropdown Menu */}
-                    {showPlusMenu && (
-                      <div className="absolute bottom-full left-0 mb-2 bg-[#2a2a2a] border border-gray-600 rounded-lg shadow-xl min-w-48 z-50">
-                        <div className="py-2">
-                          <button
-                            onClick={() => {
-                              setActiveTab('upload');
-                              setShowPlusMenu(false);
-                            }}
-                            className="w-full px-4 py-2 text-left text-gray-300 hover:text-white hover:bg-[#3a3a3a] transition-colors flex items-center space-x-3"
-                          >
-                            <Upload className="w-4 h-4" />
-                            <span>Upload Documents</span>
-                          </button>
-                          <button
-                            onClick={() => {
-                              setActiveTab('history');
-                              setShowPlusMenu(false);
-                            }}
-                            className="w-full px-4 py-2 text-left text-gray-300 hover:text-white hover:bg-[#3a3a3a] transition-colors flex items-center space-x-3"
-                          >
-                            <History className="w-4 h-4" />
-                            <span>Medical History</span>
-                          </button>
-                        </div>
-                      </div>
+          {/* Modern Chat Input - Fixed at bottom */}
+          <div className="bg-[#1a1a1a] px-3 sm:px-4 py-2 flex-shrink-0">
+            <div className="max-w-4xl mx-auto">
+              {/* Voice Status Indicator */}
+              {(isRecording || isProcessingVoice || isSpeaking) && (
+                <div className="mb-3 px-3 py-2 bg-[#2a2a2a] border border-gray-600 rounded-lg">
+                  <div className="flex items-center space-x-2">
+                    {isRecording && (
+                      <>
+                        <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                        <span className="text-sm text-red-400">
+                          🎤 Recording with OpenAI Whisper...
+                        </span>
+                      </>
+                    )}
+                    {isProcessingVoice && (
+                      <>
+                        <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+                        <span className="text-sm text-yellow-400">
+                          🔄 Processing speech with OpenAI...
+                        </span>
+                      </>
+                    )}
+                    {isSpeaking && (
+                      <>
+                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                        <span className="text-sm text-blue-400">
+                          🔊 Speaking with OpenAI TTS...
+                        </span>
+                      </>
                     )}
                   </div>
-                  
-                  {/* Tools Button */}
-                  {/* <button
-                    className="text-gray-400 hover:text-white transition-colors p-1 flex items-center space-x-1 sm:space-x-2"
-                    title="Tools"
-                  >
-                    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
-                    </svg>
-                    <span className="text-xs sm:text-sm">MCP</span>
-                  </button> */}
                 </div>
-                
-                {/* Right Side - Microphone and Send Icons */}
-                <div className="flex items-center space-x-2 sm:space-x-3">
-                  {/* Microphone Button */}
-                  <button
-                    onClick={toggleVoiceInput}
-                    disabled={!isConnected || isLoading || isProcessingVoice || microphoneAvailable === false}
-                    className={`transition-colors duration-200 p-1 ${
-                      microphoneAvailable === false
-                        ? "text-gray-500 cursor-not-allowed opacity-50"
-                        : isListening || isRecording
-                        ? "text-red-400 hover:text-red-300 animate-pulse"
-                        : isProcessingVoice
-                        ? "text-yellow-400 hover:text-yellow-300 animate-pulse"
-                        : isSpeaking
-                        ? "text-blue-400 hover:text-blue-300 animate-pulse"
-                        : "text-gray-400 hover:text-white disabled:text-gray-600"
-                    }`}
-                    title={
-                      microphoneAvailable === false
-                        ? "Microphone not available (requires HTTPS connection and permissions)"
-                        : microphoneAvailable === null
-                        ? "Checking microphone availability..."
-                        : isListening || isRecording
-                        ? "Recording... (Click to stop)"
-                        : isProcessingVoice
-                        ? "Processing voice input..."
-                        : isSpeaking
-                        ? "AI is speaking... (Click to stop)"
-                        : "Start voice input (OpenAI Whisper)"
-                    }
-                  >
-                    {microphoneAvailable === false ? (
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V4c0-1.66-1.34-3-3-3S9 2.34 9 4v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"/>
-                      </svg>
-                    ) : isListening || isRecording ? (
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M6 6h12v12H6z" />
-                      </svg>
-                    ) : isProcessingVoice ? (
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                    ) : isSpeaking ? (
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
-                      </svg>
-                    ) : (
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M12 2c1.1 0 2 .9 2 2v6c0 1.1-.9 2-2 2s-2-.9-2-2V4c0-1.1.9-2 2-2zm5.3 6c0 3-2.5 5.1-5.3 5.1S6.7 11 6.7 8H5c0 3.4 2.7 6.2 6 6.7v3.3h2v-3.3c3.3-.5 6-3.3 6-6.7h-1.7z" />
-                      </svg>
-                    )}
-                  </button>
+              )}
+              
+              <div className="relative">
+                {/* Main Input Container - Rounded Rectangle */}
+                <div className={`bg-[#2a2a2a] rounded-2xl sm:rounded-3xl border px-3 sm:px-4 py-3 sm:py-4 transition-colors duration-200 ${
+                  isInputFocused ? 'border-blue-500' : 'border-gray-600'
+                }`}>
                   
-                  {/* Send Button - Circular */}
-                  <button
-                    onClick={handleSendMessage}
-                    disabled={!isConnected || isLoading || !inputMessage.trim()}
-                    className="w-7 h-7 sm:w-8 sm:h-8 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 text-white rounded-full flex items-center justify-center transition-colors duration-200"
-                    title="Send message"
-                  >
-                    {isLoading ? (
-                      <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
-                    ) : (
-                      <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                      </svg>
-                    )}
-                  </button>
+                  {/* First Row - Text Input (Full Width) */}
+                  <div className="mb-2 sm:mb-3">
+                    <textarea
+                      ref={inputFieldRef}
+                      value={inputMessage}
+                      onChange={(e) => setInputMessage(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSendMessage();
+                        }
+                      }}
+                      onClick={(e) => {
+                        // When user manually clicks/taps input, ensure it's fully interactive
+                        if (isMobileDevice() && e.target.hasAttribute('readonly')) {
+                          e.target.removeAttribute('readonly');
+                          e.target.focus(); // Re-focus to trigger keyboard
+                        }
+                      }}
+                      onFocus={(e) => {
+                        setIsInputFocused(true);
+                        // If user manually tapped input on mobile, ensure readonly is removed
+                        if (isMobileDevice() && e.target.hasAttribute('readonly')) {
+                          e.target.removeAttribute('readonly');
+                        }
+                      }}
+                      onBlur={() => setIsInputFocused(false)}
+                      placeholder={isConnected ? "Ask anything (Ctrl+/ to focus)" : "Ask anything"}
+                      disabled={!isConnected || isLoading}
+                      rows={1}
+                      className="w-full bg-transparent border-none outline-none resize-none text-white placeholder-gray-400 text-sm sm:text-base"
+                      style={{
+                        minHeight: '20px',
+                        maxHeight: '120px'
+                      }}
+                      onInput={(e) => {
+                        e.target.style.height = 'auto';
+                        e.target.style.height = e.target.scrollHeight + 'px';
+                      }}
+                    />
+                  </div>
+                  
+                  {/* Second Row - Icons */}
+                  <div className="flex items-center justify-between">
+                    {/* Left Side - Plus and Tools Icons */}
+                    <div className="flex items-center space-x-2 sm:space-x-3">
+                      {/* Plus Button with Dropdown */}
+                      <div className="relative" ref={plusMenuRef}>
+                        {/* <button
+                          onClick={() => setShowPlusMenu(!showPlusMenu)}
+                          className="text-gray-400 hover:text-white transition-colors p-1"
+                          title="Upload documents or view medical history"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                        
+                        {showPlusMenu && (
+                          <div className="absolute bottom-full left-0 mb-2 bg-[#2a2a2a] border border-gray-600 rounded-lg shadow-lg min-w-48 z-50">
+                            <button
+                              onClick={() => {
+                                setActiveTab('upload');
+                                setShowPlusMenu(false);
+                              }}
+                              className="w-full text-left px-3 py-2 text-sm text-white hover:bg-gray-700 rounded-t-lg flex items-center space-x-2"
+                            >
+                              <Upload className="w-4 h-4" />
+                              <span>Upload Documents</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                setActiveTab('history');
+                                setShowPlusMenu(false);
+                              }}
+                              className="w-full text-left px-3 py-2 text-sm text-white hover:bg-gray-700 rounded-b-lg border-t border-gray-600 flex items-center space-x-2"
+                            >
+                              <History className="w-4 h-4" />
+                              <span>Medical History</span>
+                            </button>
+                          </div>
+                        )} */}
+                      </div>
+                    </div>
+                    
+                    {/* Right Side - Send Button */}
+                    <div className="flex items-center">
+                      {/* Microphone Button */}
+                      <button
+                        onClick={toggleVoiceInput}
+                        disabled={!isConnected || isLoading || isProcessingVoice || microphoneAvailable === false}
+                        className={`transition-colors duration-200 p-1 ${
+                          microphoneAvailable === false
+                            ? "text-gray-500 cursor-not-allowed opacity-50"
+                            : isListening || isRecording
+                            ? "text-red-400 hover:text-red-300 animate-pulse"
+                            : isProcessingVoice
+                            ? "text-yellow-400 hover:text-yellow-300 animate-pulse"
+                            : isSpeaking
+                            ? "text-blue-400 hover:text-blue-300 animate-pulse"
+                            : "text-gray-400 hover:text-white disabled:text-gray-600"
+                        }`}
+                        title={
+                          microphoneAvailable === false
+                            ? "Microphone not available (requires HTTPS connection and permissions)"
+                            : microphoneAvailable === null
+                            ? "Checking microphone availability..."
+                            : isListening || isRecording
+                            ? "Recording... (Click to stop)"
+                            : isProcessingVoice
+                            ? "Processing voice input..."
+                            : isSpeaking
+                            ? "AI is speaking... (Click to stop)"
+                            : "Start voice input (OpenAI Whisper)"
+                        }
+                      >
+                        {microphoneAvailable === false ? (
+                          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V4c0-1.66-1.34-3-3-3S9 2.34 9 4v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"/>
+                          </svg>
+                        ) : isListening || isRecording ? (
+                          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M6 6h12v12H6z" />
+                          </svg>
+                        ) : isProcessingVoice ? (
+                          <svg className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                        ) : isSpeaking ? (
+                          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+                          </svg>
+                        ) : (
+                          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 2c1.1 0 2 .9 2 2v6c0 1.1-.9 2-2 2s-2-.9-2-2V4c0-1.1.9-2 2-2zm5.3 6c0 3-2.5 5.1-5.3 5.1S6.7 11 6.7 8H5c0 3.4 2.7 6.2 6 6.7v3.3h2v-3.3c3.3-.5 6-3.3 6-6.7h-1.7z" />
+                          </svg>
+                        )}
+                      </button>
+                      {/* Send Button - Circular */}
+                      <button
+                        onClick={handleSendMessage}
+                        disabled={!isConnected || isLoading || !inputMessage.trim()}
+                        className="w-7 h-7 sm:w-8 sm:h-8 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 text-white rounded-full flex items-center justify-center transition-colors duration-200"
+                        title="Send message"
+                      >
+                        {isLoading ? (
+                          <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
+                        ) : (
+                          <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
-        </>
       )}
 
       {/* Upload Documents Tab */}
@@ -3428,20 +3531,20 @@ Examples:
 
       {/* Patient Admission Form Popup */}
       {showPatientAdmissionForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-[#1a1a1a] rounded-lg border border-gray-700 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50">
+          <div className="bg-[#1a1a1a] rounded-lg border border-gray-700 max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto mx-2 sm:mx-0">
             {/* Header */}
-            <div className="border-b border-gray-700 px-6 py-4">
+            <div className="border-b border-gray-700 px-4 sm:px-6 py-3 sm:py-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-xl font-semibold text-white">Patient Admission Form</h2>
-                  <p className="text-sm text-gray-400">Fill in the patient information to complete admission</p>
+                  <h2 className="text-lg sm:text-xl font-semibold text-white">Patient Admission Form</h2>
+                  <p className="text-xs sm:text-sm text-gray-400">Fill in the patient information to complete admission</p>
                 </div>
                 <button
                   onClick={closePatientAdmissionForm}
-                  className="text-gray-400 hover:text-white transition-colors"
+                  className="text-gray-400 hover:text-white transition-colors p-1"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
@@ -3449,7 +3552,7 @@ Examples:
             </div>
 
             {/* Form Content */}
-            <div className="p-6 space-y-6">
+            <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
               {/* Required Fields Section */}
               <div>
                 <h3 className="text-lg font-medium text-white mb-4">Required Information</h3>
@@ -3494,7 +3597,7 @@ Examples:
                     <select
                       value={admissionFormData.gender}
                       onChange={(e) => handleAdmissionFormChange('gender', e.target.value)}
-                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-3 sm:py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base sm:text-sm"
                     >
                       <option value="">Select gender</option>
                       <option value="Male">Male</option>
@@ -3578,7 +3681,7 @@ Examples:
                     <select
                       value={admissionFormData.blood_type}
                       onChange={(e) => handleAdmissionFormChange('blood_type', e.target.value)}
-                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-3 sm:py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base sm:text-sm"
                     >
                       <option value="">Select blood type</option>
                       <option value="A+">A+</option>
@@ -3616,18 +3719,18 @@ Examples:
             </div>
 
             {/* Footer */}
-            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
+            <div className="border-t border-gray-700 px-4 sm:px-6 py-4 flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3">
               <button
                 onClick={closePatientAdmissionForm}
                 disabled={isSubmittingAdmission}
-                className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50"
+                className="px-4 py-3 sm:py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50 text-base sm:text-sm"
               >
                 Cancel
               </button>
               <button
                 onClick={submitPatientAdmission}
                 disabled={isSubmittingAdmission}
-                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                className="px-6 py-3 sm:py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-base sm:text-sm"
               >
                 {isSubmittingAdmission ? (
                   <>
@@ -3700,15 +3803,23 @@ Examples:
 
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Head Doctor ID
+                      Head Doctor
                     </label>
-                    <input
-                      type="text"
+                    <select
                       value={departmentFormData.head_doctor_id}
                       onChange={(e) => handleDepartmentFormChange('head_doctor_id', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="UUID of head doctor (optional)"
-                    />
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="">Select head doctor (optional)</option>
+                      {Array.isArray(userOptions) ? userOptions
+                        .filter(user => user.role === 'doctor' || user.role === 'admin')
+                        .map(user => (
+                          <option key={user.id} value={user.id}>
+                            {user.first_name} {user.last_name} ({user.username})
+                          </option>
+                        )) : []}
+                    </select>
+                    <p className="text-xs text-gray-400 mt-1">Choose who will head this department</p>
                   </div>
 
                   <div>
@@ -3901,28 +4012,37 @@ Examples:
 
       {/* Staff Creation Form Popup */}
       {showStaffForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-            <div className="border-b border-gray-700 px-6 py-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-3xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto mx-2 sm:mx-0">
+            <div className="border-b border-gray-700 px-4 sm:px-6 py-3 sm:py-4">
               <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-white">Staff Creation Form</h2>
-                <button onClick={closeStaffForm} className="text-gray-400 hover:text-white">
-                  <X className="w-6 h-6" />
+                <h2 className="text-lg sm:text-xl font-semibold text-white">Staff Creation Form</h2>
+                <button onClick={closeStaffForm} className="text-gray-400 hover:text-white p-1">
+                  <X className="w-5 h-5 sm:w-6 sm:h-6" />
                 </button>
               </div>
             </div>
-            <div className="px-6 py-4">
+            <div className="px-4 sm:px-6 py-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">User ID *</label>
-                    <input
-                      type="text"
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Select User *</label>
+                    <select
                       value={staffFormData.user_id}
                       onChange={(e) => handleStaffFormChange('user_id', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="User ID (UUID)"
-                    />
+                      className="w-full px-3 py-3 sm:py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500 text-base sm:text-sm"
+                      disabled={loadingDropdowns}
+                    >
+                      <option value="">
+                        {loadingDropdowns ? 'Loading users...' : 'Select a user'}
+                      </option>
+                      {Array.isArray(userOptions) ? userOptions.map(user => (
+                        <option key={user.id} value={user.id}>
+                          {user.first_name} {user.last_name} ({user.username}) - {user.role}
+                        </option>
+                      )) : []}
+                    </select>
+                    <p className="text-xs text-gray-400 mt-1">Choose which user this staff record belongs to</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1">Employee ID *</label>
@@ -3931,28 +4051,44 @@ Examples:
                       value={staffFormData.employee_id}
                       onChange={(e) => handleStaffFormChange('employee_id', e.target.value)}
                       className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Employee ID"
+                      placeholder="Employee ID (e.g., EMP001)"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Department ID *</label>
-                    <input
-                      type="text"
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Select Department *</label>
+                    <select
                       value={staffFormData.department_id}
                       onChange={(e) => handleStaffFormChange('department_id', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Department ID (UUID)"
-                    />
+                      className="w-full px-3 py-3 sm:py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500 text-base sm:text-sm"
+                    >
+                      <option value="">Select a department</option>
+                      {Array.isArray(departmentOptions) ? departmentOptions.map(dept => (
+                        <option key={dept.id} value={dept.id}>
+                          {dept.name} (Floor {dept.floor_number || 'N/A'})
+                        </option>
+                      )) : []}
+                    </select>
+                    <p className="text-xs text-gray-400 mt-1">Choose which department this staff member works in</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1">Position *</label>
-                    <input
-                      type="text"
+                    <select
                       value={staffFormData.position}
                       onChange={(e) => handleStaffFormChange('position', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="e.g., Nurse, Doctor"
-                    />
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="">Select position</option>
+                      <option value="Doctor">Doctor</option>
+                      <option value="Nurse">Nurse</option>
+                      <option value="Physician Assistant">Physician Assistant</option>
+                      <option value="Medical Technician">Medical Technician</option>
+                      <option value="Radiologist">Radiologist</option>
+                      <option value="Pharmacist">Pharmacist</option>
+                      <option value="Lab Technician">Lab Technician</option>
+                      <option value="Receptionist">Receptionist</option>
+                      <option value="Administrator">Administrator</option>
+                      <option value="Other">Other</option>
+                    </select>
                   </div>
                 </div>
                 <div className="space-y-4">
@@ -4024,9 +4160,19 @@ Examples:
                 </div>
               </div>
             </div>
-            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
-              <button onClick={closeStaffForm} disabled={isSubmittingStaff} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
-              <button onClick={submitStaff} disabled={isSubmittingStaff} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
+            <div className="border-t border-gray-700 px-4 sm:px-6 py-4 flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3">
+              <button 
+                onClick={closeStaffForm} 
+                disabled={isSubmittingStaff} 
+                className="px-4 py-3 sm:py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50 text-base sm:text-sm"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={submitStaff} 
+                disabled={isSubmittingStaff} 
+                className="px-6 py-3 sm:py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-base sm:text-sm"
+              >
                 {isSubmittingStaff ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating Staff...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create Staff</span></>)}
               </button>
             </div>
@@ -4082,14 +4228,20 @@ Examples:
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Department ID *</label>
-                <input
-                  type="number"
+                <label className="block text-sm font-medium text-gray-300 mb-1">Select Department *</label>
+                <select
                   value={roomFormData.department_id}
                   onChange={(e) => handleRoomFormChange('department_id', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Department ID"
-                />
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                >
+                  <option value="">Select a department</option>
+                  {Array.isArray(departmentOptions) ? departmentOptions.map(dept => (
+                    <option key={dept.id} value={dept.id}>
+                      {dept.name} (Floor {dept.floor_number || 'N/A'})
+                    </option>
+                  )) : []}
+                </select>
+                <p className="text-xs text-gray-400 mt-1">Choose which department this room belongs to</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">Floor Number</label>
@@ -4136,14 +4288,20 @@ Examples:
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Room ID</label>
-                <input
-                  type="text"
+                <label className="block text-sm font-medium text-gray-300 mb-1">Select Room *</label>
+                <select
                   value={bedFormData.room_id}
                   onChange={(e) => handleBedFormChange('room_id', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Room ID"
-                />
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                >
+                  <option value="">Select a room</option>
+                  {Array.isArray(roomOptions) ? roomOptions.map(room => (
+                    <option key={room.id} value={room.id}>
+                      Room {room.room_number} ({room.room_type}) - Floor {room.floor_number || 'N/A'}
+                    </option>
+                  )) : []}
+                </select>
+                <p className="text-xs text-gray-400 mt-1">Choose which room this bed will be placed in</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">Bed Type</label>
@@ -4210,14 +4368,20 @@ Examples:
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Category *</label>
-                    <input
-                      type="text"
-                      value={equipmentFormData.category}
-                      onChange={(e) => handleEquipmentFormChange('category', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="e.g., Diagnostic, Surgical"
-                    />
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Select Equipment Category *</label>
+                    <select
+                      value={equipmentFormData.category_id}
+                      onChange={(e) => handleEquipmentFormChange('category_id', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="">Select a category</option>
+                      {Array.isArray(equipmentCategoryOptions) ? equipmentCategoryOptions.map(category => (
+                        <option key={category.id} value={category.id}>
+                          {category.name}
+                        </option>
+                      )) : []}
+                    </select>
+                    <p className="text-xs text-gray-400 mt-1">Choose the equipment category</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1">Serial Number</label>
@@ -4305,14 +4469,20 @@ Examples:
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Department ID</label>
-                    <input
-                      type="number"
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Select Department</label>
+                    <select
                       value={equipmentFormData.department_id}
                       onChange={(e) => handleEquipmentFormChange('department_id', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Department ID"
-                    />
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="">Select a department (optional)</option>
+                      {Array.isArray(departmentOptions) ? departmentOptions.map(dept => (
+                        <option key={dept.id} value={dept.id}>
+                          {dept.name} (Floor {dept.floor_number || 'N/A'})
+                        </option>
+                      )) : []}
+                    </select>
+                    <p className="text-xs text-gray-400 mt-1">Choose which department will use this equipment</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1">Last Maintenance</label>
@@ -4381,14 +4551,20 @@ Examples:
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Category *</label>
-                    <input
-                      type="text"
-                      value={supplyFormData.category}
-                      onChange={(e) => handleSupplyFormChange('category', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="e.g., Medical Supplies"
-                    />
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Select Supply Category *</label>
+                    <select
+                      value={supplyFormData.category_id}
+                      onChange={(e) => handleSupplyFormChange('category_id', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="">Select a category</option>
+                      {Array.isArray(supplyCategoryOptions) ? supplyCategoryOptions.map(category => (
+                        <option key={category.id} value={category.id}>
+                          {category.name}
+                        </option>
+                      )) : []}
+                    </select>
+                    <p className="text-xs text-gray-400 mt-1">Choose the supply category</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1">Quantity</label>
@@ -4509,34 +4685,54 @@ Examples:
             </div>
             <div className="px-6 py-4 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Patient ID *</label>
-                <input
-                  type="text"
+                <label className="block text-sm font-medium text-gray-300 mb-1">Select Patient *</label>
+                <select
                   value={appointmentFormData.patient_id}
                   onChange={(e) => handleAppointmentFormChange('patient_id', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Patient ID"
-                />
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                >
+                  <option value="">Select a patient</option>
+                  {Array.isArray(patientOptions) ? patientOptions.map(patient => (
+                    <option key={patient.id} value={patient.id}>
+                      {patient.first_name} {patient.last_name} ({patient.patient_number})
+                    </option>
+                  )) : []}
+                </select>
+                <p className="text-xs text-gray-400 mt-1">Choose which patient the appointment is for</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Doctor ID *</label>
-                <input
-                  type="text"
+                <label className="block text-sm font-medium text-gray-300 mb-1">Select Doctor *</label>
+                <select
                   value={appointmentFormData.doctor_id}
                   onChange={(e) => handleAppointmentFormChange('doctor_id', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Doctor ID"
-                />
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                >
+                  <option value="">Select a doctor</option>
+                  {Array.isArray(userOptions) ? userOptions
+                    .filter(user => user.role === 'doctor' || user.role === 'admin')
+                    .map(user => (
+                      <option key={user.id} value={user.id}>
+                        Dr. {user.first_name} {user.last_name} ({user.username})
+                      </option>
+                    )) : []}
+                </select>
+                <p className="text-xs text-gray-400 mt-1">Choose which doctor will see the patient</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Department ID *</label>
-                <input
-                  type="text"
+                <label className="block text-sm font-medium text-gray-300 mb-1">Select Department *</label>
+                <select
                   value={appointmentFormData.department_id}
                   onChange={(e) => handleAppointmentFormChange('department_id', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Department ID"
-                />
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                >
+                  <option value="">Select a department</option>
+                  {Array.isArray(departmentOptions) ? departmentOptions.map(dept => (
+                    <option key={dept.id} value={dept.id}>
+                      {dept.name} (Floor {dept.floor_number || 'N/A'})
+                    </option>
+                  )) : []}
+                </select>
+                <p className="text-xs text-gray-400 mt-1">Choose which department the appointment is in</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">Appointment Date & Time *</label>
