@@ -3144,9 +3144,9 @@ Examples:
         </div>
       )}
 
-      {/* Modern Chat Input - Fixed at bottom */}
-      <div className="bg-[#1a1a1a] px-3 sm:px-4 py-2 flex-shrink-0">
-        <div className="max-w-4xl mx-auto">
+        {/* Modern Chat Input - Fixed at bottom */}
+        <div className="bg-[#1a1a1a] px-3 sm:px-4 py-2 flex-shrink-0">
+          <div className="max-w-4xl mx-auto">
               {/* Voice Status Indicator */}
               {(isRecording || isProcessingVoice || isSpeaking) && (
                 <div className="mb-3 px-3 py-2 bg-[#2a2a2a] border border-gray-600 rounded-lg">
