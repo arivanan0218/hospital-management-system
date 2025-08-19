@@ -1422,6 +1422,12 @@ Examples:
       const setVH = () => {
         const vh = window.innerHeight * 0.01;
         document.documentElement.style.setProperty('--vh', `${vh}px`);
+        
+        // Force height to fill entire viewport
+        document.documentElement.style.height = '100%';
+        document.body.style.height = '100%';
+        document.body.style.minHeight = '100vh';
+        document.body.style.minHeight = '100dvh';
       };
       
       // Set initial viewport height
@@ -1431,6 +1437,8 @@ Examples:
       document.body.style.overflow = 'hidden';
       document.body.style.backgroundColor = '#1a1a1a';
       document.documentElement.style.backgroundColor = '#1a1a1a';
+      document.body.style.margin = '0';
+      document.body.style.padding = '0';
       
       // Throttled resize handler
       let timeoutId;
@@ -1455,6 +1463,8 @@ Examples:
             // Ensure background color is maintained during keyboard transitions
             document.body.style.backgroundColor = '#1a1a1a';
             document.documentElement.style.backgroundColor = '#1a1a1a';
+            document.body.style.height = '100%';
+            document.body.style.minHeight = '100vh';
           }, 100);
         }
       };
@@ -1465,6 +1475,9 @@ Examples:
           setVH();
           document.body.style.backgroundColor = '#1a1a1a';
           document.documentElement.style.backgroundColor = '#1a1a1a';
+          document.body.style.height = '100%';
+          document.body.style.minHeight = '100vh';
+          window.scrollTo(0, 0);
         }, 150);
       };
       
@@ -1483,6 +1496,11 @@ Examples:
         document.body.style.overflow = '';
         document.body.style.backgroundColor = '';
         document.documentElement.style.backgroundColor = '';
+        document.body.style.height = '';
+        document.body.style.minHeight = '';
+        document.body.style.margin = '';
+        document.body.style.padding = '';
+        document.documentElement.style.height = '';
       };
     }
   }, []);
@@ -2809,7 +2827,7 @@ Examples:
 
   // Main Chat Interface - Claude Desktop Style with Responsive Design
   return (
-    <div className="min-h-screen bg-[#1a1a1a] flex flex-col text-white overflow-hidden relative" style={{ minHeight: '100vh', minHeight: 'calc(var(--vh, 1vh) * 100)', height: '100vh', height: 'calc(var(--vh, 1vh) * 100)' }}>
+    <div className="h-screen bg-[#1a1a1a] flex flex-col text-white overflow-hidden relative" style={{ height: '100vh', height: '100dvh' }}>
       {/* Claude-style Header - FIXED */}
       <div className="flex-shrink-0 border-b border-gray-700 px-3 sm:px-4 py-3 bg-[#1a1a1a] relative z-30">
         <div className="flex items-center justify-between">
