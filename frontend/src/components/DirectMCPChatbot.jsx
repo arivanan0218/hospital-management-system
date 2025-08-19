@@ -338,15 +338,10 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
     setTimeout(() => {
       if (inputFieldRef.current) {
         if (isMobileDevice()) {
-          // On mobile: focus without triggering keyboard, set readonly temporarily
-          inputFieldRef.current.setAttribute('readonly', true);
-          inputFieldRef.current.focus({ preventScroll: true });
-          // Remove readonly after a short delay to allow manual interaction
-          setTimeout(() => {
-            if (inputFieldRef.current && inputFieldRef.current.hasAttribute('readonly')) {
-              inputFieldRef.current.removeAttribute('readonly');
-            }
-          }, 100);
+          // On mobile: Don't focus automatically to prevent keyboard popup
+          // Just ensure input is visually focused (via state) without actual DOM focus
+          setIsInputFocused(true);
+          setTimeout(() => setIsInputFocused(false), 1000);
         } else {
           // On desktop: normal focus behavior
           inputFieldRef.current.focus();
@@ -2742,9 +2737,9 @@ Examples:
 
   // Main Chat Interface - Claude Desktop Style with Responsive Design
   return (
-    <div className="h-screen bg-[#1a1a1a] flex flex-col text-white">
-      {/* Claude-style Header - Responsive */}
-      <div className="border-b border-gray-700 px-3 sm:px-4 py-3 bg-[#1a1a1a]">
+    <div className="h-screen bg-[#1a1a1a] flex flex-col text-white overflow-hidden">
+      {/* Claude-style Header - FIXED */}
+      <div className="flex-shrink-0 border-b border-gray-700 px-3 sm:px-4 py-3 bg-[#1a1a1a]">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2 sm:space-x-3">
             <div className="w-6 h-6 sm:w-7 sm:h-7 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs sm:text-sm font-medium shadow-lg">
@@ -2902,13 +2897,13 @@ Examples:
         </div>
       </div>
 
-      {/* Content Area */}
+      {/* Content Area - MAIN SCROLLABLE CONTAINER */}
       {activeTab === 'chat' && (
         <div className="flex-1 flex flex-col min-h-0">
-          {/* Messages Container - Claude Style - Responsive - ONLY THIS SCROLLS */}
+          {/* Messages Container - ONLY THIS SCROLLS */}
           <div 
             ref={messagesContainerRef} 
-            className="flex-1 overflow-y-auto bg-[#1a1a1a]"
+            className="flex-1 overflow-y-auto overflow-x-hidden bg-[#1a1a1a]"
             onClick={() => {
               // Smart focus input when clicking anywhere in the chat area, but not when selecting text
               const selection = window.getSelection();
@@ -3090,13 +3085,11 @@ Examples:
           <div ref={messagesEndRef} />
             </div>
           </div>
-        </div>
-      )}
 
-      {/* Action Buttons Above Input - FIXED (NOT SCROLLABLE) */}
-      {activeTab === 'chat' && showActionButtons && (
-        <div className="bg-[#1a1a1a] px-4 py-1 flex-shrink-0">
-          <div className="max-w-4xl mx-auto">
+          {/* Action Buttons Above Input - FIXED (NOT SCROLLABLE) */}
+          {showActionButtons && (
+            <div className="bg-[#1a1a1a] px-4 py-1 flex-shrink-0">
+              <div className="max-w-4xl mx-auto">
             {/* Desktop: 1 row 4 columns, Mobile: 2 rows 2 columns */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
               {/* View All Patients */}
@@ -3150,11 +3143,10 @@ Examples:
           </div>
         </div>
       )}
-          
+
       {/* Modern Chat Input - Fixed at bottom */}
-      {activeTab === 'chat' && (
-        <div className="bg-[#1a1a1a] px-3 sm:px-4 py-2 flex-shrink-0">
-          <div className="max-w-4xl mx-auto">
+      <div className="bg-[#1a1a1a] px-3 sm:px-4 py-2 flex-shrink-0">
+        <div className="max-w-4xl mx-auto">
               {/* Voice Status Indicator */}
               {(isRecording || isProcessingVoice || isSpeaking) && (
                 <div className="mb-3 px-3 py-2 bg-[#2a2a2a] border border-gray-600 rounded-lg">
@@ -3205,20 +3197,7 @@ Examples:
                           handleSendMessage();
                         }
                       }}
-                      onClick={(e) => {
-                        // When user manually clicks/taps input, ensure it's fully interactive
-                        if (isMobileDevice() && e.target.hasAttribute('readonly')) {
-                          e.target.removeAttribute('readonly');
-                          e.target.focus(); // Re-focus to trigger keyboard
-                        }
-                      }}
-                      onFocus={(e) => {
-                        setIsInputFocused(true);
-                        // If user manually tapped input on mobile, ensure readonly is removed
-                        if (isMobileDevice() && e.target.hasAttribute('readonly')) {
-                          e.target.removeAttribute('readonly');
-                        }
-                      }}
+                      onFocus={() => setIsInputFocused(true)}
                       onBlur={() => setIsInputFocused(false)}
                       placeholder={isConnected ? "Ask anything (Ctrl+/ to focus)" : "Ask anything"}
                       disabled={!isConnected || isLoading}
@@ -3349,6 +3328,7 @@ Examples:
                 </div>
               </div>
             </div>
+          </div>
         </div>
       )}
 
