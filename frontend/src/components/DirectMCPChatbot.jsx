@@ -2905,7 +2905,7 @@ Examples:
       {/* Content Area */}
       {activeTab === 'chat' && (
         <div className="flex-1 flex flex-col min-h-0">
-          {/* Messages Container - Claude Style - Responsive */}
+          {/* Messages Container - Claude Style - Responsive - ONLY THIS SCROLLS */}
           <div 
             ref={messagesContainerRef} 
             className="flex-1 overflow-y-auto bg-[#1a1a1a]"
@@ -2923,22 +2923,22 @@ Examples:
               }
             }}
           >
-        <div className="max-w-4xl mx-auto px-3 sm:px-4">
-          {messages.length === 0 && (
-            <div className="flex items-center justify-center h-full text-center px-3 sm:px-6">
-              <div className="max-w-xs sm:max-w-md">
-                <div className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6 shadow-lg">
-                  <span className="text-lg sm:text-2xl font-medium text-white">H</span>
+            <div className="max-w-4xl mx-auto px-3 sm:px-4">
+              {messages.length === 0 && (
+                <div className="flex items-center justify-center h-full text-center px-3 sm:px-6">
+                  <div className="max-w-xs sm:max-w-md">
+                    <div className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6 shadow-lg">
+                      <span className="text-lg sm:text-2xl font-medium text-white">H</span>
+                    </div>
+                    <h2 className="text-lg sm:text-xl font-medium text-white mb-2 sm:mb-3">
+                      Welcome back, {user?.fullName?.split(' ')[0] || 'User'}!
+                    </h2>
+                    <p className="text-gray-400 mb-4 sm:mb-6 text-sm">
+                      I'm your AI assistant for hospital management tasks. I can help you manage patients, staff, departments, equipment, and more through natural conversation.
+                    </p>
+                  </div>
                 </div>
-                <h2 className="text-lg sm:text-xl font-medium text-white mb-2 sm:mb-3">
-                  Welcome back, {user?.fullName?.split(' ')[0] || 'User'}!
-                </h2>
-                <p className="text-gray-400 mb-4 sm:mb-6 text-sm">
-                  I'm your AI assistant for hospital management tasks. I can help you manage patients, staff, departments, equipment, and more through natural conversation.
-                </p>
-              </div>
-            </div>
-          )}
+              )}
           
           {messages.map((message) => (
             <div key={message.id} className={`px-2 sm:px-4 py-2 ${
@@ -3088,12 +3088,14 @@ Examples:
           )}
           
           <div ref={messagesEndRef} />
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Action Buttons Above Input */}
-      {showActionButtons && (
-        <div className="bg-[#1a1a1a] px-4 py-1">
+      {/* Action Buttons Above Input - FIXED (NOT SCROLLABLE) */}
+      {activeTab === 'chat' && showActionButtons && (
+        <div className="bg-[#1a1a1a] px-4 py-1 flex-shrink-0">
           <div className="max-w-4xl mx-auto">
             {/* Desktop: 1 row 4 columns, Mobile: 2 rows 2 columns */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
@@ -3149,9 +3151,10 @@ Examples:
         </div>
       )}
           
-          {/* Modern Chat Input - Fixed at bottom */}
-          <div className="bg-[#1a1a1a] px-3 sm:px-4 py-2 flex-shrink-0">
-            <div className="max-w-4xl mx-auto">
+      {/* Modern Chat Input - Fixed at bottom */}
+      {activeTab === 'chat' && (
+        <div className="bg-[#1a1a1a] px-3 sm:px-4 py-2 flex-shrink-0">
+          <div className="max-w-4xl mx-auto">
               {/* Voice Status Indicator */}
               {(isRecording || isProcessingVoice || isSpeaking) && (
                 <div className="mb-3 px-3 py-2 bg-[#2a2a2a] border border-gray-600 rounded-lg">
@@ -3346,7 +3349,6 @@ Examples:
                 </div>
               </div>
             </div>
-          </div>
         </div>
       )}
 
