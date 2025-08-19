@@ -77,12 +77,17 @@ class StaffAgent(BaseAgent):
             db.add(staff)
             db.commit()
             db.refresh(staff)
+            
+            # Get user data before closing session
+            user_phone = user.phone
+            user_username = user.username
+            
             result = self.serialize_model(staff)
             db.close()
-            result['phone'] = user.phone
-            result['username'] = user.username
             
-            db.close()
+            # Add user data to result
+            result['phone'] = user_phone
+            result['username'] = user_username
             
             # Log the interaction
             self.log_interaction(
