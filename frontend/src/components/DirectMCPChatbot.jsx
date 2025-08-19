@@ -157,8 +157,7 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
     unit_cost: '', // matches database
     supplier: '',
     expiry_date: '',
-    location: '',
-    department_id: '' // Added missing foreign key
+    location: ''
   });
   const [isSubmittingSupply, setIsSubmittingSupply] = useState(false);
   

@@ -323,14 +323,11 @@ class EquipmentAgent(BaseAgent):
                 db.close()
                 return {"success": False, "message": "Equipment not found"}
             
-            # Update equipment status to maintenance
+            # Update equipment status to maintenance and schedule next maintenance
             equipment.status = "maintenance"
-            if hasattr(equipment, 'maintenance_date'):
-                equipment.maintenance_date = datetime.strptime(maintenance_date, "%Y-%m-%d").date()
-            if hasattr(equipment, 'maintenance_type'):
-                equipment.maintenance_type = maintenance_type
-            if hasattr(equipment, 'notes') and notes:
-                equipment.notes = notes
+            equipment.next_maintenance = datetime.strptime(maintenance_date, "%Y-%m-%d").date()
+            if notes:
+                equipment.notes = f"{equipment.notes or ''}\nMaintenance scheduled ({maintenance_type}): {notes}".strip()
             
             db.commit()
             db.refresh(equipment)

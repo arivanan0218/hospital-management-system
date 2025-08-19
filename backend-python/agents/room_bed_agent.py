@@ -80,7 +80,7 @@ class RoomBedAgent(BaseAgent):
         except Exception as e:
             return {"success": False, "message": f"Failed to create room: {str(e)}"}
 
-    def list_rooms(self, department_id: str = None, status: str = None) -> Dict[str, Any]:
+    def list_rooms(self, department_id: str = None) -> Dict[str, Any]:
         """List rooms with optional filtering."""
         if not DATABASE_AVAILABLE:
             return {"error": "Database not available"}
@@ -93,9 +93,6 @@ class RoomBedAgent(BaseAgent):
             if department_id:
                 query = query.filter(Room.department_id == uuid.UUID(department_id))
                 filters.append(f"department_id: {department_id}")
-            if status:
-                query = query.filter(Room.status == status)
-                filters.append(f"status: {status}")
             
             rooms = query.all()
             result = [self.serialize_model(room) for room in rooms]
@@ -138,7 +135,7 @@ class RoomBedAgent(BaseAgent):
             return {"error": f"Failed to get room: {str(e)}"}
 
     def update_room(self, room_id: str, room_number: str = None, room_type: str = None,
-                   capacity: int = None, status: str = None) -> Dict[str, Any]:
+                   capacity: int = None) -> Dict[str, Any]:
         """Update room information."""
         if not DATABASE_AVAILABLE:
             return {"success": False, "message": "Database not available"}
@@ -162,9 +159,6 @@ class RoomBedAgent(BaseAgent):
             if capacity is not None:
                 room.capacity = capacity
                 update_fields.append("capacity")
-            if status is not None:
-                room.status = status
-                update_fields.append("status")
             
             db.commit()
             db.refresh(room)
