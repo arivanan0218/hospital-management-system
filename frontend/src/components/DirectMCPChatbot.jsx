@@ -1430,8 +1430,11 @@ Examples:
         document.body.style.minHeight = '100dvh';
       };
       
-      // Set initial viewport height
+      // Set initial viewport height MULTIPLE TIMES to ensure it takes effect
       setVH();
+      setTimeout(setVH, 100);  // Retry after 100ms
+      setTimeout(setVH, 300);  // Retry after 300ms
+      setTimeout(setVH, 1000); // Final retry after 1 second
       
       // Prevent body scroll on mobile, but allow input to move with keyboard
       document.body.style.overflow = 'hidden';
@@ -1439,6 +1442,9 @@ Examples:
       document.documentElement.style.backgroundColor = '#1a1a1a';
       document.body.style.margin = '0';
       document.body.style.padding = '0';
+      
+      // Force immediate layout correction
+      window.scrollTo(0, 0);
       
       // Throttled resize handler
       let timeoutId;
@@ -1452,6 +1458,21 @@ Examples:
       window.addEventListener('orientationchange', () => {
         setTimeout(setVH, 500); // Delay for orientation change
       });
+      
+      // Force layout correction on load complete
+      window.addEventListener('load', () => {
+        setTimeout(setVH, 100);
+        window.scrollTo(0, 0);
+      });
+      
+      // Also trigger on DOM content loaded
+      if (document.readyState === 'complete') {
+        setTimeout(setVH, 100);
+      } else {
+        window.addEventListener('DOMContentLoaded', () => {
+          setTimeout(setVH, 100);
+        });
+      }
       
       // Prevent page scroll when focusing input on mobile
       const preventScroll = (e) => {
@@ -1488,6 +1509,8 @@ Examples:
       return () => {
         window.removeEventListener('resize', handleResize);
         window.removeEventListener('orientationchange', handleResize);
+        window.removeEventListener('load', setVH);
+        window.removeEventListener('DOMContentLoaded', setVH);
         document.removeEventListener('focusin', preventScroll);
         document.removeEventListener('focusout', handleFocusOut);
         clearTimeout(timeoutId);
@@ -1504,6 +1527,32 @@ Examples:
       };
     }
   }, []);
+
+  // Force layout correction after component mount - fixes initial blank space
+  useEffect(() => {
+    if (typeof window !== 'undefined' && isMobileDevice()) {
+      const forceLayoutCorrection = () => {
+        const vh = window.innerHeight * 0.01;
+        document.documentElement.style.setProperty('--vh', `${vh}px`);
+        document.body.style.height = '100%';
+        document.body.style.minHeight = '100vh';
+        document.documentElement.style.height = '100%';
+        window.scrollTo(0, 0);
+      };
+      
+      // Multiple attempts to ensure the layout corrects
+      const timeouts = [
+        setTimeout(forceLayoutCorrection, 50),
+        setTimeout(forceLayoutCorrection, 200),
+        setTimeout(forceLayoutCorrection, 500),
+        setTimeout(forceLayoutCorrection, 1500)
+      ];
+      
+      return () => {
+        timeouts.forEach(timeout => clearTimeout(timeout));
+      };
+    }
+  }, [isConnected]); // Run when connection state changes
 
   /**
    * Handle sending messages with Claude-style conversation flow
