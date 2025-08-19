@@ -790,7 +790,7 @@ Respond naturally, conversationally, and contextually based on the conversation 
           model: 'gpt-4',
           messages: messages,
           temperature: 0.7,
-          max_tokens: 1500
+          max_tokens: 4000
         })
       });
 
@@ -1211,7 +1211,7 @@ Respond naturally and helpfully based on the user's request and the tool results
             { role: 'user', content: userMessage }
           ],
           temperature: 0.7,
-          max_tokens: 2000
+          max_tokens: 4000
         })
       });
 
@@ -2763,7 +2763,7 @@ Respond naturally and helpfully based on the user's request and the tool results
           tools: functions,
           tool_choice: 'auto',
           temperature: 0.7,
-          max_tokens: 1500
+          max_tokens: 4000
         })
       });
 
@@ -2818,7 +2818,7 @@ Respond naturally and helpfully based on the user's request and the tool results
               tools: functions,
               tool_choice: 'auto',
               temperature: 0.7,
-              max_tokens: 1500
+              max_tokens: 4000
             })
           });
           
