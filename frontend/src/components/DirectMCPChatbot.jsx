@@ -64,26 +64,26 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   const [departmentFormData, setDepartmentFormData] = useState({
     name: '',
     description: '',
-    location: '',
+    head_doctor_id: '', // Foreign key to users table
+    floor_number: '',
     phone: '',
-    head_of_department: ''
+    email: ''
   });
   const [isSubmittingDepartment, setIsSubmittingDepartment] = useState(false);
   
   // Staff creation popup form
   const [showStaffForm, setShowStaffForm] = useState(false);
   const [staffFormData, setStaffFormData] = useState({
-    first_name: '',
-    last_name: '',
+    user_id: '', // Foreign key to users table
     employee_id: '',
+    department_id: '', // Foreign key to departments table
     position: '',
-    department_id: '',
-    phone: '',
-    email: '',
-    address: '',
+    specialization: '',
+    license_number: '',
     hire_date: '',
     salary: '',
-    shift: ''
+    shift_pattern: '', // day, night, rotating
+    status: 'active' // active, inactive, on_leave
   });
   const [isSubmittingStaff, setIsSubmittingStaff] = useState(false);
   
@@ -92,10 +92,12 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   const [userFormData, setUserFormData] = useState({
     username: '',
     email: '',
-    password: '',
-    role: '',
-    full_name: '',
-    phone: ''
+    password_hash: '', // This should be hashed on backend
+    role: '', // admin, doctor, nurse, manager, receptionist
+    first_name: '',
+    last_name: '',
+    phone: '',
+    is_active: true
   });
   const [isSubmittingUser, setIsSubmittingUser] = useState(false);
   
@@ -103,11 +105,10 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   const [showRoomForm, setShowRoomForm] = useState(false);
   const [roomFormData, setRoomFormData] = useState({
     room_number: '',
-    room_type: '',
+    room_type: '', // varchar(20)
     capacity: '',
-    floor: '',
-    department_id: '',
-    status: 'available'
+    floor_number: '', // Integer field in database
+    department_id: '' // Foreign key to departments table
   });
   const [isSubmittingRoom, setIsSubmittingRoom] = useState(false);
   
@@ -124,41 +125,53 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   // Equipment creation popup form
   const [showEquipmentForm, setShowEquipmentForm] = useState(false);
   const [equipmentFormData, setEquipmentFormData] = useState({
+    equipment_id: '', // Unique equipment ID
     name: '',
-    category: '',
-    serial_number: '',
-    manufacturer: '',
+    category_id: '', // Foreign key to equipment_categories table
     model: '',
+    manufacturer: '',
+    serial_number: '',
     purchase_date: '',
     warranty_expiry: '',
     location: '',
-    status: 'available'
+    department_id: '', // Foreign key to departments table
+    status: 'available', // available, in_use, maintenance, out_of_order
+    last_maintenance: '',
+    next_maintenance: '',
+    cost: '',
+    notes: ''
   });
   const [isSubmittingEquipment, setIsSubmittingEquipment] = useState(false);
   
   // Supply creation popup form
   const [showSupplyForm, setShowSupplyForm] = useState(false);
   const [supplyFormData, setSupplyFormData] = useState({
+    item_code: '', // Unique item code
     name: '',
-    category: '',
-    quantity: '',
-    unit: '',
-    minimum_threshold: '',
+    category_id: '', // Foreign key to supply_categories table
+    description: '',
+    unit_of_measure: '', // Required field - matches database
+    minimum_stock_level: '',
+    maximum_stock_level: '',
+    current_stock: '',
+    unit_cost: '', // matches database
     supplier: '',
-    cost_per_unit: '',
-    expiry_date: ''
+    expiry_date: '',
+    location: '',
+    department_id: '' // Added missing foreign key
   });
   const [isSubmittingSupply, setIsSubmittingSupply] = useState(false);
   
   // Appointment creation popup form
   const [showAppointmentForm, setShowAppointmentForm] = useState(false);
   const [appointmentFormData, setAppointmentFormData] = useState({
-    patient_id: '',
-    doctor_id: '',
-    appointment_date: '',
-    appointment_time: '',
-    purpose: '',
-    status: 'scheduled',
+    patient_id: '', // Foreign key to patients table
+    doctor_id: '', // Foreign key to users table
+    department_id: '', // Foreign key to departments table
+    appointment_date: '', // DateTime field - combine date and time
+    duration_minutes: 30, // Integer, default 30
+    status: 'scheduled', // scheduled, completed, cancelled, no_show
+    reason: '',
     notes: ''
   });
   const [isSubmittingAppointment, setIsSubmittingAppointment] = useState(false);
@@ -168,7 +181,8 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   const [legacyUserFormData, setLegacyUserFormData] = useState({
     name: '',
     email: '',
-    role: ''
+    address: '',
+    phone: ''
   });
   const [isSubmittingLegacyUser, setIsSubmittingLegacyUser] = useState(false);
   
@@ -746,15 +760,30 @@ Examples:
       const result = await response.json();
       const intent = result.choices[0].message.content.trim().toLowerCase();
       
-      console.log('🤖 AI Intent Detection:', userMessage, '->', intent);
+      console.log('🤖 AI Intent Detection Result:', userMessage, '->', intent);
       
-      // Validate the response - only these exact 10 create tools should show popup forms
-      const validPopupIntents = ['create_user', 'create_patient', 'create_legacy_user', 'create_department', 'create_room', 'create_bed', 'create_staff', 'create_equipment', 'create_supply', 'create_appointment'];
-      if (validPopupIntents.includes(intent)) {
+      // STRICT VALIDATION: Only these exact 10 create tools should show popup forms
+      // All other tools (including create_equipment_category, create_supply_category, etc.) use AI processing
+      const POPUP_FORM_TOOLS = [
+        'create_user',           // System user creation
+        'create_patient',        // Patient registration/admission  
+        'create_legacy_user',    // Legacy user creation
+        'create_department',     // Department creation
+        'create_room',           // Room creation
+        'create_bed',            // Bed creation
+        'create_staff',          // Staff hiring/registration
+        'create_equipment',      // Equipment registration (NOT categories)
+        'create_supply',         // Supply registration (NOT categories)
+        'create_appointment'     // Patient medical appointments
+      ];
+      
+      if (POPUP_FORM_TOOLS.includes(intent)) {
+        console.log('✅ POPUP FORM TRIGGERED for:', intent);
         return intent;
       }
       
-      return 'ai_processing'; // Default to AI processing if uncertain
+      console.log('🤖 AI PROCESSING MODE for:', intent || 'unrecognized intent');
+      return 'ai_processing'; // Default to AI processing for everything else
     } catch (error) {
       console.warn('Intent detection error:', error);
       return 'ai_processing'; // Default to AI processing on error
@@ -799,9 +828,12 @@ Examples:
       if (detectedIntent && detectedIntent !== 'ai_processing') {
         setIsLoading(false);
         
+        console.log('🎯 POPUP FORM HANDLER - Processing intent:', detectedIntent);
+        
         // Show appropriate popup form based on AI detection
         switch (detectedIntent) {
           case 'create_patient':
+            console.log('📝 Opening Patient Admission Form');
             setShowPatientAdmissionForm(true);
             const patientMsg = {
               id: Date.now() + 1,
@@ -813,6 +845,7 @@ Examples:
             return;
             
           case 'create_department':
+            console.log('🏥 Opening Department Creation Form');
             setShowDepartmentForm(true);
             const deptMsg = {
               id: Date.now() + 1,
@@ -824,6 +857,7 @@ Examples:
             return;
             
           case 'create_staff':
+            console.log('👥 Opening Staff Creation Form');
             setShowStaffForm(true);
             const staffMsg = {
               id: Date.now() + 1,
@@ -835,6 +869,7 @@ Examples:
             return;
             
           case 'create_user':
+            console.log('👤 Opening User Creation Form');
             setShowUserForm(true);
             const userMsg = {
               id: Date.now() + 1,
@@ -846,6 +881,7 @@ Examples:
             return;
             
           case 'create_room':
+            console.log('🏠 Opening Room Creation Form');
             setShowRoomForm(true);
             const roomMsg = {
               id: Date.now() + 1,
@@ -857,6 +893,7 @@ Examples:
             return;
             
           case 'create_bed':
+            console.log('🛏️ Opening Bed Creation Form');
             setShowBedForm(true);
             const bedMsg = {
               id: Date.now() + 1,
@@ -868,6 +905,7 @@ Examples:
             return;
             
           case 'create_equipment':
+            console.log('⚙️ Opening Equipment Creation Form');
             setShowEquipmentForm(true);
             const equipMsg = {
               id: Date.now() + 1,
@@ -879,6 +917,7 @@ Examples:
             return;
             
           case 'create_supply':
+            console.log('📦 Opening Supply Creation Form');
             setShowSupplyForm(true);
             const supplyMsg = {
               id: Date.now() + 1,
@@ -890,6 +929,7 @@ Examples:
             return;
             
           case 'create_appointment':
+            console.log('📅 Opening Appointment Creation Form');
             setShowAppointmentForm(true);
             const apptMsg = {
               id: Date.now() + 1,
@@ -901,6 +941,7 @@ Examples:
             return;
             
           case 'create_legacy_user':
+            console.log('👤 Opening Legacy User Creation Form');
             setShowLegacyUserForm(true);
             const legacyMsg = {
               id: Date.now() + 1,
@@ -910,12 +951,16 @@ Examples:
             };
             setMessages(prev => [...prev, legacyMsg]);
             return;
+            
+          default:
+            console.warn('⚠️ Unknown popup intent detected:', detectedIntent, '- Falling back to AI processing');
+            // Fall through to AI processing
         }
       }
       
       // If AI detected 'ai_processing' or no specific form intent, proceed with intelligent AI processing
       if (detectedIntent === 'ai_processing' || !detectedIntent) {
-        console.log('🤖 AI Processing Mode: Using intelligent backend agent tools');
+        console.log('🤖 AI PROCESSING MODE: Using intelligent backend agent tools for:', userMessage);
         // Skip fallback keyword detection and go directly to AI processing
       }
       
@@ -1816,16 +1861,17 @@ Examples:
 
     try {
       const response = await aiMcpServiceRef.current.processRequest(
-        `Create department: name="${departmentFormData.name}", description="${departmentFormData.description}", location="${departmentFormData.location}", phone="${departmentFormData.phone}", head_of_department="${departmentFormData.head_of_department}"`
+        `Create department: name="${departmentFormData.name}", description="${departmentFormData.description}", head_doctor_id="${departmentFormData.head_doctor_id}", floor_number="${departmentFormData.floor_number}", phone="${departmentFormData.phone}", email="${departmentFormData.email}"`
       );
 
       setShowDepartmentForm(false);
       setDepartmentFormData({
         name: '',
         description: '',
-        location: '',
+        head_doctor_id: '',
+        floor_number: '',
         phone: '',
-        head_of_department: ''
+        email: ''
       });
 
       let responseText = typeof response === 'string' ? response : response?.message || response?.result || JSON.stringify(response, null, 2) || 'Department created successfully!';
@@ -1873,7 +1919,7 @@ Examples:
   };
 
   const submitStaff = async () => {
-    const requiredFields = ['first_name', 'last_name', 'position'];
+    const requiredFields = ['user_id', 'employee_id', 'position', 'department_id'];
     const missingFields = requiredFields.filter(field => !staffFormData[field].trim());
     
     if (missingFields.length > 0) {
@@ -1885,22 +1931,21 @@ Examples:
 
     try {
       const response = await aiMcpServiceRef.current.processRequest(
-        `Create staff: first_name="${staffFormData.first_name}", last_name="${staffFormData.last_name}", employee_id="${staffFormData.employee_id}", position="${staffFormData.position}", department_id="${staffFormData.department_id}", phone="${staffFormData.phone}", email="${staffFormData.email}", address="${staffFormData.address}", hire_date="${staffFormData.hire_date}", salary="${staffFormData.salary}", shift="${staffFormData.shift}"`
+        `Create staff: user_id="${staffFormData.user_id}", employee_id="${staffFormData.employee_id}", department_id="${staffFormData.department_id}", position="${staffFormData.position}", specialization="${staffFormData.specialization}", license_number="${staffFormData.license_number}", hire_date="${staffFormData.hire_date}", salary="${staffFormData.salary}", shift_pattern="${staffFormData.shift_pattern}", status="${staffFormData.status}"`
       );
 
       setShowStaffForm(false);
       setStaffFormData({
-        first_name: '',
-        last_name: '',
+        user_id: '',
         employee_id: '',
-        position: '',
         department_id: '',
-        phone: '',
-        email: '',
-        address: '',
+        position: '',
+        specialization: '',
+        license_number: '',
         hire_date: '',
         salary: '',
-        shift: ''
+        shift_pattern: '',
+        status: 'active'
       });
 
       let responseText = typeof response === 'string' ? response : response?.message || response?.result || JSON.stringify(response, null, 2) || 'Staff member created successfully!';
@@ -1948,8 +1993,8 @@ Examples:
   };
 
   const submitUser = async () => {
-    const requiredFields = ['username', 'email', 'password', 'role'];
-    const missingFields = requiredFields.filter(field => !userFormData[field].trim());
+    const requiredFields = ['username', 'email', 'password_hash', 'role', 'first_name', 'last_name'];
+    const missingFields = requiredFields.filter(field => !userFormData[field] || userFormData[field].toString().trim() === '');
     
     if (missingFields.length > 0) {
       alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
@@ -1960,17 +2005,19 @@ Examples:
 
     try {
       const response = await aiMcpServiceRef.current.processRequest(
-        `Create user: username="${userFormData.username}", email="${userFormData.email}", password="${userFormData.password}", role="${userFormData.role}", full_name="${userFormData.full_name}", phone="${userFormData.phone}"`
+        `Create user: username="${userFormData.username}", email="${userFormData.email}", password_hash="${userFormData.password_hash}", role="${userFormData.role}", first_name="${userFormData.first_name}", last_name="${userFormData.last_name}", phone="${userFormData.phone}", is_active="${userFormData.is_active}"`
       );
 
       setShowUserForm(false);
       setUserFormData({
         username: '',
         email: '',
-        password: '',
+        password_hash: '',
         role: '',
-        full_name: '',
-        phone: ''
+        first_name: '',
+        last_name: '',
+        phone: '',
+        is_active: true
       });
 
       let responseText = typeof response === 'string' ? response : response?.message || response?.result || JSON.stringify(response, null, 2) || 'User created successfully!';
@@ -2018,7 +2065,7 @@ Examples:
   };
 
   const submitRoom = async () => {
-    const requiredFields = ['room_number', 'room_type'];
+    const requiredFields = ['room_number', 'department_id'];
     const missingFields = requiredFields.filter(field => !roomFormData[field].trim());
     
     if (missingFields.length > 0) {
@@ -2030,7 +2077,7 @@ Examples:
 
     try {
       const response = await aiMcpServiceRef.current.processRequest(
-        `Create room: room_number="${roomFormData.room_number}", room_type="${roomFormData.room_type}", capacity="${roomFormData.capacity}", floor="${roomFormData.floor}", department_id="${roomFormData.department_id}", status="${roomFormData.status}"`
+        `Create room: room_number="${roomFormData.room_number}", department_id="${roomFormData.department_id}", room_type="${roomFormData.room_type}", floor_number="${roomFormData.floor_number}", capacity="${roomFormData.capacity}"`
       );
 
       setShowRoomForm(false);
@@ -2038,7 +2085,7 @@ Examples:
         room_number: '',
         room_type: '',
         capacity: '',
-        floor: '',
+        floor_number: '',
         department_id: '',
         status: 'available'
       });
@@ -2156,7 +2203,7 @@ Examples:
   };
 
   const submitEquipment = async () => {
-    const requiredFields = ['name', 'category'];
+    const requiredFields = ['equipment_id', 'name', 'category_id'];
     const missingFields = requiredFields.filter(field => !equipmentFormData[field].trim());
     
     if (missingFields.length > 0) {
@@ -2168,20 +2215,24 @@ Examples:
 
     try {
       const response = await aiMcpServiceRef.current.processRequest(
-        `Create equipment: name="${equipmentFormData.name}", category="${equipmentFormData.category}", serial_number="${equipmentFormData.serial_number}", manufacturer="${equipmentFormData.manufacturer}", model="${equipmentFormData.model}", purchase_date="${equipmentFormData.purchase_date}", warranty_expiry="${equipmentFormData.warranty_expiry}", location="${equipmentFormData.location}", status="${equipmentFormData.status}"`
+        `Create equipment: equipment_id="${equipmentFormData.equipment_id}", name="${equipmentFormData.name}", category_id="${equipmentFormData.category_id}", model="${equipmentFormData.model}", manufacturer="${equipmentFormData.manufacturer}", serial_number="${equipmentFormData.serial_number}", purchase_date="${equipmentFormData.purchase_date}", warranty_expiry="${equipmentFormData.warranty_expiry}", location="${equipmentFormData.location}", department_id="${equipmentFormData.department_id}", status="${equipmentFormData.status}", cost="${equipmentFormData.cost}", notes="${equipmentFormData.notes}"`
       );
 
       setShowEquipmentForm(false);
       setEquipmentFormData({
+        equipment_id: '',
         name: '',
-        category: '',
-        serial_number: '',
-        manufacturer: '',
+        category_id: '',
         model: '',
+        manufacturer: '',
+        serial_number: '',
         purchase_date: '',
         warranty_expiry: '',
         location: '',
-        status: 'available'
+        department_id: '',
+        status: 'available',
+        cost: '',
+        notes: ''
       });
 
       let responseText = typeof response === 'string' ? response : response?.message || response?.result || JSON.stringify(response, null, 2) || 'Equipment created successfully!';
@@ -2229,7 +2280,7 @@ Examples:
   };
 
   const submitSupply = async () => {
-    const requiredFields = ['name', 'category'];
+    const requiredFields = ['item_code', 'name', 'category_id', 'unit_of_measure'];
     const missingFields = requiredFields.filter(field => !supplyFormData[field].trim());
     
     if (missingFields.length > 0) {
@@ -2241,19 +2292,23 @@ Examples:
 
     try {
       const response = await aiMcpServiceRef.current.processRequest(
-        `Create supply: name="${supplyFormData.name}", category="${supplyFormData.category}", quantity="${supplyFormData.quantity}", unit="${supplyFormData.unit}", minimum_threshold="${supplyFormData.minimum_threshold}", supplier="${supplyFormData.supplier}", cost_per_unit="${supplyFormData.cost_per_unit}", expiry_date="${supplyFormData.expiry_date}"`
+        `Create supply: item_code="${supplyFormData.item_code}", name="${supplyFormData.name}", category_id="${supplyFormData.category_id}", description="${supplyFormData.description}", unit_of_measure="${supplyFormData.unit_of_measure}", minimum_stock_level="${supplyFormData.minimum_stock_level}", maximum_stock_level="${supplyFormData.maximum_stock_level}", current_stock="${supplyFormData.current_stock}", unit_cost="${supplyFormData.unit_cost}", supplier="${supplyFormData.supplier}", expiry_date="${supplyFormData.expiry_date}", location="${supplyFormData.location}"`
       );
 
       setShowSupplyForm(false);
       setSupplyFormData({
+        item_code: '',
         name: '',
-        category: '',
-        quantity: '',
-        unit: '',
-        minimum_threshold: '',
+        category_id: '',
+        description: '',
+        unit_of_measure: '',
+        minimum_stock_level: '',
+        maximum_stock_level: '',
+        current_stock: '',
+        unit_cost: '',
         supplier: '',
-        cost_per_unit: '',
-        expiry_date: ''
+        expiry_date: '',
+        location: ''
       });
 
       let responseText = typeof response === 'string' ? response : response?.message || response?.result || JSON.stringify(response, null, 2) || 'Supply created successfully!';
@@ -2301,8 +2356,8 @@ Examples:
   };
 
   const submitAppointment = async () => {
-    const requiredFields = ['patient_id', 'doctor_id', 'appointment_date', 'appointment_time'];
-    const missingFields = requiredFields.filter(field => !appointmentFormData[field].trim());
+    const requiredFields = ['patient_id', 'doctor_id', 'department_id', 'appointment_date'];
+    const missingFields = requiredFields.filter(field => !appointmentFormData[field] || appointmentFormData[field].toString().trim() === '');
     
     if (missingFields.length > 0) {
       alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
@@ -2313,17 +2368,18 @@ Examples:
 
     try {
       const response = await aiMcpServiceRef.current.processRequest(
-        `Create appointment: patient_id="${appointmentFormData.patient_id}", doctor_id="${appointmentFormData.doctor_id}", appointment_date="${appointmentFormData.appointment_date}", appointment_time="${appointmentFormData.appointment_time}", purpose="${appointmentFormData.purpose}", status="${appointmentFormData.status}", notes="${appointmentFormData.notes}"`
+        `Create appointment: patient_id="${appointmentFormData.patient_id}", doctor_id="${appointmentFormData.doctor_id}", department_id="${appointmentFormData.department_id}", appointment_date="${appointmentFormData.appointment_date}", duration_minutes="${appointmentFormData.duration_minutes}", status="${appointmentFormData.status}", reason="${appointmentFormData.reason}", notes="${appointmentFormData.notes}"`
       );
 
       setShowAppointmentForm(false);
       setAppointmentFormData({
         patient_id: '',
         doctor_id: '',
+        department_id: '',
         appointment_date: '',
-        appointment_time: '',
-        purpose: '',
+        duration_minutes: 30,
         status: 'scheduled',
+        reason: '',
         notes: ''
       });
 
@@ -3645,14 +3701,27 @@ Examples:
 
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Location
+                      Head Doctor ID
                     </label>
                     <input
                       type="text"
-                      value={departmentFormData.location}
-                      onChange={(e) => handleDepartmentFormChange('location', e.target.value)}
+                      value={departmentFormData.head_doctor_id}
+                      onChange={(e) => handleDepartmentFormChange('head_doctor_id', e.target.value)}
                       className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="e.g., Floor 3, Wing A"
+                      placeholder="UUID of head doctor (optional)"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Floor Number
+                    </label>
+                    <input
+                      type="number"
+                      value={departmentFormData.floor_number}
+                      onChange={(e) => handleDepartmentFormChange('floor_number', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="e.g., 3"
                     />
                   </div>
                 </div>
@@ -3677,14 +3746,14 @@ Examples:
 
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Head of Department
+                      Email
                     </label>
                     <input
-                      type="text"
-                      value={departmentFormData.head_of_department}
-                      onChange={(e) => handleDepartmentFormChange('head_of_department', e.target.value)}
+                      type="email"
+                      value={departmentFormData.email}
+                      onChange={(e) => handleDepartmentFormChange('email', e.target.value)}
                       className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Department head name"
+                      placeholder="department@hospital.com"
                     />
                   </div>
                 </div>
@@ -3756,11 +3825,31 @@ Examples:
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Password *</label>
+                <label className="block text-sm font-medium text-gray-300 mb-1">First Name *</label>
+                <input
+                  type="text"
+                  value={userFormData.first_name}
+                  onChange={(e) => handleUserFormChange('first_name', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  placeholder="Enter first name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Last Name *</label>
+                <input
+                  type="text"
+                  value={userFormData.last_name}
+                  onChange={(e) => handleUserFormChange('last_name', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  placeholder="Enter last name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Password Hash *</label>
                 <input
                   type="password"
-                  value={userFormData.password}
-                  onChange={(e) => handleUserFormChange('password', e.target.value)}
+                  value={userFormData.password_hash}
+                  onChange={(e) => handleUserFormChange('password_hash', e.target.value)}
                   className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
                   placeholder="Enter password"
                 />
@@ -3777,6 +3866,27 @@ Examples:
                   <option value="doctor">Doctor</option>
                   <option value="nurse">Nurse</option>
                   <option value="staff">Staff</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Phone</label>
+                <input
+                  type="tel"
+                  value={userFormData.phone}
+                  onChange={(e) => handleUserFormChange('phone', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  placeholder="Enter phone number"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Active Status</label>
+                <select
+                  value={userFormData.is_active ? "true" : "false"}
+                  onChange={(e) => handleUserFormChange('is_active', e.target.value === "true")}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                >
+                  <option value="true">Active</option>
+                  <option value="false">Inactive</option>
                 </select>
               </div>
             </div>
@@ -3806,23 +3916,33 @@ Examples:
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">First Name *</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">User ID *</label>
                     <input
                       type="text"
-                      value={staffFormData.first_name}
-                      onChange={(e) => handleStaffFormChange('first_name', e.target.value)}
+                      value={staffFormData.user_id}
+                      onChange={(e) => handleStaffFormChange('user_id', e.target.value)}
                       className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Enter first name"
+                      placeholder="User ID (UUID)"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Last Name *</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Employee ID *</label>
                     <input
                       type="text"
-                      value={staffFormData.last_name}
-                      onChange={(e) => handleStaffFormChange('last_name', e.target.value)}
+                      value={staffFormData.employee_id}
+                      onChange={(e) => handleStaffFormChange('employee_id', e.target.value)}
                       className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Enter last name"
+                      placeholder="Employee ID"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Department ID *</label>
+                    <input
+                      type="text"
+                      value={staffFormData.department_id}
+                      onChange={(e) => handleStaffFormChange('department_id', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="Department ID (UUID)"
                     />
                   </div>
                   <div>
@@ -3835,40 +3955,30 @@ Examples:
                       placeholder="e.g., Nurse, Doctor"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Email</label>
-                    <input
-                      type="email"
-                      value={staffFormData.email}
-                      onChange={(e) => handleStaffFormChange('email', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Email address"
-                    />
-                  </div>
                 </div>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Employee ID</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Specialization</label>
                     <input
                       type="text"
-                      value={staffFormData.employee_id}
-                      onChange={(e) => handleStaffFormChange('employee_id', e.target.value)}
+                      value={staffFormData.specialization}
+                      onChange={(e) => handleStaffFormChange('specialization', e.target.value)}
                       className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Employee ID"
+                      placeholder="Medical specialization"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Phone</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">License Number</label>
                     <input
-                      type="tel"
-                      value={staffFormData.phone}
-                      onChange={(e) => handleStaffFormChange('phone', e.target.value)}
+                      type="text"
+                      value={staffFormData.license_number}
+                      onChange={(e) => handleStaffFormChange('license_number', e.target.value)}
                       className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Phone number"
+                      placeholder="Professional license number"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Hire Date</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Hire Date *</label>
                     <input
                       type="date"
                       value={staffFormData.hire_date}
@@ -3880,11 +3990,37 @@ Examples:
                     <label className="block text-sm font-medium text-gray-300 mb-1">Salary</label>
                     <input
                       type="number"
+                      step="0.01"
                       value={staffFormData.salary}
                       onChange={(e) => handleStaffFormChange('salary', e.target.value)}
                       className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
                       placeholder="Annual salary"
                     />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Shift Pattern</label>
+                    <select
+                      value={staffFormData.shift_pattern}
+                      onChange={(e) => handleStaffFormChange('shift_pattern', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="">Select shift pattern</option>
+                      <option value="day">Day</option>
+                      <option value="night">Night</option>
+                      <option value="rotating">Rotating</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Status</label>
+                    <select
+                      value={staffFormData.status}
+                      onChange={(e) => handleStaffFormChange('status', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                      <option value="on_leave">On Leave</option>
+                    </select>
                   </div>
                 </div>
               </div>
@@ -3946,6 +4082,26 @@ Examples:
                   placeholder="Number of beds"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Department ID *</label>
+                <input
+                  type="number"
+                  value={roomFormData.department_id}
+                  onChange={(e) => handleRoomFormChange('department_id', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  placeholder="Department ID"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Floor Number</label>
+                <input
+                  type="number"
+                  value={roomFormData.floor_number}
+                  onChange={(e) => handleRoomFormChange('floor_number', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  placeholder="Floor number"
+                />
+              </div>
             </div>
             <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
               <button onClick={closeRoomForm} disabled={isSubmittingRoom} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
@@ -4002,6 +4158,20 @@ Examples:
                   <option value="icu">ICU</option>
                   <option value="pediatric">Pediatric</option>
                   <option value="maternity">Maternity</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Status</label>
+                <select
+                  value={bedFormData.status}
+                  onChange={(e) => handleBedFormChange('status', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                >
+                  <option value="">Select status</option>
+                  <option value="available">Available</option>
+                  <option value="occupied">Occupied</option>
+                  <option value="maintenance">Maintenance</option>
+                  <option value="reserved">Reserved</option>
                 </select>
               </div>
             </div>
@@ -4091,6 +4261,88 @@ Examples:
                       placeholder="Equipment location"
                     />
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Manufacturer</label>
+                    <input
+                      type="text"
+                      value={equipmentFormData.manufacturer}
+                      onChange={(e) => handleEquipmentFormChange('manufacturer', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="Manufacturer name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Warranty Expiry</label>
+                    <input
+                      type="date"
+                      value={equipmentFormData.warranty_expiry}
+                      onChange={(e) => handleEquipmentFormChange('warranty_expiry', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Status</label>
+                    <select
+                      value={equipmentFormData.status}
+                      onChange={(e) => handleEquipmentFormChange('status', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="">Select status</option>
+                      <option value="operational">Operational</option>
+                      <option value="maintenance">Maintenance</option>
+                      <option value="out_of_order">Out of Order</option>
+                      <option value="retired">Retired</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Price</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={equipmentFormData.price}
+                      onChange={(e) => handleEquipmentFormChange('price', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="Purchase price"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Department ID</label>
+                    <input
+                      type="number"
+                      value={equipmentFormData.department_id}
+                      onChange={(e) => handleEquipmentFormChange('department_id', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="Department ID"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Last Maintenance</label>
+                    <input
+                      type="date"
+                      value={equipmentFormData.last_maintenance}
+                      onChange={(e) => handleEquipmentFormChange('last_maintenance', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Next Maintenance</label>
+                    <input
+                      type="date"
+                      value={equipmentFormData.next_maintenance}
+                      onChange={(e) => handleEquipmentFormChange('next_maintenance', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Notes</label>
+                    <textarea
+                      value={equipmentFormData.notes}
+                      onChange={(e) => handleEquipmentFormChange('notes', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      rows="3"
+                      placeholder="Additional notes"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -4152,13 +4404,13 @@ Examples:
                 </div>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Unit</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Unit of Measure *</label>
                     <input
                       type="text"
-                      value={supplyFormData.unit}
-                      onChange={(e) => handleSupplyFormChange('unit', e.target.value)}
+                      value={supplyFormData.unit_of_measure}
+                      onChange={(e) => handleSupplyFormChange('unit_of_measure', e.target.value)}
                       className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="e.g., pieces, boxes"
+                      placeholder="e.g., pieces, boxes, liters"
                     />
                   </div>
                   <div>
@@ -4172,14 +4424,63 @@ Examples:
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Cost per Unit</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Unit Cost</label>
                     <input
                       type="number"
                       step="0.01"
-                      value={supplyFormData.cost_per_unit}
-                      onChange={(e) => handleSupplyFormChange('cost_per_unit', e.target.value)}
+                      value={supplyFormData.unit_cost}
+                      onChange={(e) => handleSupplyFormChange('unit_cost', e.target.value)}
                       className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
                       placeholder="Cost per unit"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Expiry Date</label>
+                    <input
+                      type="date"
+                      value={supplyFormData.expiry_date}
+                      onChange={(e) => handleSupplyFormChange('expiry_date', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Minimum Stock Level</label>
+                    <input
+                      type="number"
+                      value={supplyFormData.minimum_stock_level}
+                      onChange={(e) => handleSupplyFormChange('minimum_stock_level', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="Minimum stock level"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Maximum Stock Level</label>
+                    <input
+                      type="number"
+                      value={supplyFormData.maximum_stock_level}
+                      onChange={(e) => handleSupplyFormChange('maximum_stock_level', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="Maximum stock level"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Current Stock</label>
+                    <input
+                      type="number"
+                      value={supplyFormData.current_stock}
+                      onChange={(e) => handleSupplyFormChange('current_stock', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="Current stock quantity"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Department ID</label>
+                    <input
+                      type="number"
+                      value={supplyFormData.department_id}
+                      onChange={(e) => handleSupplyFormChange('department_id', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="Department ID"
                     />
                   </div>
                 </div>
@@ -4229,31 +4530,67 @@ Examples:
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Appointment Date *</label>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Department ID *</label>
                 <input
-                  type="date"
+                  type="text"
+                  value={appointmentFormData.department_id}
+                  onChange={(e) => handleAppointmentFormChange('department_id', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  placeholder="Department ID"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Appointment Date & Time *</label>
+                <input
+                  type="datetime-local"
                   value={appointmentFormData.appointment_date}
                   onChange={(e) => handleAppointmentFormChange('appointment_date', e.target.value)}
                   className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Appointment Time *</label>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Reason</label>
                 <input
-                  type="time"
-                  value={appointmentFormData.appointment_time}
-                  onChange={(e) => handleAppointmentFormChange('appointment_time', e.target.value)}
+                  type="text"
+                  value={appointmentFormData.reason}
+                  onChange={(e) => handleAppointmentFormChange('reason', e.target.value)}
                   className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  placeholder="Appointment reason"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Purpose</label>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Duration (minutes)</label>
                 <input
-                  type="text"
-                  value={appointmentFormData.purpose}
-                  onChange={(e) => handleAppointmentFormChange('purpose', e.target.value)}
+                  type="number"
+                  value={appointmentFormData.duration_minutes}
+                  onChange={(e) => handleAppointmentFormChange('duration_minutes', e.target.value)}
                   className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Appointment purpose"
+                  placeholder="Duration in minutes"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Status</label>
+                <select
+                  value={appointmentFormData.status}
+                  onChange={(e) => handleAppointmentFormChange('status', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                >
+                  <option value="">Select status</option>
+                  <option value="scheduled">Scheduled</option>
+                  <option value="confirmed">Confirmed</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                  <option value="no_show">No Show</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Notes</label>
+                <textarea
+                  value={appointmentFormData.notes}
+                  onChange={(e) => handleAppointmentFormChange('notes', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  rows="3"
+                  placeholder="Additional notes"
                 />
               </div>
             </div>
@@ -4301,17 +4638,24 @@ Examples:
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Role</label>
-                <select
-                  value={legacyUserFormData.role}
-                  onChange={(e) => handleLegacyUserFormChange('role', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                >
-                  <option value="">Select role</option>
-                  <option value="admin">Admin</option>
-                  <option value="user">User</option>
-                  <option value="guest">Guest</option>
-                </select>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Address *</label>
+                <textarea
+                  value={legacyUserFormData.address}
+                  onChange={(e) => handleLegacyUserFormChange('address', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  placeholder="Enter full address"
+                  rows="3"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Phone *</label>
+                <input
+                  type="tel"
+                  value={legacyUserFormData.phone}
+                  onChange={(e) => handleLegacyUserFormChange('phone', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  placeholder="Enter phone number"
+                />
               </div>
             </div>
             <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
