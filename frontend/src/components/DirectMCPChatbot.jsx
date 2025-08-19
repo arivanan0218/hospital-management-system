@@ -914,6 +914,16 @@ Examples:
     // Hide action buttons after first query
     if (showActionButtons) {
       setShowActionButtons(false);
+      
+      // Correct viewport after action buttons transition on mobile
+      if (isMobileDevice()) {
+        setTimeout(() => {
+          const vh = window.innerHeight * 0.01;
+          document.documentElement.style.setProperty('--vh', `${vh}px`);
+          window.scrollTo(0, 0);
+          document.body.style.height = '100%';
+        }, 600); // Wait for transition to complete (500ms + buffer)
+      }
     }
 
     // Add user message only if it's not from voice input (voice input already adds the message)
@@ -1553,6 +1563,22 @@ Examples:
       };
     }
   }, [isConnected]); // Run when connection state changes
+
+  // Fix viewport when action buttons visibility changes
+  useEffect(() => {
+    if (!showActionButtons && isMobileDevice()) {
+      // Delay to allow transition to complete
+      const timer = setTimeout(() => {
+        const vh = window.innerHeight * 0.01;
+        document.documentElement.style.setProperty('--vh', `${vh}px`);
+        document.body.style.height = '100%';
+        document.body.style.minHeight = '100vh';
+        window.scrollTo(0, 0);
+      }, 600); // Wait for CSS transition
+      
+      return () => clearTimeout(timer);
+    }
+  }, [showActionButtons]);
 
   /**
    * Handle sending messages with Claude-style conversation flow
@@ -3226,9 +3252,10 @@ Examples:
           </div>
 
           {/* Action Buttons Above Input - FIXED (NOT SCROLLABLE) */}
-          {showActionButtons && (
-            <div className="bg-[#1a1a1a] px-4 py-1 flex-shrink-0">
-              <div className="max-w-4xl mx-auto">
+          <div className={`bg-[#1a1a1a] px-4 flex-shrink-0 transition-all duration-500 ease-in-out overflow-hidden ${
+            showActionButtons ? 'py-1 opacity-100' : 'py-0 opacity-0 max-h-0'
+          }`}>
+            <div className="max-w-4xl mx-auto">
             {/* Desktop: 1 row 4 columns, Mobile: 2 rows 2 columns */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
               {/* View All Patients */}
@@ -3281,7 +3308,6 @@ Examples:
             </div>
           </div>
         </div>
-      )}
 
         {/* Modern Chat Input - Fixed at bottom */}
         <div className="bg-[#1a1a1a] px-3 sm:px-4 py-2 flex-shrink-0 border-t border-gray-700">
@@ -3359,7 +3385,7 @@ Examples:
                     <div className="flex items-center space-x-2 sm:space-x-3">
                       {/* Plus Button with Dropdown */}
                       <div className="relative" ref={plusMenuRef}>
-                        {/* <button
+                        <button
                           onClick={() => setShowPlusMenu(!showPlusMenu)}
                           className="text-gray-400 hover:text-white transition-colors p-1"
                           title="Upload documents or view medical history"
@@ -3390,7 +3416,7 @@ Examples:
                               <span>Medical History</span>
                             </button>
                           </div>
-                        )} */}
+                        )}
                       </div>
                     </div>
                     
