@@ -1429,6 +1429,8 @@ Examples:
       
       // Prevent body scroll on mobile, but allow input to move with keyboard
       document.body.style.overflow = 'hidden';
+      document.body.style.backgroundColor = '#1a1a1a';
+      document.documentElement.style.backgroundColor = '#1a1a1a';
       
       // Throttled resize handler
       let timeoutId;
@@ -1450,21 +1452,37 @@ Examples:
             window.scrollTo(0, 0);
             document.body.scrollTop = 0;
             document.documentElement.scrollTop = 0;
+            // Ensure background color is maintained during keyboard transitions
+            document.body.style.backgroundColor = '#1a1a1a';
+            document.documentElement.style.backgroundColor = '#1a1a1a';
           }, 100);
         }
       };
       
+      // Handle keyboard hide event to prevent white flash
+      const handleFocusOut = () => {
+        setTimeout(() => {
+          setVH();
+          document.body.style.backgroundColor = '#1a1a1a';
+          document.documentElement.style.backgroundColor = '#1a1a1a';
+        }, 150);
+      };
+      
       document.addEventListener('focusin', preventScroll);
+      document.addEventListener('focusout', handleFocusOut);
       
       // Cleanup
       return () => {
         window.removeEventListener('resize', handleResize);
         window.removeEventListener('orientationchange', handleResize);
         document.removeEventListener('focusin', preventScroll);
+        document.removeEventListener('focusout', handleFocusOut);
         clearTimeout(timeoutId);
         
         // Reset body styles
         document.body.style.overflow = '';
+        document.body.style.backgroundColor = '';
+        document.documentElement.style.backgroundColor = '';
       };
     }
   }, []);
@@ -2791,7 +2809,7 @@ Examples:
 
   // Main Chat Interface - Claude Desktop Style with Responsive Design
   return (
-    <div className="h-screen bg-[#1a1a1a] flex flex-col text-white overflow-hidden relative" style={{ height: '100vh', height: 'calc(var(--vh, 1vh) * 100)' }}>
+    <div className="min-h-screen bg-[#1a1a1a] flex flex-col text-white overflow-hidden relative" style={{ minHeight: '100vh', minHeight: 'calc(var(--vh, 1vh) * 100)', height: '100vh', height: 'calc(var(--vh, 1vh) * 100)' }}>
       {/* Claude-style Header - FIXED */}
       <div className="flex-shrink-0 border-b border-gray-700 px-3 sm:px-4 py-3 bg-[#1a1a1a] relative z-30">
         <div className="flex items-center justify-between">
