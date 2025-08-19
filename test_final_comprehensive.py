@@ -56,22 +56,43 @@ def test_all_fixed_agents():
     # Test 3: Staff Creation (FIXED)
     print("\n3. 🔧 Testing Staff Creation (FIXED)...")
     if dept_id:
-        staff_data = {
-            "jsonrpc": "2.0",
-            "id": 3,
-            "method": "tools/call",
-            "params": {
-                "name": "create_staff",
-                "arguments": {
-                    "first_name": "Final",
-                    "last_name": "Staff" + str(random.randint(100,999)),
-                    "role": "Nurse",
-                    "department_id": dept_id,
-                    "phone": "555-0001"
+        # Get an existing user ID for testing
+        def get_user_id():
+            try:
+                response = requests.post(f"{API_URL}/tools/call", headers={"Content-Type": "application/json"}, json={"jsonrpc": "2.0", "id": 997, "method": "tools/call", "params": {"name": "list_users", "arguments": {}}}, timeout=10)
+                if response.status_code == 200:
+                    result = response.json()
+                    text_content = result["result"]["content"][0]["text"]
+                    parsed_result = json.loads(text_content)
+                    if parsed_result.get("success") and parsed_result.get("result", {}).get("data"):
+                        users = parsed_result["result"]["data"]
+                        if users:
+                            return users[0]["id"]
+                return None
+            except:
+                return None
+        
+        user_id = get_user_id()
+        if user_id:
+            # Now create staff with the user_id
+            staff_data = {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "tools/call",
+                "params": {
+                    "name": "create_staff",
+                    "arguments": {
+                        "user_id": user_id,
+                        "employee_id": "EMP" + str(random.randint(1000,9999)),
+                        "department_id": dept_id,
+                        "position": "Nurse",
+                        "hire_date": "2024-01-15"
+                    }
                 }
             }
-        }
-        results["staff"] = test_api_call(staff_data, "Staff creation")
+            results["staff"] = test_api_call(staff_data, "Staff creation")
+        else:
+            results["staff"] = {"success": False, "message": "Could not find existing user for staff"}
     
     # Test 4: Room Creation (FIXED)
     print("\n4. 🔧 Testing Room Creation (FIXED)...")
@@ -133,8 +154,7 @@ def test_all_fixed_agents():
                     "patient_id": patient_id,
                     "doctor_id": doctor_id,
                     "department_id": dept_id,
-                    "appointment_date": "2025-08-25",
-                    "appointment_time": "14:30",
+                    "appointment_date": f"2025-08-25T{random.randint(8,17)}:{random.choice(['00','30'])}:00",
                     "reason": "Final test appointment",
                     "duration_minutes": 45
                 }
