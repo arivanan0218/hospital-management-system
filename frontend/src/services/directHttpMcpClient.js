@@ -8,7 +8,7 @@ class DirectHttpMCPClient {
    // Use relative URL to go through nginx proxy
     // This will use the current domain/port and route through nginx
     this.serverUrl = '';
-    // this.serverUrl = 'http://localhost:8000';
+    //this.serverUrl = 'http://localhost:8000';
     this.isConnected = false;
     this.serverInfo = {};
     this.tools = [];
@@ -599,6 +599,197 @@ class DirectHttpMCPClient {
           }
         },
         
+        // Medical Document Management
+        { 
+          name: 'upload_medical_document', 
+          description: 'Upload and process a medical document for a patient',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              patient_id: { type: 'string', description: 'Patient ID (UUID) - REQUIRED' },
+              document_type: { type: 'string', description: 'Document type (prescription, lab_result, imaging, discharge_summary, etc.) - REQUIRED' },
+              file_name: { type: 'string', description: 'Original file name - REQUIRED' },
+              file_data: { type: 'string', description: 'Base64 encoded file data - REQUIRED' },
+              mime_type: { type: 'string', description: 'MIME type of the file (application/pdf, image/jpeg, etc.)' },
+              description: { type: 'string', description: 'Document description' }
+            },
+            required: ['patient_id', 'document_type', 'file_name', 'file_data']
+          }
+        },
+        { 
+          name: 'list_medical_documents', 
+          description: 'List medical documents for a patient or all patients',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              patient_id: { type: 'string', description: 'Patient ID (UUID) to filter by specific patient' },
+              document_type: { type: 'string', description: 'Document type to filter by' },
+              processing_status: { type: 'string', description: 'Processing status (pending, processing, completed, failed)' }
+            },
+            required: []
+          }
+        },
+        { 
+          name: 'get_medical_document_by_id', 
+          description: 'Get a specific medical document by ID',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              document_id: { type: 'string', description: 'Medical document ID (UUID) - REQUIRED' }
+            },
+            required: ['document_id']
+          }
+        },
+        { 
+          name: 'extract_medical_data', 
+          description: 'Extract structured medical data from a document using AI',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              document_id: { type: 'string', description: 'Medical document ID (UUID) - REQUIRED' }
+            },
+            required: ['document_id']
+          }
+        },
+        { 
+          name: 'query_medical_history', 
+          description: 'Query patient medical history using natural language',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              patient_id: { type: 'string', description: 'Patient ID (UUID) - REQUIRED' },
+              query: { type: 'string', description: 'Natural language query about medical history - REQUIRED' },
+              include_documents: { type: 'boolean', description: 'Include document references in response' }
+            },
+            required: ['patient_id', 'query']
+          }
+        },
+
+        // Meeting Management
+        { 
+          name: 'schedule_meeting', 
+          description: 'Schedule a meeting with natural language processing',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              query: { type: 'string', description: 'Natural language meeting request (e.g., "Schedule a meeting with Dr. Smith tomorrow at 2 PM") - REQUIRED' }
+            },
+            required: ['query']
+          }
+        },
+        { 
+          name: 'list_meetings', 
+          description: 'List upcoming meetings',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              date_str: { type: 'string', description: 'Specific date to filter meetings (YYYY-MM-DD)' },
+              days_ahead: { type: 'integer', description: 'Number of days ahead to look for meetings (default: 7)' }
+            },
+            required: []
+          }
+        },
+        { 
+          name: 'get_meeting_by_id', 
+          description: 'Get detailed meeting information by ID',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              meeting_id: { type: 'string', description: 'Meeting ID (UUID) - REQUIRED' }
+            },
+            required: ['meeting_id']
+          }
+        },
+        { 
+          name: 'update_meeting_status', 
+          description: 'Update meeting status (scheduled, completed, cancelled)',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              meeting_id: { type: 'string', description: 'Meeting ID (UUID) - REQUIRED' },
+              status: { type: 'string', description: 'New status (scheduled, completed, cancelled) - REQUIRED' }
+            },
+            required: ['meeting_id', 'status']
+          }
+        },
+        { 
+          name: 'add_meeting_notes', 
+          description: 'Add notes or action items to a meeting',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              meeting_id: { type: 'string', description: 'Meeting ID (UUID) - REQUIRED' },
+              notes: { type: 'string', description: 'Meeting notes or action items - REQUIRED' }
+            },
+            required: ['meeting_id', 'notes']
+          }
+        },
+
+        // Advanced Reporting & Analytics
+        { 
+          name: 'generate_discharge_report', 
+          description: 'Generate a comprehensive discharge report for a patient',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              bed_id: { type: 'string', description: 'Bed ID (UUID) - REQUIRED' },
+              discharge_condition: { type: 'string', description: 'Patient discharge condition (stable, improved, etc.)' },
+              discharge_destination: { type: 'string', description: 'Discharge destination (home, transfer, etc.)' }
+            },
+            required: ['bed_id']
+          }
+        },
+        { 
+          name: 'list_discharge_reports', 
+          description: 'List all discharge reports with optional filtering',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              patient_id: { type: 'string', description: 'Filter by patient ID' },
+              date_range: { type: 'string', description: 'Date range filter (last_week, last_month, etc.)' }
+            },
+            required: []
+          }
+        },
+        { 
+          name: 'get_bed_turnover_status', 
+          description: 'Get bed turnover and cleaning status',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              bed_id: { type: 'string', description: 'Bed ID (UUID)' },
+              department_id: { type: 'string', description: 'Department ID (UUID)' }
+            },
+            required: []
+          }
+        },
+        { 
+          name: 'get_hospital_statistics', 
+          description: 'Get comprehensive hospital statistics and analytics',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              report_type: { type: 'string', description: 'Type of report (occupancy, staff_utilization, equipment_usage, patient_flow)' },
+              time_period: { type: 'string', description: 'Time period (daily, weekly, monthly, yearly)' },
+              department_id: { type: 'string', description: 'Filter by specific department' }
+            },
+            required: []
+          }
+        },
+        { 
+          name: 'generate_patient_summary', 
+          description: 'Generate a comprehensive patient summary report',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              patient_id: { type: 'string', description: 'Patient ID (UUID) - REQUIRED' },
+              include_medical_history: { type: 'boolean', description: 'Include medical history in summary' },
+              include_documents: { type: 'boolean', description: 'Include document summaries' }
+            },
+            required: ['patient_id']
+          }
+        },
+
         // Legacy and System Management
         { 
           name: 'create_legacy_user', 
@@ -975,6 +1166,161 @@ class DirectHttpMCPClient {
           low_stock_only: { type: 'boolean', description: 'Show only low stock items' }
         },
         required: []
+      },
+
+      // MEDICAL DOCUMENT MANAGEMENT
+      'upload_medical_document': {
+        type: 'object',
+        properties: {
+          patient_id: { type: 'string', description: 'Patient ID (UUID) - REQUIRED' },
+          document_type: { type: 'string', description: 'Document type (prescription, lab_result, imaging, discharge_summary, report, x_ray, mri, ct_scan, blood_test, etc.) - REQUIRED' },
+          file_name: { type: 'string', description: 'Original file name with extension - REQUIRED' },
+          file_data: { type: 'string', description: 'Base64 encoded file data - REQUIRED' },
+          mime_type: { type: 'string', description: 'MIME type (application/pdf, image/jpeg, image/png, etc.)' },
+          description: { type: 'string', description: 'Document description or notes' }
+        },
+        required: ['patient_id', 'document_type', 'file_name', 'file_data']
+      },
+      'list_medical_documents': {
+        type: 'object',
+        properties: {
+          patient_id: { type: 'string', description: 'Filter by patient ID (UUID)' },
+          document_type: { type: 'string', description: 'Filter by document type' },
+          processing_status: { type: 'string', description: 'Filter by processing status (pending, processing, completed, failed)' },
+          limit: { type: 'integer', description: 'Maximum number of documents to return' }
+        },
+        required: []
+      },
+      'get_medical_document_by_id': {
+        type: 'object',
+        properties: {
+          document_id: { type: 'string', description: 'Medical document ID (UUID) - REQUIRED' },
+          include_extracted_data: { type: 'boolean', description: 'Include extracted medical data in response' }
+        },
+        required: ['document_id']
+      },
+      'extract_medical_data': {
+        type: 'object',
+        properties: {
+          document_id: { type: 'string', description: 'Medical document ID (UUID) - REQUIRED' },
+          force_reprocess: { type: 'boolean', description: 'Force reprocessing even if already processed' }
+        },
+        required: ['document_id']
+      },
+      'query_medical_history': {
+        type: 'object',
+        properties: {
+          patient_id: { type: 'string', description: 'Patient ID (UUID) - REQUIRED' },
+          query: { type: 'string', description: 'Natural language query (e.g., "What medications is the patient taking?", "Any recent lab results?") - REQUIRED' },
+          include_documents: { type: 'boolean', description: 'Include document references and excerpts in response' },
+          time_range: { type: 'string', description: 'Time range to search (last_week, last_month, last_year, all)' }
+        },
+        required: ['patient_id', 'query']
+      },
+
+      // MEETING MANAGEMENT
+      'schedule_meeting': {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Natural language meeting request - REQUIRED. Examples: "Schedule meeting with Dr. Smith tomorrow at 2 PM about patient care", "Book conference room for team meeting Friday morning"' }
+        },
+        required: ['query']
+      },
+      'list_meetings': {
+        type: 'object',
+        properties: {
+          date_str: { type: 'string', description: 'Specific date to filter meetings (YYYY-MM-DD format)' },
+          days_ahead: { type: 'integer', description: 'Number of days ahead to look for meetings (default: 7, max: 30)' },
+          participant_id: { type: 'string', description: 'Filter meetings by participant user ID' },
+          status: { type: 'string', description: 'Filter by meeting status (scheduled, completed, cancelled)' }
+        },
+        required: []
+      },
+      'get_meeting_by_id': {
+        type: 'object',
+        properties: {
+          meeting_id: { type: 'string', description: 'Meeting ID (UUID) - REQUIRED' },
+          include_participants: { type: 'boolean', description: 'Include detailed participant information' },
+          include_notes: { type: 'boolean', description: 'Include meeting notes and action items' }
+        },
+        required: ['meeting_id']
+      },
+      'update_meeting_status': {
+        type: 'object',
+        properties: {
+          meeting_id: { type: 'string', description: 'Meeting ID (UUID) - REQUIRED' },
+          status: { type: 'string', description: 'New meeting status (scheduled, in_progress, completed, cancelled, postponed) - REQUIRED' },
+          notes: { type: 'string', description: 'Optional notes about the status change' }
+        },
+        required: ['meeting_id', 'status']
+      },
+      'add_meeting_notes': {
+        type: 'object',
+        properties: {
+          meeting_id: { type: 'string', description: 'Meeting ID (UUID) - REQUIRED' },
+          notes: { type: 'string', description: 'Meeting notes, action items, or decisions made - REQUIRED' },
+          note_type: { type: 'string', description: 'Type of note (general, action_item, decision, follow_up)' }
+        },
+        required: ['meeting_id', 'notes']
+      },
+
+      // ADVANCED REPORTING & ANALYTICS
+      'generate_discharge_report': {
+        type: 'object',
+        properties: {
+          bed_id: { type: 'string', description: 'Bed ID (UUID) where patient is currently assigned - REQUIRED' },
+          discharge_condition: { type: 'string', description: 'Patient discharge condition (stable, improved, recovered, transferred, deceased, etc.)' },
+          discharge_destination: { type: 'string', description: 'Discharge destination (home, another_facility, rehabilitation, hospice, etc.)' },
+          discharge_instructions: { type: 'string', description: 'Special discharge instructions or medications' },
+          follow_up_required: { type: 'boolean', description: 'Whether follow-up appointment is required' }
+        },
+        required: ['bed_id']
+      },
+      'list_discharge_reports': {
+        type: 'object',
+        properties: {
+          patient_id: { type: 'string', description: 'Filter by specific patient ID (UUID)' },
+          department_id: { type: 'string', description: 'Filter by department ID (UUID)' },
+          date_range: { type: 'string', description: 'Date range (today, yesterday, last_week, last_month, last_quarter, last_year)' },
+          start_date: { type: 'string', description: 'Custom start date (YYYY-MM-DD)' },
+          end_date: { type: 'string', description: 'Custom end date (YYYY-MM-DD)' },
+          discharge_condition: { type: 'string', description: 'Filter by discharge condition' }
+        },
+        required: []
+      },
+      'get_bed_turnover_status': {
+        type: 'object',
+        properties: {
+          bed_id: { type: 'string', description: 'Specific bed ID (UUID) to check status' },
+          room_id: { type: 'string', description: 'Room ID (UUID) to check all beds in room' },
+          department_id: { type: 'string', description: 'Department ID (UUID) to check all beds in department' },
+          status_filter: { type: 'string', description: 'Filter by turnover status (cleaning, ready, occupied, maintenance)' }
+        },
+        required: []
+      },
+      'get_hospital_statistics': {
+        type: 'object',
+        properties: {
+          report_type: { type: 'string', description: 'Report type: occupancy_rate, patient_flow, staff_utilization, equipment_usage, department_performance, financial_summary' },
+          time_period: { type: 'string', description: 'Time period: hourly, daily, weekly, monthly, quarterly, yearly' },
+          department_id: { type: 'string', description: 'Filter by specific department ID (UUID)' },
+          start_date: { type: 'string', description: 'Custom start date (YYYY-MM-DD)' },
+          end_date: { type: 'string', description: 'Custom end date (YYYY-MM-DD)' },
+          include_trends: { type: 'boolean', description: 'Include trend analysis and comparisons' }
+        },
+        required: []
+      },
+      'generate_patient_summary': {
+        type: 'object',
+        properties: {
+          patient_id: { type: 'string', description: 'Patient ID (UUID) - REQUIRED' },
+          include_medical_history: { type: 'boolean', description: 'Include detailed medical history' },
+          include_documents: { type: 'boolean', description: 'Include summaries of uploaded medical documents' },
+          include_appointments: { type: 'boolean', description: 'Include appointment history' },
+          include_medications: { type: 'boolean', description: 'Include current and past medications' },
+          summary_type: { type: 'string', description: 'Type of summary (brief, detailed, comprehensive)' }
+        },
+        required: ['patient_id']
       },
 
       // LEGACY USER MANAGEMENT
