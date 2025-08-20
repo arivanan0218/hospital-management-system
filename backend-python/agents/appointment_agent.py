@@ -144,13 +144,18 @@ class AppointmentAgent(BaseAgent):
             # Return only essential information for list views
             result = []
             for appointment in appointments:
+                # Extract time from appointment_date if it exists
+                appointment_time_str = None
+                if appointment.appointment_date:
+                    appointment_time_str = appointment.appointment_date.strftime("%H:%M")
+                
                 brief_info = {
                     "id": str(appointment.id),
                     "patient_id": str(appointment.patient_id) if appointment.patient_id else None,
                     "doctor_id": str(appointment.doctor_id) if appointment.doctor_id else None,
                     "department_id": str(appointment.department_id) if appointment.department_id else None,
                     "appointment_date": appointment.appointment_date.isoformat() if appointment.appointment_date else None,
-                    "appointment_time": appointment.appointment_time,
+                    "appointment_time": appointment_time_str,  # Extract time from datetime
                     "status": appointment.status,
                     "reason": appointment.reason
                 }
