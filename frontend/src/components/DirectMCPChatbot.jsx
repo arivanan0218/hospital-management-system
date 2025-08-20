@@ -2055,6 +2055,9 @@ Examples:
         medical_history: admissionFormData.medical_history
       });
 
+      // Debug logging for deployment troubleshooting
+      console.log('Patient admission response:', JSON.stringify(response, null, 2));
+
       // Close the form and show success message
       setShowPatientAdmissionForm(false);
       
@@ -2077,14 +2080,14 @@ Examples:
       // Add success message to chat
       let responseText = '';
       if (response.success) {
-        // Success case
-        const patientData = response.data;
+        // Success case - add null checks for deployment compatibility
+        const patientData = response.data || {};
         responseText = `✅ Patient created successfully in the database!
         
 **Patient Details:**
-- Name: ${patientData.first_name} ${patientData.last_name}
-- Patient Number: ${patientData.patient_number || patientData.id}
-- Date of Birth: ${patientData.date_of_birth}
+- Name: ${patientData.first_name || 'Unknown'} ${patientData.last_name || 'Unknown'}
+- Patient Number: ${patientData.patient_number || patientData.id || 'Not generated'}
+- Date of Birth: ${patientData.date_of_birth || 'Not provided'}
 - Gender: ${patientData.gender || 'Not specified'}
 - Phone: ${patientData.phone || 'Not provided'}
 - Email: ${patientData.email || 'Not provided'}`;
@@ -2174,11 +2177,11 @@ Examples:
 
       let responseText = '';
       if (response.success) {
-        const deptData = response.data;
+        const deptData = response.data || {};
         responseText = `✅ Department created successfully!
         
 **Department Details:**
-- Name: ${deptData.name}
+- Name: ${deptData.name || 'Unknown'}
 - Description: ${deptData.description || 'Not provided'}
 - Floor: ${deptData.floor_number || 'Not specified'}
 - Phone: ${deptData.phone || 'Not provided'}
@@ -2270,14 +2273,14 @@ Examples:
 
       let responseText = '';
       if (response.success) {
-        const staffData = response.data;
+        const staffData = response.data || {};
         responseText = `✅ Staff member created successfully!
         
 **Staff Details:**
-- Employee ID: ${staffData.employee_id}
-- Position: ${staffData.position}
-- Department ID: ${staffData.department_id}
-- Status: ${staffData.status}`;
+- Employee ID: ${staffData.employee_id || 'Not provided'}
+- Position: ${staffData.position || 'Not provided'}
+- Department ID: ${staffData.department_id || 'Not provided'}
+- Status: ${staffData.status || 'Active'}`;
       } else {
         responseText = `❌ Failed to create staff member: ${response.message || 'Unknown error'}`;
       }
@@ -2361,14 +2364,14 @@ Examples:
 
       let responseText = '';
       if (response.success) {
-        const userData = response.data;
+        const userData = response.data || {};
         responseText = `✅ User created successfully!
         
 **User Details:**
-- Username: ${userData.username}
-- Email: ${userData.email}
-- Role: ${userData.role}
-- Name: ${userData.first_name} ${userData.last_name}
+- Username: ${userData.username || 'Unknown'}
+- Email: ${userData.email || 'Unknown'}
+- Role: ${userData.role || 'Unknown'}
+- Name: ${userData.first_name || 'Unknown'} ${userData.last_name || 'Unknown'}
 - Active: ${userData.is_active ? 'Yes' : 'No'}`;
       } else {
         responseText = `❌ Failed to create user: ${response.message || 'Unknown error'}`;
@@ -2448,15 +2451,15 @@ Examples:
 
       let responseText = '';
       if (response.success) {
-        const roomData = response.data;
+        const roomData = response.data || {};
         responseText = `✅ Room created successfully!
         
 **Room Details:**
-- Room Number: ${roomData.room_number}
+- Room Number: ${roomData.room_number || 'Unknown'}
 - Type: ${roomData.room_type || 'Standard'}
 - Floor: ${roomData.floor_number || 'Not specified'}
 - Capacity: ${roomData.capacity || 'Not specified'}
-- Department ID: ${roomData.department_id}`;
+- Department ID: ${roomData.department_id || 'Not specified'}`;
       } else {
         responseText = `❌ Failed to create room: ${response.message || 'Unknown error'}`;
       }
@@ -2532,14 +2535,14 @@ Examples:
 
       let responseText = '';
       if (response.success) {
-        const bedData = response.data;
+        const bedData = response.data || {};
         responseText = `✅ Bed created successfully!
         
 **Bed Details:**
-- Bed Number: ${bedData.bed_number}
-- Room ID: ${bedData.room_id}
+- Bed Number: ${bedData.bed_number || 'Unknown'}
+- Room ID: ${bedData.room_id || 'Unknown'}
 - Type: ${bedData.bed_type || 'Standard'}
-- Status: ${bedData.status}`;
+- Status: ${bedData.status || 'Available'}`;
       } else {
         responseText = `❌ Failed to create bed: ${response.message || 'Unknown error'}`;
       }
@@ -2635,7 +2638,7 @@ Examples:
 
       let responseText = '';
       if (response.success) {
-        const equipmentData = response.data;
+        const equipmentData = response.data || {};
         responseText = `✅ Equipment created successfully!
         
 **Equipment Details:**
@@ -2735,7 +2738,7 @@ Examples:
 
       let responseText = '';
       if (response.success) {
-        const supplyData = response.data;
+        const supplyData = response.data || {};
         responseText = `✅ Supply created successfully!
         
 **Supply Details:**
@@ -2827,7 +2830,7 @@ Examples:
 
       let responseText = '';
       if (response.success) {
-        const appointmentData = response.data;
+        const appointmentData = response.data || {};
         responseText = `✅ Appointment created successfully!
         
 **Appointment Details:**
@@ -2910,7 +2913,7 @@ Examples:
 
       let responseText = '';
       if (response.success) {
-        const legacyUserData = response.data;
+        const legacyUserData = response.data || {};
         responseText = `✅ Legacy user created successfully!
         
 **Legacy User Details:**
