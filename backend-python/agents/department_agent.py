@@ -72,14 +72,25 @@ class DepartmentAgent(BaseAgent):
             return {"success": False, "message": f"Failed to create department: {str(e)}"}
 
     def list_departments(self) -> Dict[str, Any]:
-        """List all departments."""
+        """List all departments - brief information only."""
         if not DATABASE_AVAILABLE:
             return {"error": "Database not available"}
         
         try:
             db = self.get_db_session()
             departments = db.query(Department).all()
-            result = [self.serialize_model(dept) for dept in departments]
+            
+            # Return only essential information for list views
+            result = []
+            for dept in departments:
+                brief_info = {
+                    "id": str(dept.id),
+                    "name": dept.name,
+                    "description": dept.description,
+                    "floor": dept.floor
+                }
+                result.append(brief_info)
+            
             db.close()
             
             # Log the interaction

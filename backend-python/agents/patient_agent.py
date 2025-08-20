@@ -94,14 +94,27 @@ class PatientAgent(BaseAgent):
             return {"success": False, "message": f"Failed to create patient: {str(e)}"}
 
     def list_patients(self) -> Dict[str, Any]:
-        """List all patients."""
+        """List all patients with brief information only."""
         if not DATABASE_AVAILABLE:
             return {"error": "Database not available"}
         
         try:
             db = self.get_db_session()
             patients = db.query(Patient).all()
-            result = [self.serialize_model(patient) for patient in patients]
+            
+            # Return only essential information for list views
+            result = []
+            for patient in patients:
+                brief_info = {
+                    "id": str(patient.id),
+                    "first_name": patient.first_name,
+                    "last_name": patient.last_name,
+                    "patient_number": patient.patient_number,
+                    "phone": patient.phone,  # Keep for contact purposes
+                    "date_of_birth": patient.date_of_birth.isoformat() if patient.date_of_birth else None
+                }
+                result.append(brief_info)
+            
             db.close()
             
             # Log the interaction

@@ -99,14 +99,28 @@ class UserAgent(BaseAgent):
             return {"error": f"Failed to get user: {str(e)}"}
 
     def list_users(self) -> Dict[str, Any]:
-        """List all users in the database."""
+        """List all users in the database - brief information only."""
         if not DATABASE_AVAILABLE:
             return {"error": "Database not available"}
         
         try:
             db = self.get_db_session()
             users = db.query(User).all()
-            result = [self.serialize_model(user) for user in users]
+            
+            # Return only essential information for list views
+            result = []
+            for user in users:
+                brief_info = {
+                    "id": str(user.id),
+                    "username": user.username,
+                    "email": user.email,
+                    "role": user.role,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "is_active": user.is_active
+                }
+                result.append(brief_info)
+            
             db.close()
             
             # Log the interaction
@@ -236,7 +250,7 @@ class UserAgent(BaseAgent):
             return {"success": False, "message": f"Failed to create legacy user: {str(e)}"}
 
     def list_legacy_users(self) -> Dict[str, Any]:
-        """List all legacy users."""
+        """List all legacy users - brief information only."""
         if not DATABASE_AVAILABLE:
             return {"error": "Database not available"}
         
@@ -244,7 +258,19 @@ class UserAgent(BaseAgent):
             from database import LegacyUser
             db = self.get_db_session()
             legacy_users = db.query(LegacyUser).all()
-            result = [self.serialize_model(user) for user in legacy_users]
+            
+            # Return only essential information for list views
+            result = []
+            for user in legacy_users:
+                brief_info = {
+                    "id": str(user.id),
+                    "name": user.name,
+                    "email": user.email,
+                    "phone": user.phone,
+                    "address": user.address
+                }
+                result.append(brief_info)
+            
             db.close()
             
             # Log the interaction

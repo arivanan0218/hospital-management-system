@@ -81,7 +81,7 @@ class RoomBedAgent(BaseAgent):
             return {"success": False, "message": f"Failed to create room: {str(e)}"}
 
     def list_rooms(self, department_id: str = None) -> Dict[str, Any]:
-        """List rooms with optional filtering."""
+        """List rooms with optional filtering - brief information only."""
         if not DATABASE_AVAILABLE:
             return {"error": "Database not available"}
         
@@ -95,7 +95,20 @@ class RoomBedAgent(BaseAgent):
                 filters.append(f"department_id: {department_id}")
             
             rooms = query.all()
-            result = [self.serialize_model(room) for room in rooms]
+            
+            # Return only essential information for list views
+            result = []
+            for room in rooms:
+                brief_info = {
+                    "id": str(room.id),
+                    "room_number": room.room_number,
+                    "room_type": room.room_type,
+                    "department_id": str(room.department_id) if room.department_id else None,
+                    "capacity": room.capacity,
+                    "status": room.status
+                }
+                result.append(brief_info)
+            
             db.close()
             
             # Log the interaction
@@ -256,7 +269,21 @@ class RoomBedAgent(BaseAgent):
                 filters.append(f"room_id: {room_id}")
             
             beds = query.all()
-            result = [self.serialize_model(bed) for bed in beds]
+            
+            # Return only essential information for list views
+            result = []
+            for bed in beds:
+                brief_info = {
+                    "id": str(bed.id),
+                    "bed_number": bed.bed_number,
+                    "room_id": str(bed.room_id) if bed.room_id else None,
+                    "room_number": getattr(bed.room, 'room_number', None) if bed.room else None,
+                    "status": bed.status,
+                    "patient_id": str(bed.patient_id) if bed.patient_id else None,
+                    "admission_date": bed.admission_date.isoformat() if bed.admission_date else None
+                }
+                result.append(brief_info)
+            
             db.close()
             
             # Log the interaction

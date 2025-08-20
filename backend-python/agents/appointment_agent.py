@@ -140,7 +140,22 @@ class AppointmentAgent(BaseAgent):
             query = query.order_by(Appointment.appointment_date)
             
             appointments = query.all()
-            result = [self.serialize_model(appointment) for appointment in appointments]
+            
+            # Return only essential information for list views
+            result = []
+            for appointment in appointments:
+                brief_info = {
+                    "id": str(appointment.id),
+                    "patient_id": str(appointment.patient_id) if appointment.patient_id else None,
+                    "doctor_id": str(appointment.doctor_id) if appointment.doctor_id else None,
+                    "department_id": str(appointment.department_id) if appointment.department_id else None,
+                    "appointment_date": appointment.appointment_date.isoformat() if appointment.appointment_date else None,
+                    "appointment_time": appointment.appointment_time,
+                    "status": appointment.status,
+                    "reason": appointment.reason
+                }
+                result.append(brief_info)
+            
             db.close()
             
             # Log the interaction
