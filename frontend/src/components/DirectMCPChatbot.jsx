@@ -4635,19 +4635,7 @@ Examples:
                 />
               </div>
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-sm font-medium text-gray-300">Select Room *</label>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      console.log('🔄 Manual room reload requested');
-                      await loadDropdownOptions();
-                    }}
-                    className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded"
-                  >
-                    Reload Rooms ({roomOptions?.length || 0})
-                  </button>
-                </div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Select Room *</label>
                 <select
                   value={bedFormData.room_id}
                   onChange={(e) => handleBedFormChange('room_id', e.target.value)}
