@@ -36,12 +36,13 @@ class GoogleMeetAPIIntegration:
     # If modifying these scopes, delete the file token.pickle.
     SCOPES = ['https://www.googleapis.com/auth/calendar']
     
-    def __init__(self):
+    def __init__(self, interactive=False):
         self.service = None
         self.credentials = None
-        self.setup_credentials()
+        self.calendar_service = None
+        self.setup_credentials(interactive)
     
-    def setup_credentials(self):
+    def setup_credentials(self, interactive=True):
         """Set up Google API credentials."""
         if not GOOGLE_APIS_AVAILABLE:
             print("Google API libraries not available - using fallback mode")
@@ -61,14 +62,26 @@ class GoogleMeetAPIIntegration:
             if not creds or not creds.valid:
                 if creds and creds.expired and creds.refresh_token:
                     print("Refreshing Google API credentials...")
-                    creds.refresh(Request())
+                    try:
+                        creds.refresh(Request())
+                    except Exception as e:
+                        print(f"Token refresh failed: {e}")
+                        if not interactive:
+                            print("Running in non-interactive mode - skipping OAuth")
+                            return False
+                        creds = None
                 else:
                     if not credentials_file.exists():
                         print("credentials.json not found!")
-                        print("Please download credentials.json from Google Cloud Console")
-                        print("1. Go to: https://console.cloud.google.com/apis/credentials")
-                        print("2. Create OAuth 2.0 Client ID")
-                        print("3. Download as credentials.json")
+                        if interactive:
+                            print("Please download credentials.json from Google Cloud Console")
+                            print("1. Go to: https://console.cloud.google.com/apis/credentials")
+                            print("2. Create OAuth 2.0 Client ID")
+                            print("3. Download as credentials.json")
+                        return False
+                    
+                    if not interactive:
+                        print("OAuth required but running in non-interactive mode")
                         return False
                     
                     print("Setting up Google OAuth...")
@@ -77,13 +90,18 @@ class GoogleMeetAPIIntegration:
                     creds = flow.run_local_server(port=0)
                 
                 # Save the credentials for the next run
-                with open(token_file, 'wb') as token:
-                    pickle.dump(creds, token)
+                if creds:
+                    with open(token_file, 'wb') as token:
+                        pickle.dump(creds, token)
             
             self.credentials = creds
-            self.service = build('calendar', 'v3', credentials=creds)
-            print("Google Calendar API initialized successfully")
-            return True
+            if creds:
+                self.service = build('calendar', 'v3', credentials=creds)
+                self.calendar_service = self.service  # Also set this alias
+                print("Google Calendar API initialized successfully")
+                return True
+            else:
+                return False
             
         except Exception as e:
             print(f"Error setting up Google credentials: {e}")

@@ -723,6 +723,7 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
       
       // Load rooms
       const roomsResponse = await aiMcpServiceRef.current.mcpClient.callTool('list_rooms', {});
+      console.log('🚪 Rooms response:', roomsResponse);
       const rooms = roomsResponse?.result?.content?.[0]?.text 
         ? JSON.parse(roomsResponse.result.content[0].text)?.result?.data || []
         : roomsResponse?.result?.data || roomsResponse || [];
@@ -4634,13 +4635,26 @@ Examples:
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Select Room *</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-gray-300">Select Room *</label>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      console.log('🔄 Manual room reload requested');
+                      await loadDropdownOptions();
+                    }}
+                    className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded"
+                  >
+                    Reload Rooms ({roomOptions?.length || 0})
+                  </button>
+                </div>
                 <select
                   value={bedFormData.room_id}
                   onChange={(e) => handleBedFormChange('room_id', e.target.value)}
                   className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                  onFocus={() => console.log('🚪 Room dropdown focused. Available rooms:', roomOptions)}
                 >
-                  <option value="">Select a room</option>
+                  <option value="">Select a room ({roomOptions?.length || 0} available)</option>
                   {Array.isArray(roomOptions) ? roomOptions.map(room => (
                     <option key={room.id} value={room.id}>
                       Room {room.room_number} ({room.room_type}) - Floor {room.floor_number || 'N/A'}
