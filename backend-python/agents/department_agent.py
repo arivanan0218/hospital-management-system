@@ -87,7 +87,7 @@ class DepartmentAgent(BaseAgent):
                     "id": str(dept.id),
                     "name": dept.name,
                     "description": dept.description,
-                    "floor": dept.floor
+                    "floor": dept.floor_number  # Use the correct attribute name
                 }
                 result.append(brief_info)
             
