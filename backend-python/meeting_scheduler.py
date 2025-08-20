@@ -854,7 +854,7 @@ Best regards,
                     duration_minutes=duration_minutes,  # Use parsed duration
                     google_meet_link=meet_link,
                     google_event_id=google_event_id,
-                    organizer_id=staff_ids[0],  # First staff as organizer
+                    organizer_id=str(first_staff.user_id) if first_staff else None,  # Use user_id from staff, not staff_id
                     department_id=str(first_staff.department_id) if first_staff and first_staff.department_id else None,
                     agenda="• Discussion of key topics\n• Team coordination\n• Q&A session"
                 )

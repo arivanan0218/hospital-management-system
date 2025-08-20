@@ -59,9 +59,8 @@ class MeetingManager:
             for participant_id in participant_ids:
                 participant = MeetingParticipant(
                     meeting_id=uuid.UUID(meeting_id),
-                    participant_id=uuid.UUID(participant_id),
-                    participant_type="staff",
-                    response_status="pending"
+                    staff_id=uuid.UUID(participant_id),
+                    attendance_status="pending"
                 )
                 self.session.add(participant)
             
