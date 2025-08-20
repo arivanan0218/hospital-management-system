@@ -19,6 +19,35 @@ class StaffAgent(BaseAgent):
     def __init__(self):
         super().__init__("Staff Management Agent", "staff_agent")
     
+    def serialize_model(self, staff):
+        """Convert Staff model to dictionary with User relationship included."""
+        if staff is None:
+            return None
+        
+        # Get base staff data
+        result = super().serialize_model(staff)
+        
+        # Add User relationship data if available
+        if staff.user:
+            result['first_name'] = staff.user.first_name
+            result['last_name'] = staff.user.last_name  
+            result['email'] = staff.user.email
+            result['username'] = staff.user.username
+            result['role'] = staff.user.role
+            result['phone'] = staff.user.phone
+            result['is_active'] = staff.user.is_active
+        else:
+            # Provide defaults if no user relationship
+            result['first_name'] = "Unknown"
+            result['last_name'] = "User"
+            result['email'] = None
+            result['username'] = None
+            result['role'] = None
+            result['phone'] = None
+            result['is_active'] = False
+            
+        return result
+    
     def get_tools(self) -> List[str]:
         """Return list of staff management tools"""
         return [
@@ -122,20 +151,8 @@ class StaffAgent(BaseAgent):
             
             staff_list = query.all()
             
-            # Return only essential information for list views
-            result = []
-            for staff in staff_list:
-                brief_info = {
-                    "id": str(staff.id),
-                    "employee_id": staff.employee_id,
-                    "user_id": str(staff.user_id) if staff.user_id else None,
-                    "first_name": staff.first_name,
-                    "last_name": staff.last_name,
-                    "position": staff.position,
-                    "department_id": str(staff.department_id) if staff.department_id else None,
-                    "status": staff.status
-                }
-                result.append(brief_info)
+            # Use serialize_model for consistent data format
+            result = [self.serialize_model(staff) for staff in staff_list]
             
             db.close()
             

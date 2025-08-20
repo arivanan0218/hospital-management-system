@@ -80,7 +80,7 @@ class RoomBedAgent(BaseAgent):
         except Exception as e:
             return {"success": False, "message": f"Failed to create room: {str(e)}"}
 
-    def list_rooms(self, department_id: str = None) -> Dict[str, Any]:
+    def list_rooms(self, department_id: str = None, status: str = None) -> Dict[str, Any]:
         """List rooms with optional filtering - brief information only."""
         if not DATABASE_AVAILABLE:
             return {"error": "Database not available"}
@@ -93,6 +93,10 @@ class RoomBedAgent(BaseAgent):
             if department_id:
                 query = query.filter(Room.department_id == uuid.UUID(department_id))
                 filters.append(f"department_id: {department_id}")
+            
+            if status:
+                query = query.filter(Room.status == status)
+                filters.append(f"status: {status}")
             
             rooms = query.all()
             
