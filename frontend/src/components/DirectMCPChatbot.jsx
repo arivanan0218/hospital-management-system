@@ -2080,8 +2080,8 @@ Examples:
       // Add success message to chat
       let responseText = '';
       if (response.success) {
-        // Success case - add null checks for deployment compatibility
-        const patientData = response.data || {};
+        // Success case - handle nested response structure
+        const patientData = response.result?.data || response.data || {};
         responseText = `✅ Patient created successfully in the database!
         
 **Patient Details:**
@@ -2177,7 +2177,7 @@ Examples:
 
       let responseText = '';
       if (response.success) {
-        const deptData = response.data || {};
+        const deptData = response.result?.data || response.data || {};
         responseText = `✅ Department created successfully!
         
 **Department Details:**
@@ -2273,7 +2273,7 @@ Examples:
 
       let responseText = '';
       if (response.success) {
-        const staffData = response.data || {};
+        const staffData = response.result?.data || response.data || {};
         responseText = `✅ Staff member created successfully!
         
 **Staff Details:**
@@ -2364,7 +2364,7 @@ Examples:
 
       let responseText = '';
       if (response.success) {
-        const userData = response.data || {};
+        const userData = response.result?.data || response.data || {};
         responseText = `✅ User created successfully!
         
 **User Details:**
@@ -2451,7 +2451,7 @@ Examples:
 
       let responseText = '';
       if (response.success) {
-        const roomData = response.data || {};
+        const roomData = response.result?.data || response.data || {};
         responseText = `✅ Room created successfully!
         
 **Room Details:**
@@ -2535,7 +2535,7 @@ Examples:
 
       let responseText = '';
       if (response.success) {
-        const bedData = response.data || {};
+        const bedData = response.result?.data || response.data || {};
         responseText = `✅ Bed created successfully!
         
 **Bed Details:**
@@ -2638,7 +2638,7 @@ Examples:
 
       let responseText = '';
       if (response.success) {
-        const equipmentData = response.data || {};
+        const equipmentData = response.result?.data || response.data || {};
         responseText = `✅ Equipment created successfully!
         
 **Equipment Details:**
@@ -2738,7 +2738,7 @@ Examples:
 
       let responseText = '';
       if (response.success) {
-        const supplyData = response.data || {};
+        const supplyData = response.result?.data || response.data || {};
         responseText = `✅ Supply created successfully!
         
 **Supply Details:**
@@ -2830,7 +2830,7 @@ Examples:
 
       let responseText = '';
       if (response.success) {
-        const appointmentData = response.data || {};
+        const appointmentData = response.result?.data || response.data || {};
         responseText = `✅ Appointment created successfully!
         
 **Appointment Details:**
@@ -2913,7 +2913,7 @@ Examples:
 
       let responseText = '';
       if (response.success) {
-        const legacyUserData = response.data || {};
+        const legacyUserData = response.result?.data || response.data || {};
         responseText = `✅ Legacy user created successfully!
         
 **Legacy User Details:**

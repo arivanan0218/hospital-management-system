@@ -14,22 +14,15 @@ class GoogleMeetOnlyGenerator:
     
     @staticmethod
     def create_google_meet_link(meeting_title: str = "Hospital Meeting") -> str:
-        """Create a Google Meet link that works."""
+        """Create a Google Meet link that actually works."""
         try:
-            # Generate a proper Google Meet room code format
-            # Real Google Meet codes follow pattern: xxx-xxxx-xxx
-            def generate_meet_code():
-                chars = string.ascii_lowercase
-                part1 = ''.join(random.choices(chars, k=3))
-                part2 = ''.join(random.choices(chars, k=4))
-                part3 = ''.join(random.choices(chars, k=3))
-                return f"{part1}-{part2}-{part3}"
-            
-            room_code = generate_meet_code()
-            google_meet_url = f"https://meet.google.com/{room_code}"
+            # The most reliable approach: Use Google Meet's instant meeting creation
+            # When users click this link, Google Meet will create a new room automatically
+            google_meet_url = "https://meet.google.com/new"
             
             print(f"Generated Google Meet: {google_meet_url}")
-            print("NOTE: This is a Google Meet room link")
+            print("NOTE: Creates a new meeting room when the host clicks this link")
+            print("Host should click the link first, then share the generated room code")
             
             return google_meet_url
             
