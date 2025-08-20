@@ -16,6 +16,10 @@ env:
   VITE_LANGSMITH_API_KEY: ${{ secrets.VITE_LANGSMITH_API_KEY }}
   VITE_LANGSMITH_PROJECT: hospital-management-system
   VITE_LANGSMITH_TRACING: true
+  # Google OAuth credentials
+  GOOGLE_PROJECT_ID: ${{ secrets.GOOGLE_PROJECT_ID }}
+  GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+  GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
 
 jobs:
   test:
@@ -59,6 +63,13 @@ jobs:
     - name: Login to Amazon ECR
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Setup Google OAuth credentials for backend
+      working-directory: ./backend-python
+      run: |
+        echo "🔐 Setting up Google OAuth credentials..."
+        echo '${{ secrets.GOOGLE_OAUTH_CREDENTIALS }}' > credentials.json
+        echo "✅ Google OAuth credentials configured"
 
     - name: Build and push backend image
       env:
