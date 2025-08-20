@@ -818,18 +818,25 @@ Best regards,
                 else:
                     print("WARNING: Google Meet API didn't return a meet link")
                     print(f"Full result: {meet_result}")
-                    # Create a better fallback meeting link with meeting title
-                    meeting_slug = meeting_title.lower().replace(" ", "-").replace("meeting", "").strip("-")
-                    meet_link = f"https://meet.google.com/{meeting_slug}-{meeting_time.strftime('%m%d-%H%M')}"
-                    print(f"Using fallback Google Meet link: {meet_link}")
+                    # Use better Google Meet link generator instead of dummy links
+                    from google_meet_only import GoogleMeetOnlyGenerator
+                    meet_link = GoogleMeetOnlyGenerator.create_google_meet_link(meeting_title)
+                    print(f"Using real Google Meet link: {meet_link}")
                     
             except Exception as e:
                 print(f"Error creating REAL Google Meet: {e}")
                 print("This means the Google Calendar API integration failed")
-                # Create a better fallback meeting link with meeting title
-                meeting_slug = meeting_title.lower().replace(" ", "-").replace("meeting", "").strip("-")
-                meet_link = f"https://meet.google.com/{meeting_slug}-{meeting_time.strftime('%m%d-%H%M')}"
-                print(f"Using fallback Google Meet link: {meet_link}")
+                # Use better Google Meet link generator instead of dummy links
+                try:
+                    from google_meet_only import GoogleMeetOnlyGenerator
+                    meet_link = GoogleMeetOnlyGenerator.create_google_meet_link(meeting_title)
+                    print(f"Using real Google Meet link: {meet_link}")
+                except Exception as fallback_error:
+                    print(f"Fallback Google Meet generator failed: {fallback_error}")
+                    # Create a better fallback meeting link with meeting title
+                    meeting_slug = meeting_title.lower().replace(" ", "-").replace("meeting", "").strip("-")
+                    meet_link = f"https://meet.google.com/{meeting_slug}-{meeting_time.strftime('%m%d-%H%M')}"
+                    print(f"Using basic fallback Google Meet link: {meet_link}")
 
             # Store meeting in database using new Meeting Management System
             try:
@@ -875,17 +882,26 @@ Best regards,
                     organizer_id=uuid.UUID(staff_ids[0])  # First staff member as organizer
                 )
                 
+                self.session.add(old_meeting)
+                self.session.flush()  # This ensures the meeting gets an ID without committing the transaction
+                
                 # Add all participants
                 for staff_id in staff_ids:
                     staff = self.session.query(Staff).filter(Staff.id == uuid.UUID(staff_id)).first()
                     if staff:
-                        old_meeting.participants.append(staff)
+                        # Create StaffMeetingParticipant relationship
+                        participant = StaffMeetingParticipant(
+                            meeting_id=old_meeting.id,
+                            staff_id=staff.id
+                        )
+                        self.session.add(participant)
 
-                self.session.add(old_meeting)
                 self.session.commit()
                 
             except Exception as e:
-                print(f"Error creating old meeting record: {e}")
+                print(f"Error creating old meeting record: {type(e).__name__}: {str(e)}")
+                import traceback
+                print(f"Traceback: {traceback.format_exc()}")
                 self.session.rollback()
 
             # Send notifications with Meet link
