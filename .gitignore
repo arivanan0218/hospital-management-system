@@ -28,7 +28,7 @@ frontend/.vite/
 frontend/.env
 backend/.env
 backend-python/.env
-credentials.json
+backend-python/credentials.json
 
 
 # ================================
