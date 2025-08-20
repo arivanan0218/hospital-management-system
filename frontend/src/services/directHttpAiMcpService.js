@@ -311,6 +311,53 @@ class DirectHttpAIMCPService {
   }
 
   /**
+   * Call MCP tool directly without AI processing (for form submissions)
+   */
+  async callToolDirectly(toolName, arguments_obj) {
+    if (!this.isInitialized) {
+      throw new Error('Service not initialized');
+    }
+
+    try {
+      console.log(`🔧 Direct tool call: ${toolName}`, arguments_obj);
+      
+      const result = await this.mcpClient.callTool(toolName, arguments_obj);
+      console.log(`✅ Direct tool result:`, result);
+      
+      // Handle the response from the MCP client
+      // The response format is: { jsonrpc: "2.0", id: X, result: { content: [{ type: "text", text: "JSON_STRING" }] } }
+      if (result && result.result && result.result.content && Array.isArray(result.result.content) && result.result.content[0]?.text) {
+        try {
+          const parsedResult = JSON.parse(result.result.content[0].text);
+          console.log(`✅ Parsed result:`, parsedResult);
+          return parsedResult;
+        } catch (parseError) {
+          console.error(`❌ Failed to parse result JSON:`, parseError);
+          // If parsing fails, return a structured error
+          return {
+            success: false,
+            message: `Failed to parse response: ${result.result.content[0].text}`
+          };
+        }
+      }
+      
+      // Fallback - if response format is unexpected
+      console.warn(`⚠️ Unexpected response format:`, result);
+      return {
+        success: false,
+        message: 'Unexpected response format from server',
+        raw_response: result
+      };
+    } catch (error) {
+      console.error(`❌ Direct tool call failed for ${toolName}:`, error);
+      return {
+        success: false,
+        message: error.message || 'Unknown error occurred'
+      };
+    }
+  }
+
+  /**
    * Process natural language request with conversation memory (Claude Desktop Style)
    */
   async processRequest(userMessage) {
@@ -754,6 +801,23 @@ Remember the recent conversation and provide contextually appropriate responses.
 - Don't ask for information already provided
 - Confirm actions before executing
 
+**LIST TOOLS RESPONSE FORMAT:**
+When using any LIST tools (list_patients, list_staff, list_departments, list_beds, list_rooms, list_equipment, list_supplies, list_appointments, list_users, list_meetings, list_discharge_reports, list_equipment_categories, list_supply_categories, list_inventory_transactions, list_legacy_users), provide ONLY essential information:
+
+- **list_patients**: Only show patient names (first_name + last_name) and patient numbers
+- **list_staff**: Only show staff names (first_name + last_name) and positions
+- **list_departments**: Only show department names
+- **list_beds**: Only show bed numbers and room assignments
+- **list_rooms**: Only show room numbers and types
+- **list_equipment**: Only show equipment names and status
+- **list_supplies**: Only show supply names and current stock levels
+- **list_appointments**: Only show patient name, doctor name, and appointment date/time
+- **list_users**: Only show usernames and roles
+- **list_meetings**: Only show meeting topics and dates
+- **All other list tools**: Only show names/titles and key status information
+
+DO NOT show full details, IDs, or technical information unless specifically requested. This prevents "(Further details are truncated for brevity)" messages and keeps responses clean and readable.
+
 Available tools: ${availableTools.map(tool => tool.name).join(', ')}
 
 Tool Results:
@@ -1174,6 +1238,23 @@ When operations require IDs but users provide names:
 - Provide helpful error messages with next steps
 - Offer to list available options when searches fail
 
+**5. LIST TOOLS RESPONSE FORMAT:**
+When using any LIST tools (list_patients, list_staff, list_departments, list_beds, list_rooms, list_equipment, list_supplies, list_appointments, list_users, list_meetings, list_discharge_reports, list_equipment_categories, list_supply_categories, list_inventory_transactions, list_legacy_users), provide ONLY essential information:
+
+- **list_patients**: Only show patient names (first_name + last_name) and patient numbers
+- **list_staff**: Only show staff names (first_name + last_name) and positions
+- **list_departments**: Only show department names
+- **list_beds**: Only show bed numbers and room assignments
+- **list_rooms**: Only show room numbers and types
+- **list_equipment**: Only show equipment names and status
+- **list_supplies**: Only show supply names and current stock levels
+- **list_appointments**: Only show patient name, doctor name, and appointment date/time
+- **list_users**: Only show usernames and roles
+- **list_meetings**: Only show meeting topics and dates
+- **All other list tools**: Only show names/titles and key status information
+
+DO NOT show full details, IDs, or technical information unless specifically requested. This prevents "(Further details are truncated for brevity)" messages and keeps responses clean and readable.
+
 **Available Tools:**
 ${availableTools.map(tool => `- ${tool.name}: ${tool.description}`).join('\n')}
 
@@ -1261,21 +1342,120 @@ Respond naturally and helpfully based on the user's request and the tool results
             if (Array.isArray(data) && data.length > 0) {
               response += `✅ **${result.tool.replace('_', ' ').toUpperCase()}**\n\n`;
               response += `Found ${data.length} record(s):\n\n`;
-              data.forEach((item, index) => {
-                response += `**${index + 1}.** `;
-                if (item.first_name && item.last_name) {
-                  response += `${item.first_name} ${item.last_name}`;
-                  if (item.patient_number) response += ` (${item.patient_number})`;
-                  if (item.email) response += ` - ${item.email}`;
-                  if (item.phone) response += ` - ${item.phone}`;
-                } else if (item.name) {
-                  response += `${item.name}`;
-                  if (item.description) response += ` - ${item.description}`;
-                } else {
-                  response += JSON.stringify(item, null, 2);
-                }
-                response += "\n";
-              });
+              
+              // Check if this is a list tool and format accordingly
+              if (result.tool.startsWith('list_')) {
+                data.forEach((item, index) => {
+                  response += `**${index + 1}.** `;
+                  
+                  // Format based on tool type for brief responses
+                  switch (result.tool) {
+                    case 'list_patients':
+                      if (item.first_name && item.last_name) {
+                        response += `${item.first_name} ${item.last_name}`;
+                        if (item.patient_number) response += ` (${item.patient_number})`;
+                      }
+                      break;
+                      
+                    case 'list_staff':
+                      if (item.first_name && item.last_name) {
+                        response += `${item.first_name} ${item.last_name}`;
+                        if (item.position) response += ` - ${item.position}`;
+                      }
+                      break;
+                      
+                    case 'list_departments':
+                      if (item.name) {
+                        response += `${item.name}`;
+                        if (item.floor) response += ` (Floor ${item.floor})`;
+                      }
+                      break;
+                      
+                    case 'list_beds':
+                      if (item.bed_number) {
+                        response += `Bed ${item.bed_number}`;
+                        if (item.room_number) response += ` - Room ${item.room_number}`;
+                        if (item.status) response += ` (${item.status})`;
+                      }
+                      break;
+                      
+                    case 'list_rooms':
+                      if (item.room_number) {
+                        response += `Room ${item.room_number}`;
+                        if (item.room_type) response += ` - ${item.room_type}`;
+                      }
+                      break;
+                      
+                    case 'list_equipment':
+                      if (item.name) {
+                        response += `${item.name}`;
+                        if (item.status) response += ` (${item.status})`;
+                      }
+                      break;
+                      
+                    case 'list_supplies':
+                      if (item.name) {
+                        response += `${item.name}`;
+                        if (item.current_stock !== undefined) response += ` - Stock: ${item.current_stock}`;
+                      }
+                      break;
+                      
+                    case 'list_appointments':
+                      let appointmentText = '';
+                      if (item.patient_name) appointmentText += `${item.patient_name}`;
+                      if (item.doctor_name) appointmentText += ` with Dr. ${item.doctor_name}`;
+                      if (item.appointment_date) appointmentText += ` on ${item.appointment_date}`;
+                      if (item.appointment_time) appointmentText += ` at ${item.appointment_time}`;
+                      response += appointmentText || 'Appointment';
+                      break;
+                      
+                    case 'list_users':
+                      if (item.username) {
+                        response += `${item.username}`;
+                        if (item.role) response += ` (${item.role})`;
+                      }
+                      break;
+                      
+                    case 'list_meetings':
+                      if (item.topic) {
+                        response += `${item.topic}`;
+                        if (item.meeting_date) response += ` - ${item.meeting_date}`;
+                      }
+                      break;
+                      
+                    default:
+                      // For other list tools, show name/title and key info
+                      if (item.name) {
+                        response += `${item.name}`;
+                      } else if (item.title) {
+                        response += `${item.title}`;
+                      } else if (item.first_name && item.last_name) {
+                        response += `${item.first_name} ${item.last_name}`;
+                      } else {
+                        response += `${Object.keys(item)[0]}: ${Object.values(item)[0]}`;
+                      }
+                      break;
+                  }
+                  response += "\n";
+                });
+              } else {
+                // Non-list tools - show more details
+                data.forEach((item, index) => {
+                  response += `**${index + 1}.** `;
+                  if (item.first_name && item.last_name) {
+                    response += `${item.first_name} ${item.last_name}`;
+                    if (item.patient_number) response += ` (${item.patient_number})`;
+                    if (item.email) response += ` - ${item.email}`;
+                    if (item.phone) response += ` - ${item.phone}`;
+                  } else if (item.name) {
+                    response += `${item.name}`;
+                    if (item.description) response += ` - ${item.description}`;
+                  } else {
+                    response += JSON.stringify(item, null, 2);
+                  }
+                  response += "\n";
+                });
+              }
               response += "\n";
             } else if (Array.isArray(data) && data.length === 0) {
               response += `✅ **${result.tool.replace('_', ' ').toUpperCase()}**: No records found\n\n`;
@@ -2438,18 +2618,22 @@ Respond naturally and helpfully based on the user's request and the tool results
       "",
       "**CRITICAL: Form-Based CREATE Operations:**",
       "The system uses a DUAL APPROACH for operations:",
-      "1. **POPUP FORMS for CREATE operations:** The 10 main CREATE tools (create_patient, create_user, create_staff, create_department, create_room, create_bed, create_equipment, create_supply, create_appointment, create_legacy_user) are handled by POPUP FORMS - DO NOT call these tools directly",
+      "1. **POPUP FORMS for CREATE operations:** The 10 main CREATE tools (create_patient, create_user, create_staff, create_department, create_room, create_bed, create_equipment, create_supply, create_appointment, create_legacy_user) are handled by POPUP FORMS",
       "2. **DIRECT TOOL CALLS for everything else:** All other operations (list, search, update, delete, assign, discharge, schedule_meeting, etc.) use direct tool calling",
       "",
       "**FORM HANDLING WORKFLOW:**",
       "- When user requests CREATE operations for the 10 main entities, a popup form will appear",
-      "- DO NOT attempt to call create_patient, create_user, create_staff, create_department, create_room, create_bed, create_equipment, create_supply, create_appointment, or create_legacy_user tools directly",
-      "- Instead, acknowledge that the form has been opened and guide the user to fill it out",
+      "- **FORM SUBMISSIONS:** When user submits form data (indicated by structured data like 'Create patient: first_name=\"John\"'), IMMEDIATELY call the appropriate CREATE tool with the provided data",
+      "- **CHAT REQUESTS:** For conversational CREATE requests, acknowledge that the form has been opened and guide the user to fill it out",
       "- For FOREIGN KEY fields in forms, guide users to:",
       "  * Use dropdown menus when available (Department, User, Room selections)",
       "  * Search by name/number rather than typing UUIDs",
       "  * Look up entities first if dropdowns aren't populated",
       "- For all OTHER operations (list_patients, search_patients, assign_bed_to_patient, discharge_bed, schedule_meeting, etc.), use direct tool calling",
+      "",
+      "**FORM SUBMISSIONS vs CHAT REQUESTS:**",
+      "- **FORM SUBMISSION** (call CREATE tool immediately): Messages containing structured data like 'Create patient: first_name=\"John\", last_name=\"Doe\"' - these come from popup form submissions",
+      "- **CHAT REQUEST** (show form): Conversational requests like 'create a new patient' or 'register patient John Doe' - these should trigger popup forms",
       "",
       "**NEVER call functions without required parameters. If a user requests an action but doesn't provide the necessary information:**",
       "1. Ask for the missing required information FIRST",
@@ -2711,6 +2895,23 @@ Respond naturally and helpfully based on the user's request and the tool results
       "   - Always verify foreign key relationships before creating appointment",
       "",
       "**ALWAYS resolve human names to IDs before create operations - this is how Claude Desktop works!**",
+      "",
+      "**LIST TOOLS RESPONSE FORMAT:**",
+      "When using any LIST tools (list_patients, list_staff, list_departments, list_beds, list_rooms, list_equipment, list_supplies, list_appointments, list_users, list_meetings, list_discharge_reports, list_equipment_categories, list_supply_categories, list_inventory_transactions, list_legacy_users), provide ONLY essential information:",
+      "",
+      "- **list_patients**: Only show patient names (first_name + last_name) and patient numbers",
+      "- **list_staff**: Only show staff names (first_name + last_name) and positions",
+      "- **list_departments**: Only show department names",
+      "- **list_beds**: Only show bed numbers and room assignments",
+      "- **list_rooms**: Only show room numbers and types",
+      "- **list_equipment**: Only show equipment names and status",
+      "- **list_supplies**: Only show supply names and current stock levels",
+      "- **list_appointments**: Only show patient name, doctor name, and appointment date/time",
+      "- **list_users**: Only show usernames and roles",
+      "- **list_meetings**: Only show meeting topics and dates",
+      "- **All other list tools**: Only show names/titles and key status information",
+      "",
+      "DO NOT show full details, IDs, or technical information unless specifically requested. This prevents '(Further details are truncated for brevity)' messages and keeps responses clean and readable.",
       "",
       "**Response Guidelines:**",
       "- Be conversational and professional",

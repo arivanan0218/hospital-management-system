@@ -101,7 +101,7 @@ class StaffAgent(BaseAgent):
             return {"success": False, "message": f"Failed to create staff: {str(e)}"}
 
     def list_staff(self, department_id: str = None, status: str = None, position: str = None) -> Dict[str, Any]:
-        """List staff with optional filtering."""
+        """List staff with optional filtering - brief information only."""
         if not DATABASE_AVAILABLE:
             return {"error": "Database not available"}
         
@@ -121,7 +121,22 @@ class StaffAgent(BaseAgent):
                 filters.append(f"position: {position}")
             
             staff_list = query.all()
-            result = [self.serialize_model(staff) for staff in staff_list]
+            
+            # Return only essential information for list views
+            result = []
+            for staff in staff_list:
+                brief_info = {
+                    "id": str(staff.id),
+                    "employee_id": staff.employee_id,
+                    "user_id": str(staff.user_id) if staff.user_id else None,
+                    "first_name": staff.first_name,
+                    "last_name": staff.last_name,
+                    "position": staff.position,
+                    "department_id": str(staff.department_id) if staff.department_id else None,
+                    "status": staff.status
+                }
+                result.append(brief_info)
+            
             db.close()
             
             # Log the interaction

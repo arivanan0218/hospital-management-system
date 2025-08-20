@@ -76,14 +76,24 @@ class EquipmentAgent(BaseAgent):
             return {"success": False, "message": f"Failed to create equipment category: {str(e)}"}
 
     def list_equipment_categories(self) -> Dict[str, Any]:
-        """List all equipment categories."""
+        """List all equipment categories - brief information only."""
         if not DATABASE_AVAILABLE:
             return {"error": "Database not available"}
         
         try:
             db = self.get_db_session()
             categories = db.query(EquipmentCategory).all()
-            result = [self.serialize_model(category) for category in categories]
+            
+            # Return only essential information for list views
+            result = []
+            for category in categories:
+                brief_info = {
+                    "id": str(category.id),
+                    "name": category.name,
+                    "description": category.description
+                }
+                result.append(brief_info)
+            
             db.close()
             
             # Log the interaction
@@ -165,7 +175,21 @@ class EquipmentAgent(BaseAgent):
                 filters.append(f"category_id: {category_id}")
             
             equipment_list = query.all()
-            result = [self.serialize_model(equipment) for equipment in equipment_list]
+            
+            # Return only essential information for list views
+            result = []
+            for equipment in equipment_list:
+                brief_info = {
+                    "id": str(equipment.id),
+                    "equipment_id": equipment.equipment_id,
+                    "name": equipment.name,
+                    "status": equipment.status,
+                    "department_id": str(equipment.department_id) if equipment.department_id else None,
+                    "category_id": str(equipment.category_id) if equipment.category_id else None,
+                    "location": equipment.location
+                }
+                result.append(brief_info)
+            
             db.close()
             
             # Log the interaction
