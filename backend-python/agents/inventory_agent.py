@@ -77,14 +77,24 @@ class InventoryAgent(BaseAgent):
             return {"success": False, "message": f"Failed to create supply category: {str(e)}"}
 
     def list_supply_categories(self) -> Dict[str, Any]:
-        """List all supply categories."""
+        """List all supply categories - brief information only."""
         if not DATABASE_AVAILABLE:
             return {"error": "Database not available"}
         
         try:
             db = self.get_db_session()
             categories = db.query(SupplyCategory).all()
-            result = [self.serialize_model(category) for category in categories]
+            
+            # Return only essential information for list views
+            result = []
+            for category in categories:
+                brief_info = {
+                    "id": str(category.id),
+                    "name": category.name,
+                    "description": category.description
+                }
+                result.append(brief_info)
+            
             db.close()
             
             # Log the interaction
@@ -155,7 +165,21 @@ class InventoryAgent(BaseAgent):
                 filters.append(f"category_id: {category_id}")
             
             supplies = query.all()
-            result = [self.serialize_model(supply) for supply in supplies]
+            
+            # Return only essential information for list views
+            result = []
+            for supply in supplies:
+                brief_info = {
+                    "id": str(supply.id),
+                    "item_code": supply.item_code,
+                    "name": supply.name,
+                    "current_stock": supply.current_stock,
+                    "minimum_stock": supply.minimum_stock,
+                    "unit": supply.unit,
+                    "category_id": str(supply.category_id) if supply.category_id else None
+                }
+                result.append(brief_info)
+            
             db.close()
             
             # Log the interaction
@@ -353,7 +377,21 @@ class InventoryAgent(BaseAgent):
             query = query.order_by(InventoryTransaction.transaction_date.desc()).limit(limit)
             
             transactions = query.all()
-            result = [self.serialize_model(transaction) for transaction in transactions]
+            
+            # Return only essential information for list views
+            result = []
+            for transaction in transactions:
+                brief_info = {
+                    "id": str(transaction.id),
+                    "supply_id": str(transaction.supply_id) if transaction.supply_id else None,
+                    "transaction_type": transaction.transaction_type,
+                    "quantity_change": transaction.quantity_change,
+                    "transaction_date": transaction.transaction_date.isoformat() if transaction.transaction_date else None,
+                    "performed_by": str(transaction.performed_by) if transaction.performed_by else None,
+                    "notes": transaction.notes
+                }
+                result.append(brief_info)
+            
             db.close()
             
             # Log the interaction

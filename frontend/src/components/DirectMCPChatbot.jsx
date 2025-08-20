@@ -2039,10 +2039,21 @@ Examples:
     setIsSubmittingAdmission(true);
 
     try {
-      // Call the AI service to create the patient
-      const response = await aiMcpServiceRef.current.processRequest(
-        `Create patient: first_name="${admissionFormData.first_name}", last_name="${admissionFormData.last_name}", date_of_birth="${admissionFormData.date_of_birth}", gender="${admissionFormData.gender}", phone="${admissionFormData.phone}", email="${admissionFormData.email}", address="${admissionFormData.address}", emergency_contact_name="${admissionFormData.emergency_contact_name}", emergency_contact_phone="${admissionFormData.emergency_contact_phone}", blood_type="${admissionFormData.blood_type}", allergies="${admissionFormData.allergies}", medical_history="${admissionFormData.medical_history}"`
-      );
+      // Call the MCP tool directly to create the patient (bypass AI processing)
+      const response = await aiMcpServiceRef.current.callToolDirectly('create_patient', {
+        first_name: admissionFormData.first_name,
+        last_name: admissionFormData.last_name,
+        date_of_birth: admissionFormData.date_of_birth,
+        gender: admissionFormData.gender,
+        phone: admissionFormData.phone,
+        email: admissionFormData.email,
+        address: admissionFormData.address,
+        emergency_contact_name: admissionFormData.emergency_contact_name,
+        emergency_contact_phone: admissionFormData.emergency_contact_phone,
+        blood_type: admissionFormData.blood_type,
+        allergies: admissionFormData.allergies,
+        medical_history: admissionFormData.medical_history
+      });
 
       // Close the form and show success message
       setShowPatientAdmissionForm(false);
@@ -2065,13 +2076,21 @@ Examples:
 
       // Add success message to chat
       let responseText = '';
-      if (typeof response === 'string') {
-        responseText = response;
-      } else if (response && typeof response === 'object') {
-        // If response is an object, try to extract meaningful information
-        responseText = response.message || response.result || JSON.stringify(response, null, 2);
+      if (response.success) {
+        // Success case
+        const patientData = response.data;
+        responseText = `✅ Patient created successfully in the database!
+        
+**Patient Details:**
+- Name: ${patientData.first_name} ${patientData.last_name}
+- Patient Number: ${patientData.patient_number || patientData.id}
+- Date of Birth: ${patientData.date_of_birth}
+- Gender: ${patientData.gender || 'Not specified'}
+- Phone: ${patientData.phone || 'Not provided'}
+- Email: ${patientData.email || 'Not provided'}`;
       } else {
-        responseText = 'Patient created successfully in the database!';
+        // Error case
+        responseText = `❌ Failed to create patient: ${response.message || 'Unknown error'}`;
       }
 
       const successMsg = {
@@ -2134,9 +2153,14 @@ Examples:
     setIsSubmittingDepartment(true);
 
     try {
-      const response = await aiMcpServiceRef.current.processRequest(
-        `Create department: name="${departmentFormData.name}", description="${departmentFormData.description}", head_doctor_id="${departmentFormData.head_doctor_id}", floor_number="${departmentFormData.floor_number}", phone="${departmentFormData.phone}", email="${departmentFormData.email}"`
-      );
+      const response = await aiMcpServiceRef.current.callToolDirectly('create_department', {
+        name: departmentFormData.name,
+        description: departmentFormData.description,
+        head_doctor_id: departmentFormData.head_doctor_id,
+        floor_number: departmentFormData.floor_number ? parseInt(departmentFormData.floor_number) : undefined,
+        phone: departmentFormData.phone,
+        email: departmentFormData.email
+      });
 
       setShowDepartmentForm(false);
       setDepartmentFormData({
@@ -2148,7 +2172,20 @@ Examples:
         email: ''
       });
 
-      let responseText = typeof response === 'string' ? response : response?.message || response?.result || JSON.stringify(response, null, 2) || 'Department created successfully!';
+      let responseText = '';
+      if (response.success) {
+        const deptData = response.data;
+        responseText = `✅ Department created successfully!
+        
+**Department Details:**
+- Name: ${deptData.name}
+- Description: ${deptData.description || 'Not provided'}
+- Floor: ${deptData.floor_number || 'Not specified'}
+- Phone: ${deptData.phone || 'Not provided'}
+- Email: ${deptData.email || 'Not provided'}`;
+      } else {
+        responseText = `❌ Failed to create department: ${response.message || 'Unknown error'}`;
+      }
 
       const successMsg = {
         id: Date.now(),
@@ -2204,9 +2241,18 @@ Examples:
     setIsSubmittingStaff(true);
 
     try {
-      const response = await aiMcpServiceRef.current.processRequest(
-        `Create staff: user_id="${staffFormData.user_id}", employee_id="${staffFormData.employee_id}", department_id="${staffFormData.department_id}", position="${staffFormData.position}", specialization="${staffFormData.specialization}", license_number="${staffFormData.license_number}", hire_date="${staffFormData.hire_date}", salary="${staffFormData.salary}", shift_pattern="${staffFormData.shift_pattern}", status="${staffFormData.status}"`
-      );
+      const response = await aiMcpServiceRef.current.callToolDirectly('create_staff', {
+        user_id: staffFormData.user_id,
+        employee_id: staffFormData.employee_id,
+        department_id: staffFormData.department_id,
+        position: staffFormData.position,
+        specialization: staffFormData.specialization,
+        license_number: staffFormData.license_number,
+        hire_date: staffFormData.hire_date,
+        salary: staffFormData.salary ? parseFloat(staffFormData.salary) : undefined,
+        shift_pattern: staffFormData.shift_pattern,
+        status: staffFormData.status
+      });
 
       setShowStaffForm(false);
       setStaffFormData({
@@ -2222,7 +2268,19 @@ Examples:
         status: 'active'
       });
 
-      let responseText = typeof response === 'string' ? response : response?.message || response?.result || JSON.stringify(response, null, 2) || 'Staff member created successfully!';
+      let responseText = '';
+      if (response.success) {
+        const staffData = response.data;
+        responseText = `✅ Staff member created successfully!
+        
+**Staff Details:**
+- Employee ID: ${staffData.employee_id}
+- Position: ${staffData.position}
+- Department ID: ${staffData.department_id}
+- Status: ${staffData.status}`;
+      } else {
+        responseText = `❌ Failed to create staff member: ${response.message || 'Unknown error'}`;
+      }
 
       const successMsg = {
         id: Date.now(),
@@ -2278,9 +2336,16 @@ Examples:
     setIsSubmittingUser(true);
 
     try {
-      const response = await aiMcpServiceRef.current.processRequest(
-        `Create user: username="${userFormData.username}", email="${userFormData.email}", password_hash="${userFormData.password_hash}", role="${userFormData.role}", first_name="${userFormData.first_name}", last_name="${userFormData.last_name}", phone="${userFormData.phone}", is_active="${userFormData.is_active}"`
-      );
+      const response = await aiMcpServiceRef.current.callToolDirectly('create_user', {
+        username: userFormData.username,
+        email: userFormData.email,
+        password_hash: userFormData.password_hash,
+        role: userFormData.role,
+        first_name: userFormData.first_name,
+        last_name: userFormData.last_name,
+        phone: userFormData.phone,
+        is_active: userFormData.is_active
+      });
 
       setShowUserForm(false);
       setUserFormData({
@@ -2294,7 +2359,20 @@ Examples:
         is_active: true
       });
 
-      let responseText = typeof response === 'string' ? response : response?.message || response?.result || JSON.stringify(response, null, 2) || 'User created successfully!';
+      let responseText = '';
+      if (response.success) {
+        const userData = response.data;
+        responseText = `✅ User created successfully!
+        
+**User Details:**
+- Username: ${userData.username}
+- Email: ${userData.email}
+- Role: ${userData.role}
+- Name: ${userData.first_name} ${userData.last_name}
+- Active: ${userData.is_active ? 'Yes' : 'No'}`;
+      } else {
+        responseText = `❌ Failed to create user: ${response.message || 'Unknown error'}`;
+      }
 
       const successMsg = {
         id: Date.now(),
@@ -2350,9 +2428,13 @@ Examples:
     setIsSubmittingRoom(true);
 
     try {
-      const response = await aiMcpServiceRef.current.processRequest(
-        `Create room: room_number="${roomFormData.room_number}", department_id="${roomFormData.department_id}", room_type="${roomFormData.room_type}", floor_number="${roomFormData.floor_number}", capacity="${roomFormData.capacity}"`
-      );
+      const response = await aiMcpServiceRef.current.callToolDirectly('create_room', {
+        room_number: roomFormData.room_number,
+        department_id: roomFormData.department_id,
+        room_type: roomFormData.room_type,
+        floor_number: roomFormData.floor_number ? parseInt(roomFormData.floor_number) : undefined,
+        capacity: roomFormData.capacity ? parseInt(roomFormData.capacity) : undefined
+      });
 
       setShowRoomForm(false);
       setRoomFormData({
@@ -2364,7 +2446,20 @@ Examples:
         status: 'available'
       });
 
-      let responseText = typeof response === 'string' ? response : response?.message || response?.result || JSON.stringify(response, null, 2) || 'Room created successfully!';
+      let responseText = '';
+      if (response.success) {
+        const roomData = response.data;
+        responseText = `✅ Room created successfully!
+        
+**Room Details:**
+- Room Number: ${roomData.room_number}
+- Type: ${roomData.room_type || 'Standard'}
+- Floor: ${roomData.floor_number || 'Not specified'}
+- Capacity: ${roomData.capacity || 'Not specified'}
+- Department ID: ${roomData.department_id}`;
+      } else {
+        responseText = `❌ Failed to create room: ${response.message || 'Unknown error'}`;
+      }
 
       const successMsg = {
         id: Date.now(),
@@ -2420,9 +2515,12 @@ Examples:
     setIsSubmittingBed(true);
 
     try {
-      const response = await aiMcpServiceRef.current.processRequest(
-        `Create bed: bed_number="${bedFormData.bed_number}", room_id="${bedFormData.room_id}", bed_type="${bedFormData.bed_type}", status="${bedFormData.status}"`
-      );
+      const response = await aiMcpServiceRef.current.callToolDirectly('create_bed', {
+        bed_number: bedFormData.bed_number,
+        room_id: bedFormData.room_id,
+        bed_type: bedFormData.bed_type,
+        status: bedFormData.status
+      });
 
       setShowBedForm(false);
       setBedFormData({
@@ -2432,7 +2530,19 @@ Examples:
         status: 'available'
       });
 
-      let responseText = typeof response === 'string' ? response : response?.message || response?.result || JSON.stringify(response, null, 2) || 'Bed created successfully!';
+      let responseText = '';
+      if (response.success) {
+        const bedData = response.data;
+        responseText = `✅ Bed created successfully!
+        
+**Bed Details:**
+- Bed Number: ${bedData.bed_number}
+- Room ID: ${bedData.room_id}
+- Type: ${bedData.bed_type || 'Standard'}
+- Status: ${bedData.status}`;
+      } else {
+        responseText = `❌ Failed to create bed: ${response.message || 'Unknown error'}`;
+      }
 
       const successMsg = {
         id: Date.now(),
@@ -2488,9 +2598,23 @@ Examples:
     setIsSubmittingEquipment(true);
 
     try {
-      const response = await aiMcpServiceRef.current.processRequest(
-        `Create equipment: equipment_id="${equipmentFormData.equipment_id}", name="${equipmentFormData.name}", category_id="${equipmentFormData.category_id}", model="${equipmentFormData.model}", manufacturer="${equipmentFormData.manufacturer}", serial_number="${equipmentFormData.serial_number}", purchase_date="${equipmentFormData.purchase_date}", warranty_expiry="${equipmentFormData.warranty_expiry}", location="${equipmentFormData.location}", department_id="${equipmentFormData.department_id}", status="${equipmentFormData.status}", cost="${equipmentFormData.cost}", notes="${equipmentFormData.notes}"`
-      );
+      const response = await aiMcpServiceRef.current.callToolDirectly('create_equipment', {
+        equipment_id: equipmentFormData.equipment_id,
+        name: equipmentFormData.name,
+        category_id: equipmentFormData.category_id,
+        model: equipmentFormData.model,
+        manufacturer: equipmentFormData.manufacturer,
+        serial_number: equipmentFormData.serial_number,
+        purchase_date: equipmentFormData.purchase_date,
+        warranty_expiry: equipmentFormData.warranty_expiry,
+        location: equipmentFormData.location,
+        department_id: equipmentFormData.department_id,
+        status: equipmentFormData.status,
+        last_maintenance: equipmentFormData.last_maintenance,
+        next_maintenance: equipmentFormData.next_maintenance,
+        cost: equipmentFormData.cost ? parseFloat(equipmentFormData.cost) : undefined,
+        notes: equipmentFormData.notes
+      });
 
       setShowEquipmentForm(false);
       setEquipmentFormData({
@@ -2509,7 +2633,20 @@ Examples:
         notes: ''
       });
 
-      let responseText = typeof response === 'string' ? response : response?.message || response?.result || JSON.stringify(response, null, 2) || 'Equipment created successfully!';
+      let responseText = '';
+      if (response.success) {
+        const equipmentData = response.data;
+        responseText = `✅ Equipment created successfully!
+        
+**Equipment Details:**
+- Equipment ID: ${equipmentData.equipment_id}
+- Name: ${equipmentData.name}
+- Model: ${equipmentData.model || 'Not specified'}
+- Location: ${equipmentData.location || 'Not specified'}
+- Status: ${equipmentData.status}`;
+      } else {
+        responseText = `❌ Failed to create equipment: ${response.message || 'Unknown error'}`;
+      }
 
       const successMsg = {
         id: Date.now(),
@@ -2565,9 +2702,20 @@ Examples:
     setIsSubmittingSupply(true);
 
     try {
-      const response = await aiMcpServiceRef.current.processRequest(
-        `Create supply: item_code="${supplyFormData.item_code}", name="${supplyFormData.name}", category_id="${supplyFormData.category_id}", description="${supplyFormData.description}", unit_of_measure="${supplyFormData.unit_of_measure}", minimum_stock_level="${supplyFormData.minimum_stock_level}", maximum_stock_level="${supplyFormData.maximum_stock_level}", current_stock="${supplyFormData.current_stock}", unit_cost="${supplyFormData.unit_cost}", supplier="${supplyFormData.supplier}", expiry_date="${supplyFormData.expiry_date}", location="${supplyFormData.location}"`
-      );
+      const response = await aiMcpServiceRef.current.callToolDirectly('create_supply', {
+        item_code: supplyFormData.item_code,
+        name: supplyFormData.name,
+        category_id: supplyFormData.category_id,
+        description: supplyFormData.description,
+        unit_of_measure: supplyFormData.unit_of_measure,
+        minimum_stock_level: supplyFormData.minimum_stock_level ? parseInt(supplyFormData.minimum_stock_level) : undefined,
+        maximum_stock_level: supplyFormData.maximum_stock_level ? parseInt(supplyFormData.maximum_stock_level) : undefined,
+        current_stock: supplyFormData.current_stock ? parseInt(supplyFormData.current_stock) : undefined,
+        unit_cost: supplyFormData.unit_cost ? parseFloat(supplyFormData.unit_cost) : undefined,
+        supplier: supplyFormData.supplier,
+        expiry_date: supplyFormData.expiry_date,
+        location: supplyFormData.location
+      });
 
       setShowSupplyForm(false);
       setSupplyFormData({
@@ -2585,7 +2733,20 @@ Examples:
         location: ''
       });
 
-      let responseText = typeof response === 'string' ? response : response?.message || response?.result || JSON.stringify(response, null, 2) || 'Supply created successfully!';
+      let responseText = '';
+      if (response.success) {
+        const supplyData = response.data;
+        responseText = `✅ Supply created successfully!
+        
+**Supply Details:**
+- Item Code: ${supplyData.item_code}
+- Name: ${supplyData.name}
+- Current Stock: ${supplyData.current_stock || '0'}
+- Unit: ${supplyData.unit_of_measure}
+- Location: ${supplyData.location || 'Not specified'}`;
+      } else {
+        responseText = `❌ Failed to create supply: ${response.message || 'Unknown error'}`;
+      }
 
       const successMsg = {
         id: Date.now(),
@@ -2641,9 +2802,16 @@ Examples:
     setIsSubmittingAppointment(true);
 
     try {
-      const response = await aiMcpServiceRef.current.processRequest(
-        `Create appointment: patient_id="${appointmentFormData.patient_id}", doctor_id="${appointmentFormData.doctor_id}", department_id="${appointmentFormData.department_id}", appointment_date="${appointmentFormData.appointment_date}", duration_minutes="${appointmentFormData.duration_minutes}", status="${appointmentFormData.status}", reason="${appointmentFormData.reason}", notes="${appointmentFormData.notes}"`
-      );
+      const response = await aiMcpServiceRef.current.callToolDirectly('create_appointment', {
+        patient_id: appointmentFormData.patient_id,
+        doctor_id: appointmentFormData.doctor_id,
+        department_id: appointmentFormData.department_id,
+        appointment_date: appointmentFormData.appointment_date,
+        duration_minutes: appointmentFormData.duration_minutes ? parseInt(appointmentFormData.duration_minutes) : 30,
+        status: appointmentFormData.status,
+        reason: appointmentFormData.reason,
+        notes: appointmentFormData.notes
+      });
 
       setShowAppointmentForm(false);
       setAppointmentFormData({
@@ -2657,7 +2825,20 @@ Examples:
         notes: ''
       });
 
-      let responseText = typeof response === 'string' ? response : response?.message || response?.result || JSON.stringify(response, null, 2) || 'Appointment created successfully!';
+      let responseText = '';
+      if (response.success) {
+        const appointmentData = response.data;
+        responseText = `✅ Appointment created successfully!
+        
+**Appointment Details:**
+- Patient ID: ${appointmentData.patient_id}
+- Doctor ID: ${appointmentData.doctor_id}
+- Date: ${appointmentData.appointment_date}
+- Duration: ${appointmentData.duration_minutes || 30} minutes
+- Status: ${appointmentData.status}`;
+      } else {
+        responseText = `❌ Failed to create appointment: ${response.message || 'Unknown error'}`;
+      }
 
       const successMsg = {
         id: Date.now(),
@@ -2713,9 +2894,12 @@ Examples:
     setIsSubmittingLegacyUser(true);
 
     try {
-      const response = await aiMcpServiceRef.current.processRequest(
-        `Create legacy user: name="${legacyUserFormData.name}", email="${legacyUserFormData.email}", role="${legacyUserFormData.role}"`
-      );
+      const response = await aiMcpServiceRef.current.callToolDirectly('create_legacy_user', {
+        name: legacyUserFormData.name,
+        email: legacyUserFormData.email,
+        address: legacyUserFormData.address,
+        phone: legacyUserFormData.phone
+      });
 
       setShowLegacyUserForm(false);
       setLegacyUserFormData({
@@ -2724,7 +2908,19 @@ Examples:
         role: ''
       });
 
-      let responseText = typeof response === 'string' ? response : response?.message || response?.result || JSON.stringify(response, null, 2) || 'Legacy user created successfully!';
+      let responseText = '';
+      if (response.success) {
+        const legacyUserData = response.data;
+        responseText = `✅ Legacy user created successfully!
+        
+**Legacy User Details:**
+- Name: ${legacyUserData.name}
+- Email: ${legacyUserData.email}
+- Phone: ${legacyUserData.phone || 'Not provided'}
+- Address: ${legacyUserData.address || 'Not provided'}`;
+      } else {
+        responseText = `❌ Failed to create legacy user: ${response.message || 'Unknown error'}`;
+      }
 
       const successMsg = {
         id: Date.now(),
