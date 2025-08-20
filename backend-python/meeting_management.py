@@ -166,10 +166,10 @@ class MeetingManager:
                     staff = self.session.query(Staff).filter(
                         Staff.id == participant.participant_id
                     ).first()
-                    if staff:
+                    if staff and staff.user:
                         result.append({
                             "participant_id": str(participant.participant_id),
-                            "name": f"{staff.first_name} {staff.last_name}",
+                            "name": f"{staff.user.first_name} {staff.user.last_name}",
                             "type": participant.participant_type,
                             "response_status": participant.response_status
                         })

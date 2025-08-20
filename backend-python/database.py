@@ -167,6 +167,7 @@ class Room(Base):
     room_type = Column(String(20))  # Match database varchar(20)
     department_id = Column(UUID(as_uuid=True), ForeignKey("departments.id"))
     capacity = Column(Integer, default=1)  # Add capacity field to match database
+    status = Column(String(20), default="available")  # available, occupied, maintenance, cleaning
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 

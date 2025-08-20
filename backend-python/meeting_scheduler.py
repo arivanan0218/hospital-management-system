@@ -786,8 +786,8 @@ Best regards,
             try:
                 print("Creating REAL Google Meet with your account as host...")
                 
-                # Initialize Google Meet API
-                google_meet_api = GoogleMeetAPIIntegration()
+                # Initialize Google Meet API (non-interactive for server use)
+                google_meet_api = GoogleMeetAPIIntegration(interactive=False)
                 
                 # Collect attendee emails
                 attendee_emails = []
