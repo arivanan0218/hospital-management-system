@@ -531,7 +531,7 @@ class DischargeAgent(BaseAgent):
 
     # Additional helper methods for equipment and staff management
 
-    def mark_equipment_for_cleaning(self, bed_id: str, equipment_ids: List[str], cleaning_type: str = "surface") -> Dict[str, Any]:
+    def mark_equipment_for_cleaning(self, equipment_id: str = None, bed_id: str = None, equipment_ids: List[str] = None, cleaning_type: str = "surface") -> Dict[str, Any]:
         """Mark equipment for cleaning during bed turnover."""
         if not DISCHARGE_DEPS:
             return {"success": False, "message": "Discharge dependencies not available"}
@@ -539,6 +539,34 @@ class DischargeAgent(BaseAgent):
         from database import SessionLocal, BedTurnover, EquipmentTurnover
         db = SessionLocal()
         try:
+            # Handle single equipment_id parameter (new API)
+            if equipment_id and not bed_id and not equipment_ids:
+                # Simple case - mark single equipment for cleaning
+                from datetime import datetime
+                equipment_turnover = EquipmentTurnover(
+                    equipment_id=uuid.UUID(equipment_id),
+                    status="cleaning",
+                    start_time=datetime.now(),
+                    cleaning_type=cleaning_type
+                )
+                db.add(equipment_turnover)
+                db.commit()
+                
+                result = {
+                    "success": True,
+                    "equipment_id": equipment_id,
+                    "status": "marked_for_cleaning",
+                    "cleaning_type": cleaning_type,
+                    "message": f"Equipment {equipment_id} marked for {cleaning_type} cleaning"
+                }
+                db.close()
+                return result
+            
+            # Handle original API (bed_id + equipment_ids list)
+            if not bed_id or not equipment_ids:
+                db.close()
+                return {"success": False, "message": "Either provide equipment_id alone, or both bed_id and equipment_ids"}
+                
             # Get active turnover for this bed
             turnover = db.query(BedTurnover).filter(
                 BedTurnover.bed_id == uuid.UUID(bed_id),
@@ -578,3 +606,168 @@ class DischargeAgent(BaseAgent):
             db.rollback()
             db.close()
             return {"success": False, "message": str(e)}
+
+    def update_turnover_progress(self, turnover_id: str, progress_status: str) -> Dict[str, Any]:
+        """Update bed turnover progress status."""
+        if not DISCHARGE_DEPS:
+            return {"success": False, "message": "Discharge dependencies not available"}
+        
+        try:
+            from database import SessionLocal, BedTurnover
+            db = SessionLocal()
+            
+            # Find the turnover record
+            turnover = db.query(BedTurnover).filter(BedTurnover.turnover_id == turnover_id).first()
+            
+            if not turnover:
+                db.close()
+                return {"success": False, "message": f"Turnover {turnover_id} not found"}
+            
+            # Update progress status
+            turnover.progress_status = progress_status
+            db.commit()
+            
+            result = {
+                "success": True,
+                "message": f"Turnover progress updated to {progress_status}",
+                "turnover_id": turnover_id,
+                "new_status": progress_status,
+                "updated_at": datetime.now().isoformat()
+            }
+            
+            db.close()
+            return result
+            
+        except Exception as e:
+            return {"success": False, "message": f"Failed to update turnover progress: {str(e)}"}
+
+    def get_bed_turnover_details(self, bed_id: str) -> Dict[str, Any]:
+        """Get detailed information about bed turnover process."""
+        if not DISCHARGE_DEPS:
+            return {"success": False, "message": "Discharge dependencies not available"}
+        
+        try:
+            from database import SessionLocal, BedTurnover, Bed
+            db = SessionLocal()
+            
+            # Find the bed
+            bed = db.query(Bed).filter(Bed.bed_id == bed_id).first()
+            if not bed:
+                db.close()
+                return {"success": False, "message": f"Bed {bed_id} not found"}
+            
+            # Find active turnover
+            active_turnover = db.query(BedTurnover).filter(
+                BedTurnover.bed_id == bed_id,
+                BedTurnover.status.in_(["in_progress", "cleaning", "inspection"])
+            ).first()
+            
+            if not active_turnover:
+                db.close()
+                return {
+                    "success": True,
+                    "bed_id": bed_id,
+                    "status": "no_active_turnover",
+                    "message": "No active turnover process for this bed"
+                }
+            
+            result = {
+                "success": True,
+                "bed_id": bed_id,
+                "turnover_id": active_turnover.turnover_id,
+                "status": active_turnover.status,
+                "progress_status": getattr(active_turnover, 'progress_status', 'unknown'),
+                "started_at": active_turnover.start_time.isoformat() if active_turnover.start_time else None,
+                "estimated_completion": active_turnover.estimated_completion_time.isoformat() if hasattr(active_turnover, 'estimated_completion_time') and active_turnover.estimated_completion_time else None,
+                "turnover_type": getattr(active_turnover, 'turnover_type', 'standard'),
+                "priority": getattr(active_turnover, 'priority_level', 'normal')
+            }
+            
+            db.close()
+            return result
+            
+        except Exception as e:
+            return {"success": False, "message": f"Failed to get turnover details: {str(e)}"}
+
+    def complete_equipment_cleaning(self, equipment_id: str) -> Dict[str, Any]:
+        """Complete equipment cleaning process."""
+        if not DISCHARGE_DEPS:
+            return {"success": False, "message": "Discharge dependencies not available"}
+        
+        try:
+            from database import SessionLocal, EquipmentTurnover
+            db = SessionLocal()
+            
+            # Find equipment turnover record
+            equipment_turnover = db.query(EquipmentTurnover).filter(
+                EquipmentTurnover.equipment_id == equipment_id,
+                EquipmentTurnover.status == "cleaning"
+            ).first()
+            
+            if not equipment_turnover:
+                db.close()
+                return {"success": False, "message": f"No active cleaning process found for equipment {equipment_id}"}
+            
+            # Update status to cleaned
+            equipment_turnover.status = "cleaned"
+            equipment_turnover.completion_time = datetime.now()
+            db.commit()
+            
+            result = {
+                "success": True,
+                "message": f"Equipment {equipment_id} cleaning completed",
+                "equipment_id": equipment_id,
+                "completed_at": datetime.now().isoformat(),
+                "status": "cleaned"
+            }
+            
+            db.close()
+            return result
+            
+        except Exception as e:
+            return {"success": False, "message": f"Failed to complete equipment cleaning: {str(e)}"}
+
+    def get_equipment_turnover_status(self, equipment_id: str) -> Dict[str, Any]:
+        """Get equipment turnover status."""
+        if not DISCHARGE_DEPS:
+            return {"success": False, "message": "Discharge dependencies not available"}
+        
+        try:
+            from database import SessionLocal, EquipmentTurnover, Equipment
+            db = SessionLocal()
+            
+            # Find equipment
+            equipment = db.query(Equipment).filter(Equipment.equipment_id == equipment_id).first()
+            if not equipment:
+                db.close()
+                return {"success": False, "message": f"Equipment {equipment_id} not found"}
+            
+            # Find active turnover
+            active_turnover = db.query(EquipmentTurnover).filter(
+                EquipmentTurnover.equipment_id == equipment_id,
+                EquipmentTurnover.status.in_(["cleaning", "maintenance", "inspection"])
+            ).first()
+            
+            if not active_turnover:
+                db.close()
+                return {
+                    "success": True,
+                    "equipment_id": equipment_id,
+                    "status": "available",
+                    "message": "Equipment is available for use"
+                }
+            
+            result = {
+                "success": True,
+                "equipment_id": equipment_id,
+                "turnover_status": active_turnover.status,
+                "started_at": active_turnover.start_time.isoformat() if active_turnover.start_time else None,
+                "estimated_completion": active_turnover.estimated_completion_time.isoformat() if hasattr(active_turnover, 'estimated_completion_time') and active_turnover.estimated_completion_time else None,
+                "cleaning_type": getattr(active_turnover, 'cleaning_type', 'standard')
+            }
+            
+            db.close()
+            return result
+            
+        except Exception as e:
+            return {"success": False, "message": f"Failed to get equipment turnover status: {str(e)}"}
