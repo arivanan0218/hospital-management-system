@@ -777,7 +777,7 @@ class StaffMeetingParticipant(Base):
     staff_id = Column(UUID(as_uuid=True), ForeignKey("staff.id"), primary_key=True)
     
     # Relationships
-    meeting = relationship("StaffMeeting")
+    meeting = relationship("StaffMeeting", back_populates="participants")
     staff = relationship("Staff")
 
 class StaffMeeting(Base):

@@ -82,6 +82,21 @@ class PatientAgent(BaseAgent):
             result = self.serialize_model(patient)
             db.close()
             
+            # Ensure result is not None
+            if result is None:
+                result = {
+                    "id": str(patient.id),
+                    "patient_number": patient.patient_number,
+                    "first_name": patient.first_name,
+                    "last_name": patient.last_name,
+                    "date_of_birth": patient.date_of_birth.isoformat() if patient.date_of_birth else None,
+                    "gender": patient.gender,
+                    "phone": patient.phone,
+                    "email": patient.email,
+                    "address": patient.address,
+                    "blood_type": patient.blood_type
+                }
+            
             # Log the interaction
             self.log_interaction(
                 query=f"Create patient: {first_name} {last_name}",

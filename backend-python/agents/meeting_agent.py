@@ -86,6 +86,8 @@ class MeetingAgent(BaseAgent):
                 "status": m.status,
                 "priority": m.priority,
                 "agenda": m.agenda,
+                "meeting_notes": m.meeting_notes,
+                "action_items": m.action_items,
                 "participants": participants,
             }}
         except Exception as e:
