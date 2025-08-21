@@ -20,6 +20,9 @@ RUN uv pip install --system -e .
 # Copy application code
 COPY . .
 
+# Create uploads directory for PDF files
+RUN mkdir -p uploads && chmod 755 uploads
+
 # Make startup script executable
 RUN chmod +x start.sh
 
