@@ -255,6 +255,7 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   const touchStartXRef = useRef(null);
   const touchStartYRef = useRef(null);
   const touchStartTimeRef = useRef(null);
+  const swipeTriggeredRef = useRef(false);
 
   // Handle touch start (record position/time)
   const handleTouchStart = (e) => {
@@ -295,6 +296,28 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
       touchStartXRef.current = null;
       touchStartYRef.current = null;
       touchStartTimeRef.current = null;
+      swipeTriggeredRef.current = false;
+    } catch (err) {
+      // swallow
+    }
+  };
+
+  // Handle touch move for earlier detection (helps on scrollable containers)
+  const handleTouchMove = (e) => {
+    try {
+      if (swipeTriggeredRef.current) return;
+      const t = (e.touches && e.touches[0]) || null;
+      if (!t || touchStartXRef.current == null) return;
+      const dx = t.clientX - touchStartXRef.current;
+      const dy = t.clientY - touchStartYRef.current;
+
+      const HORIZONTAL_SWIPE_THRESHOLD = 60; // pixels
+      const VERTICAL_TOLERANCE = 75; // pixels
+
+      if (dx > HORIZONTAL_SWIPE_THRESHOLD && Math.abs(dy) < VERTICAL_TOLERANCE) {
+        swipeTriggeredRef.current = true;
+        setActiveTab((prev) => (prev === 'chat' ? prev : 'chat'));
+      }
     } catch (err) {
       // swallow
     }
@@ -3987,7 +4010,7 @@ Examples:
 
       {/* Upload Documents Tab */}
       {activeTab === 'upload' && (
-        <div onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} className="flex-1 overflow-y-auto bg-[#1a1a1a] p-3 sm:p-6">
+  <div onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd} className="flex-1 overflow-y-auto bg-[#1a1a1a] p-3 sm:p-6">
           <div className="max-w-4xl mx-auto">
             <div className="mb-4 sm:mb-6">
               {/* Back to Chat Button */}
@@ -4086,7 +4109,7 @@ Examples:
 
       {/* Medical History Tab */}
       {activeTab === 'history' && (
-        <div onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} className="flex-1 overflow-y-auto bg-[#1a1a1a] p-3 sm:p-6">
+  <div onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd} className="flex-1 overflow-y-auto bg-[#1a1a1a] p-3 sm:p-6">
           <div className="max-w-4xl mx-auto">
             <div className="mb-4 sm:mb-6">
               {/* Back to Chat Button */}
