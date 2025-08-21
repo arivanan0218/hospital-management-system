@@ -349,6 +349,54 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
            ('ontouchstart' in window); // Check for touch capability
   };
 
+  // Mobile viewport stability handler
+  useEffect(() => {
+    if (!isMobileDevice()) return;
+
+    const handleViewportChange = () => {
+      // Update CSS custom property for dynamic viewport height
+      const vh = window.innerHeight * 0.01;
+      document.documentElement.style.setProperty('--vh', `${vh}px`);
+    };
+
+    const handleInputFocus = (e) => {
+      if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') {
+        // Prevent the page from jumping on mobile when input is focused
+        setTimeout(() => {
+          if (document.activeElement === e.target) {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        }, 500);
+      }
+    };
+
+    const handleInputBlur = () => {
+      // Restore viewport when input loses focus
+      setTimeout(() => {
+        handleViewportChange();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }, 100);
+    };
+
+    // Set initial viewport height
+    handleViewportChange();
+    
+    // Listen for viewport changes (keyboard show/hide)
+    window.addEventListener('resize', handleViewportChange);
+    window.addEventListener('orientationchange', handleViewportChange);
+    
+    // Listen for input focus/blur to manage viewport behavior
+    document.addEventListener('focusin', handleInputFocus);
+    document.addEventListener('focusout', handleInputBlur);
+
+    return () => {
+      window.removeEventListener('resize', handleViewportChange);
+      window.removeEventListener('orientationchange', handleViewportChange);
+      document.removeEventListener('focusin', handleInputFocus);
+      document.removeEventListener('focusout', handleInputBlur);
+    };
+  }, []);
+
   // Smart focus function - focuses input but prevents keyboard popup on mobile
   const smartFocusInput = (delay = 100) => {
     setTimeout(() => {
@@ -3285,7 +3333,12 @@ Examples:
 
   // Main Chat Interface - Claude Desktop Style with Responsive Design
   return (
-    <div className="h-screen bg-[#1a1a1a] flex flex-col text-white overflow-hidden relative" style={{ height: '100vh', height: '100dvh' }}>
+    <div className="h-screen bg-[#1a1a1a] flex flex-col text-white overflow-hidden relative" style={{ 
+      height: '100dvh',
+      // Ensure stable mobile viewport behavior
+      minHeight: '100dvh',
+      maxHeight: '100dvh'
+    }}>
       {/* Claude-style Header - FIXED */}
       <div className="flex-shrink-0 border-b border-gray-700 px-3 sm:px-4 py-3 bg-[#1a1a1a] relative z-30">
         <div className="flex items-center justify-between">
@@ -3692,8 +3745,11 @@ Examples:
           </div>
         </div>
 
-        {/* Modern Chat Input - Fixed at bottom */}
-        <div className="bg-[#1a1a1a] px-3 sm:px-4 py-2 flex-shrink-0 border-t border-gray-700">
+        {/* Modern Chat Input - Fixed at bottom with mobile viewport support */}
+        <div className="bg-[#1a1a1a] px-3 sm:px-4 py-2 flex-shrink-0 border-t border-gray-700" style={{
+          position: 'relative',
+          paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))'
+        }}>
           <div className="max-w-4xl mx-auto">
               {/* Voice Status Indicator */}
               {(isRecording || isProcessingVoice || isSpeaking) && (
@@ -3745,7 +3801,15 @@ Examples:
                           handleSendMessage();
                         }
                       }}
-                      onFocus={() => setIsInputFocused(true)}
+                      onFocus={(e) => {
+                        setIsInputFocused(true);
+                        // Prevent mobile viewport jumping
+                        if (window.innerWidth <= 768) {
+                          setTimeout(() => {
+                            e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          }, 300);
+                        }
+                      }}
                       onBlur={() => setIsInputFocused(false)}
                       placeholder={isConnected ? "Ask anything (Ctrl+/ to focus)" : "Ask anything"}
                       disabled={!isConnected || isLoading}
