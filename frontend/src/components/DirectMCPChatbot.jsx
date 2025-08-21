@@ -251,6 +251,54 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   const lastMessageCountRef = useRef(0);
   const inputFieldRef = useRef(null); // Add ref for input field
   const plusMenuRef = useRef(null); // Add ref for plus menu dropdown
+  // Touch / swipe refs for mobile swipe navigation (upload/history -> chat)
+  const touchStartXRef = useRef(null);
+  const touchStartYRef = useRef(null);
+  const touchStartTimeRef = useRef(null);
+
+  // Handle touch start (record position/time)
+  const handleTouchStart = (e) => {
+    try {
+      // Ignore if interacting with inputs
+      const tag = e.target && e.target.tagName ? e.target.tagName.toUpperCase() : '';
+      if (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(tag)) return;
+      const t = (e.touches && e.touches[0]) || null;
+      if (!t) return;
+      touchStartXRef.current = t.clientX;
+      touchStartYRef.current = t.clientY;
+      touchStartTimeRef.current = Date.now();
+    } catch (err) {
+      // swallow errors
+    }
+  };
+
+  // Handle touch end (compute delta and detect swipe-right)
+  const handleTouchEnd = (e) => {
+    try {
+      const t = (e.changedTouches && e.changedTouches[0]) || null;
+      if (!t || touchStartXRef.current == null) return;
+      const dx = t.clientX - touchStartXRef.current;
+      const dy = t.clientY - touchStartYRef.current;
+      const dt = Date.now() - (touchStartTimeRef.current || 0);
+
+      const HORIZONTAL_SWIPE_THRESHOLD = 60; // pixels
+      const VERTICAL_TOLERANCE = 75; // pixels
+      const MAX_SWIPE_TIME = 800; // ms
+
+      // Right swipe with limited vertical movement and reasonable speed
+      if (dx > HORIZONTAL_SWIPE_THRESHOLD && Math.abs(dy) < VERTICAL_TOLERANCE && dt < MAX_SWIPE_TIME) {
+        // Only switch when not already on chat
+        setActiveTab((prev) => (prev === 'chat' ? prev : 'chat'));
+      }
+
+      // reset
+      touchStartXRef.current = null;
+      touchStartYRef.current = null;
+      touchStartTimeRef.current = null;
+    } catch (err) {
+      // swallow
+    }
+  };
 
   // Controlled scroll function
   const scrollToBottom = React.useCallback(() => {
@@ -3939,7 +3987,7 @@ Examples:
 
       {/* Upload Documents Tab */}
       {activeTab === 'upload' && (
-        <div className="flex-1 overflow-y-auto bg-[#1a1a1a] p-3 sm:p-6">
+        <div onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} className="flex-1 overflow-y-auto bg-[#1a1a1a] p-3 sm:p-6">
           <div className="max-w-4xl mx-auto">
             <div className="mb-4 sm:mb-6">
               {/* Back to Chat Button */}
@@ -4038,7 +4086,7 @@ Examples:
 
       {/* Medical History Tab */}
       {activeTab === 'history' && (
-        <div className="flex-1 overflow-y-auto bg-[#1a1a1a] p-3 sm:p-6">
+        <div onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} className="flex-1 overflow-y-auto bg-[#1a1a1a] p-3 sm:p-6">
           <div className="max-w-4xl mx-auto">
             <div className="mb-4 sm:mb-6">
               {/* Back to Chat Button */}
