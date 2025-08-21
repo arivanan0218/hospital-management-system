@@ -988,8 +988,9 @@ def download_discharge_report(report_number: str, download_format: str = "pdf") 
         download_format: Format for download - "pdf", "markdown", or "zip" (default: pdf)
     """
     try:
-        from report_manager import download_discharge_report as download_report_func
-        result = download_report_func(report_number, format=download_format)  # Fix parameter name
+        from report_manager import ReportManager
+        manager = ReportManager()
+        result = manager.download_report(report_number, download_format)
         return result
     except Exception as e:
         return {"success": False, "error": str(e), "message": f"Failed to download report: {str(e)}"}

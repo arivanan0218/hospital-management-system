@@ -5,7 +5,10 @@
 
 class AuthService {
   constructor() {
-    this.baseURL = ''; // Use relative URL for deployment
+    // Determine the correct base URL based on environment
+    this.baseURL = window.location.hostname === 'localhost' && window.location.port === '5173' 
+      ? 'http://localhost:8000'  // Local development
+      : '';                      // Deployment (through nginx proxy)
     this.storageKey = 'hospital_users_db';
     this.initializeDefaultUsers();
   }
