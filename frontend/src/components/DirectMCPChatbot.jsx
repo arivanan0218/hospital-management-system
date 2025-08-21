@@ -3555,6 +3555,22 @@ Examples:
         </div>
       </div>
 
+        {/* Fixed Back Button for Upload / History - ensures reliable navigation on mobile */}
+        {(activeTab === 'upload' || activeTab === 'history') && (
+          <div className="fixed left-4 top-[76px] z-40">
+            <button
+              onClick={() => setActiveTab('chat')}
+              className="flex items-center space-x-2 bg-[#2a2a2a] hover:bg-[#333] text-white px-3 py-2 rounded-lg border border-gray-700 shadow-md"
+              title="Back to Chat"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              <span className="hidden sm:inline">Back to Chat</span>
+            </button>
+          </div>
+        )}
+
       {/* Content Area - MAIN SCROLLABLE CONTAINER */}
       {activeTab === 'chat' && (
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden" style={{ 
