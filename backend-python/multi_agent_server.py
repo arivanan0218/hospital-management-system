@@ -526,34 +526,184 @@ def create_supply(item_code: str, name: str, category_id: str, unit_of_measure: 
                                            current_stock=current_stock, unit_cost=unit_cost, supplier=supplier,
                                            expiry_date=expiry_date, location=location)
         return result.get("result", result)
-    # Direct DB fallback
-    if not DATABASE_AVAILABLE:
-        return {"success": False, "message": "Database not available"}
-    try:
-        db = get_db_session()
-        supply = Supply(
-            item_code=item_code,
-            name=name,
-            category_id=uuid.UUID(category_id),
-            description=description,
-            unit_of_measure=unit_of_measure,
-            minimum_stock_level=minimum_stock_level,
-            maximum_stock_level=maximum_stock_level,
-            current_stock=current_stock,
-            unit_cost=Decimal(str(unit_cost)) if unit_cost else None,
-            supplier=supplier,
-            expiry_date=datetime.strptime(expiry_date, "%Y-%m-%d").date() if expiry_date else None,
-            location=location
-        )
-        db.add(supply)
-        db.commit()
-        db.refresh(supply)
-        result = serialize_model(supply)
-        db.close()
-        return {"success": True, "message": "Supply created successfully", "data": result}
-    except Exception as e:
-        return {"success": False, "message": f"Failed to create supply: {str(e)}"}
-# ================================
+
+@mcp.tool()
+def schedule_equipment_maintenance(equipment_id: str, maintenance_date: str,
+                                 maintenance_type: str = "routine", notes: str = None) -> Dict[str, Any]:
+    """Schedule maintenance for equipment."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("schedule_equipment_maintenance",
+                                           equipment_id=equipment_id, maintenance_date=maintenance_date,
+                                           maintenance_type=maintenance_type, notes=notes)
+        return result.get("result", result)
+    
+    return {"success": False, "message": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def list_equipment(status: str = None, department_id: str = None, category_id: str = None) -> Dict[str, Any]:
+    """List equipment with optional filtering."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("list_equipment",
+                                           status=status, department_id=department_id, category_id=category_id)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def create_equipment_category(name: str, description: str = None) -> Dict[str, Any]:
+    """Create a new equipment category."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("create_equipment_category",
+                                           name=name, description=description)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def list_equipment_categories() -> Dict[str, Any]:
+    """List all equipment categories."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("list_equipment_categories")
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def get_equipment_by_id(equipment_id: str) -> Dict[str, Any]:
+    """Get equipment by ID."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("get_equipment_by_id", equipment_id=equipment_id)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def update_equipment_status(equipment_id: str, status: str, notes: str = None) -> Dict[str, Any]:
+    """Update equipment status."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("update_equipment_status",
+                                           equipment_id=equipment_id, status=status, notes=notes)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def update_equipment(equipment_id: str, name: str = None, model: str = None, 
+                    manufacturer: str = None, location: str = None, 
+                    department_id: str = None, status: str = None) -> Dict[str, Any]:
+    """Update equipment information."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("update_equipment",
+                                           equipment_id=equipment_id, name=name, model=model,
+                                           manufacturer=manufacturer, location=location,
+                                           department_id=department_id, status=status)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def delete_equipment(equipment_id: str) -> Dict[str, Any]:
+    """Delete equipment."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("delete_equipment", equipment_id=equipment_id)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def get_equipment_by_status(status: str) -> Dict[str, Any]:
+    """Get all equipment with a specific status."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("get_equipment_by_status", status=status)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def list_supplies(low_stock_only: bool = False, category_id: str = None) -> Dict[str, Any]:
+    """List supplies with optional filtering."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("list_supplies",
+                                           low_stock_only=low_stock_only, category_id=category_id)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def get_supply_by_id(supply_id: str) -> Dict[str, Any]:
+    """Get supply by ID."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("get_supply_by_id", supply_id=supply_id)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def update_supply_stock(supply_id: str, quantity_change: int, transaction_type: str,
+                       user_id: str = None, notes: str = None) -> Dict[str, Any]:
+    """Update supply stock levels and log the transaction."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("update_supply_stock",
+                                           supply_id=supply_id, quantity_change=quantity_change,
+                                           transaction_type=transaction_type, user_id=user_id, notes=notes)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def update_supply(supply_id: str, name: str = None, unit_of_measure: str = None,
+                 minimum_stock_level: int = None, maximum_stock_level: int = None,
+                 unit_cost: float = None, supplier: str = None) -> Dict[str, Any]:
+    """Update supply information."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("update_supply",
+                                           supply_id=supply_id, name=name, unit_of_measure=unit_of_measure,
+                                           minimum_stock_level=minimum_stock_level, maximum_stock_level=maximum_stock_level,
+                                           unit_cost=unit_cost, supplier=supplier)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def delete_supply(supply_id: str) -> Dict[str, Any]:
+    """Delete a supply item."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("delete_supply", supply_id=supply_id)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def get_low_stock_supplies() -> Dict[str, Any]:
+    """Get all supplies that are below minimum stock level."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("get_low_stock_supplies")
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def list_inventory_transactions(supply_id: str = None, transaction_type: str = None,
+                              start_date: str = None, end_date: str = None) -> Dict[str, Any]:
+    """List inventory transactions with optional filtering."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("list_inventory_transactions",
+                                           supply_id=supply_id, transaction_type=transaction_type,
+                                           start_date=start_date, end_date=end_date)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def get_supply_usage_report(supply_id: str = None, start_date: str = None, 
+                           end_date: str = None) -> Dict[str, Any]:
+    """Get supply usage report with optional filtering."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("get_supply_usage_report",
+                                           supply_id=supply_id, start_date=start_date, end_date=end_date)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
 
 @mcp.tool()
 def create_staff(user_id: str, employee_id: str, department_id: str, position: str,
@@ -978,6 +1128,187 @@ def list_discharge_reports(patient_id: str = None) -> Dict[str, Any]:
         return result.get("result", result)
     
     return {"error": "Multi-agent system required for listing discharge reports"}
+
+@mcp.tool()
+def start_bed_turnover_process(bed_id: str, previous_patient_id: str = None, 
+                              turnover_type: str = "standard", priority_level: str = "normal") -> Dict[str, Any]:
+    """Start bed turnover process.
+    
+    Args:
+        bed_id: The ID of the bed to turnover
+        previous_patient_id: ID of the previous patient (optional)
+        turnover_type: Type of turnover (standard, deep_clean, maintenance)
+        priority_level: Priority level (low, normal, high, urgent)
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("start_bed_turnover_process",
+                                           bed_id=bed_id, previous_patient_id=previous_patient_id,
+                                           turnover_type=turnover_type, priority_level=priority_level)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for bed turnover"}
+
+@mcp.tool()
+def complete_bed_cleaning(bed_id: str, cleaned_by: str = None, cleaning_notes: str = None) -> Dict[str, Any]:
+    """Complete bed cleaning task.
+    
+    Args:
+        bed_id: The ID of the bed that was cleaned
+        cleaned_by: Staff member who performed cleaning (optional)
+        cleaning_notes: Notes about the cleaning process (optional)
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("complete_bed_cleaning",
+                                           bed_id=bed_id, cleaned_by=cleaned_by, 
+                                           cleaning_notes=cleaning_notes)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for bed cleaning"}
+
+@mcp.tool()
+def get_bed_status_with_time_remaining(bed_id: str) -> Dict[str, Any]:
+    """Get bed status with time remaining for current process.
+    
+    Args:
+        bed_id: The ID of the bed to check
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("get_bed_status_with_time_remaining", bed_id=bed_id)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for bed status"}
+
+@mcp.tool()
+def add_patient_to_queue(patient_id: str, queue_type: str, priority: str = "normal") -> Dict[str, Any]:
+    """Add patient to queue.
+    
+    Args:
+        patient_id: The ID of the patient
+        queue_type: Type of queue (admission, discharge, surgery, etc.)
+        priority: Priority level (low, normal, high, urgent)
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("add_patient_to_queue",
+                                           patient_id=patient_id, queue_type=queue_type, priority=priority)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for patient queue"}
+
+@mcp.tool()
+def get_patient_queue(queue_type: str = None) -> Dict[str, Any]:
+    """Get patient queue.
+    
+    Args:
+        queue_type: Filter by queue type (optional)
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("get_patient_queue", queue_type=queue_type)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for patient queue"}
+
+@mcp.tool()
+def assign_next_patient_to_bed(bed_id: str, queue_type: str = "admission") -> Dict[str, Any]:
+    """Assign next patient in queue to bed.
+    
+    Args:
+        bed_id: The ID of the bed to assign
+        queue_type: Type of queue to pull from
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("assign_next_patient_to_bed",
+                                           bed_id=bed_id, queue_type=queue_type)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for bed assignment"}
+
+@mcp.tool()
+def update_turnover_progress(bed_id: str, progress_step: str, notes: str = None) -> Dict[str, Any]:
+    """Update bed turnover progress.
+    
+    Args:
+        bed_id: The ID of the bed
+        progress_step: Current progress step
+        notes: Progress notes (optional)
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("update_turnover_progress",
+                                           bed_id=bed_id, progress_step=progress_step, notes=notes)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for turnover progress"}
+
+@mcp.tool()
+def get_bed_turnover_details(bed_id: str) -> Dict[str, Any]:
+    """Get bed turnover details.
+    
+    Args:
+        bed_id: The ID of the bed
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("get_bed_turnover_details", bed_id=bed_id)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for turnover details"}
+
+@mcp.tool()
+def mark_equipment_for_cleaning(equipment_id: str, cleaning_type: str = "routine", priority: str = "normal") -> Dict[str, Any]:
+    """Mark equipment for cleaning.
+    
+    Args:
+        equipment_id: The ID of the equipment
+        cleaning_type: Type of cleaning (routine, deep, maintenance)
+        priority: Priority level (low, normal, high, urgent)
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("mark_equipment_for_cleaning",
+                                           equipment_id=equipment_id, cleaning_type=cleaning_type, priority=priority)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for equipment cleaning"}
+
+@mcp.tool()
+def complete_equipment_cleaning(equipment_id: str, cleaned_by: str = None, cleaning_notes: str = None) -> Dict[str, Any]:
+    """Complete equipment cleaning.
+    
+    Args:
+        equipment_id: The ID of the equipment
+        cleaned_by: Staff member who cleaned the equipment (optional)
+        cleaning_notes: Notes about the cleaning (optional)
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("complete_equipment_cleaning",
+                                           equipment_id=equipment_id, cleaned_by=cleaned_by, 
+                                           cleaning_notes=cleaning_notes)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for equipment cleaning"}
+
+@mcp.tool()
+def get_equipment_turnover_status(equipment_id: str) -> Dict[str, Any]:
+    """Get equipment turnover status.
+    
+    Args:
+        equipment_id: The ID of the equipment
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("get_equipment_turnover_status", equipment_id=equipment_id)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for equipment status"}
+
+@mcp.tool()
+def get_patient_medical_history(patient_id: str) -> Dict[str, Any]:
+    """Get patient medical history.
+    
+    Args:
+        patient_id: The ID of the patient
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("get_patient_medical_history", patient_id=patient_id)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for medical history"}
 
 @mcp.tool()
 def download_discharge_report(report_number: str, download_format: str = "pdf") -> Dict[str, Any]:

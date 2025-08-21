@@ -158,7 +158,7 @@ class InventoryAgent(BaseAgent):
             
             filters = []
             if low_stock_only:
-                query = query.filter(Supply.current_stock <= Supply.minimum_stock)
+                query = query.filter(Supply.current_stock <= Supply.minimum_stock_level)
                 filters.append("low_stock_only: True")
             if category_id:
                 query = query.filter(Supply.category_id == uuid.UUID(category_id))
@@ -174,8 +174,8 @@ class InventoryAgent(BaseAgent):
                     "item_code": supply.item_code,
                     "name": supply.name,
                     "current_stock": supply.current_stock,
-                    "minimum_stock": supply.minimum_stock,
-                    "unit": supply.unit,
+                    "minimum_stock_level": supply.minimum_stock_level,
+                    "unit_of_measure": supply.unit_of_measure,
                     "category_id": str(supply.category_id) if supply.category_id else None
                 }
                 result.append(brief_info)
@@ -225,7 +225,7 @@ class InventoryAgent(BaseAgent):
         
         try:
             db = self.get_db_session()
-            supplies = db.query(Supply).filter(Supply.current_stock <= Supply.minimum_stock).all()
+            supplies = db.query(Supply).filter(Supply.current_stock <= Supply.minimum_stock_level).all()
             result = [self.serialize_model(supply) for supply in supplies]
             db.close()
             
@@ -269,11 +269,9 @@ class InventoryAgent(BaseAgent):
             transaction = InventoryTransaction(
                 supply_id=uuid.UUID(supply_id),
                 transaction_type=transaction_type,
-                quantity_change=quantity_change,
-                quantity_before=old_stock,
-                quantity_after=new_stock,
+                quantity=quantity_change,  # Use quantity instead of quantity_change
                 performed_by=uuid.UUID(user_id) if user_id else None,
-                notes=notes
+                notes=f"{notes or ''} | Stock changed from {old_stock} to {new_stock}".strip(" |")
             )
             
             db.add(transaction)
@@ -304,8 +302,8 @@ class InventoryAgent(BaseAgent):
             return {"success": False, "message": f"Failed to update supply stock: {str(e)}"}
 
     def update_supply(self, supply_id: str, name: str = None, unit_of_measure: str = None,
-                     minimum_stock: int = None, maximum_stock: int = None,
-                     unit_price: float = None, supplier: str = None) -> Dict[str, Any]:
+                     minimum_stock_level: int = None, maximum_stock_level: int = None,
+                     unit_cost: float = None, supplier: str = None) -> Dict[str, Any]:
         """Update supply information."""
         if not DATABASE_AVAILABLE:
             return {"success": False, "message": "Database not available"}
@@ -326,15 +324,15 @@ class InventoryAgent(BaseAgent):
             if unit_of_measure is not None:
                 supply.unit_of_measure = unit_of_measure
                 update_fields.append("unit_of_measure")
-            if minimum_stock is not None:
-                supply.minimum_stock = minimum_stock
-                update_fields.append("minimum_stock")
-            if maximum_stock is not None:
-                supply.maximum_stock = maximum_stock
-                update_fields.append("maximum_stock")
-            if unit_price is not None:
-                supply.unit_price = unit_price
-                update_fields.append("unit_price")
+            if minimum_stock_level is not None:
+                supply.minimum_stock_level = minimum_stock_level
+                update_fields.append("minimum_stock_level")
+            if maximum_stock_level is not None:
+                supply.maximum_stock_level = maximum_stock_level
+                update_fields.append("maximum_stock_level")
+            if unit_cost is not None:
+                supply.unit_cost = unit_cost
+                update_fields.append("unit_cost")
             if supplier is not None:
                 supply.supplier = supplier
                 update_fields.append("supplier")
@@ -356,7 +354,7 @@ class InventoryAgent(BaseAgent):
             return {"success": False, "message": f"Failed to update supply: {str(e)}"}
 
     def list_inventory_transactions(self, supply_id: str = None, transaction_type: str = None,
-                                   limit: int = 100) -> Dict[str, Any]:
+                                   start_date: str = None, end_date: str = None, limit: int = 100) -> Dict[str, Any]:
         """List inventory transactions with optional filtering."""
         if not DATABASE_AVAILABLE:
             return {"error": "Database not available"}
@@ -372,6 +370,14 @@ class InventoryAgent(BaseAgent):
             if transaction_type:
                 query = query.filter(InventoryTransaction.transaction_type == transaction_type)
                 filters.append(f"transaction_type: {transaction_type}")
+            if start_date:
+                start_date_obj = datetime.strptime(start_date, "%Y-%m-%d")
+                query = query.filter(InventoryTransaction.transaction_date >= start_date_obj)
+                filters.append(f"start_date: {start_date}")
+            if end_date:
+                end_date_obj = datetime.strptime(end_date, "%Y-%m-%d")
+                query = query.filter(InventoryTransaction.transaction_date <= end_date_obj)
+                filters.append(f"end_date: {end_date}")
             
             # Order by most recent first and limit results
             query = query.order_by(InventoryTransaction.transaction_date.desc()).limit(limit)
@@ -385,7 +391,7 @@ class InventoryAgent(BaseAgent):
                     "id": str(transaction.id),
                     "supply_id": str(transaction.supply_id) if transaction.supply_id else None,
                     "transaction_type": transaction.transaction_type,
-                    "quantity_change": transaction.quantity_change,
+                    "quantity": transaction.quantity,  # Use quantity instead of quantity_change
                     "transaction_date": transaction.transaction_date.isoformat() if transaction.transaction_date else None,
                     "performed_by": str(transaction.performed_by) if transaction.performed_by else None,
                     "notes": transaction.notes
@@ -406,7 +412,8 @@ class InventoryAgent(BaseAgent):
         except Exception as e:
             return {"error": f"Failed to list inventory transactions: {str(e)}"}
 
-    def get_supply_usage_report(self, supply_id: str = None, days: int = 30) -> Dict[str, Any]:
+    def get_supply_usage_report(self, supply_id: str = None, start_date: str = None, 
+                               end_date: str = None) -> Dict[str, Any]:
         """Get supply usage report for the specified period."""
         if not DATABASE_AVAILABLE:
             return {"error": "Database not available"}
@@ -416,11 +423,19 @@ class InventoryAgent(BaseAgent):
             db = self.get_db_session()
             
             # Calculate date range
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=days)
+            if end_date:
+                end_date_obj = datetime.strptime(end_date, "%Y-%m-%d")
+            else:
+                end_date_obj = datetime.now()
+                
+            if start_date:
+                start_date_obj = datetime.strptime(start_date, "%Y-%m-%d")
+            else:
+                start_date_obj = end_date_obj - timedelta(days=30)  # Default to 30 days
             
             query = db.query(InventoryTransaction).filter(
-                InventoryTransaction.transaction_date >= start_date
+                InventoryTransaction.transaction_date >= start_date_obj,
+                InventoryTransaction.transaction_date <= end_date_obj
             )
             
             if supply_id:
@@ -443,19 +458,28 @@ class InventoryAgent(BaseAgent):
                 stats = usage_stats[supply_id_str]
                 stats["transaction_count"] += 1
                 
-                if transaction.quantity_change > 0:
-                    stats["total_in"] += transaction.quantity_change
-                else:
-                    stats["total_out"] += abs(transaction.quantity_change)
-                
-                stats["net_change"] += transaction.quantity_change
+                quantity = transaction.quantity
+                if transaction.transaction_type == "in":
+                    stats["total_in"] += abs(quantity)
+                    stats["net_change"] += abs(quantity)
+                elif transaction.transaction_type == "out":
+                    stats["total_out"] += abs(quantity)
+                    stats["net_change"] -= abs(quantity)
+                else:  # adjustment
+                    if quantity > 0:
+                        stats["total_in"] += quantity
+                        stats["net_change"] += quantity
+                    else:
+                        stats["total_out"] += abs(quantity)
+                        stats["net_change"] += quantity  # quantity is already negative for adjustments
             
             result = [self.serialize_model(transaction) for transaction in transactions]
             db.close()
             
             # Log the interaction
+            days_diff = (end_date_obj - start_date_obj).days
             self.log_interaction(
-                query=f"Get supply usage report for {days} days" + (f" (supply: {supply_id})" if supply_id else ""),
+                query=f"Get supply usage report for {days_diff} days" + (f" (supply: {supply_id})" if supply_id else ""),
                 response=f"Generated usage report with {len(result)} transactions",
                 tool_used="get_supply_usage_report"
             )
@@ -464,9 +488,9 @@ class InventoryAgent(BaseAgent):
                 "data": result,
                 "usage_statistics": usage_stats,
                 "period": {
-                    "start_date": start_date.isoformat(),
-                    "end_date": end_date.isoformat(),
-                    "days": days
+                    "start_date": start_date_obj.isoformat(),
+                    "end_date": end_date_obj.isoformat(),
+                    "days": days_diff
                 }
             }
         except Exception as e:
