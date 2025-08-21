@@ -3488,7 +3488,7 @@ Examples:
       {activeTab === 'chat' && (
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden" style={{ 
           marginTop: '70px', 
-          marginBottom: showActionButtons ? 'calc(130px + env(safe-area-inset-bottom, 0px))' : 'calc(80px + env(safe-area-inset-bottom, 0px))',
+          marginBottom: showActionButtons ? 'calc(150px + env(safe-area-inset-bottom, 0px))' : 'calc(80px + env(safe-area-inset-bottom, 0px))',
         }}>
           {/* Messages Container - ONLY THIS SCROLLS */}
           <div 
@@ -3681,21 +3681,22 @@ Examples:
           </div>
 
           {/* Action Buttons Above Input - FIXED ABOVE BOTTOM INPUT */}
-          <div className={`fixed left-0 right-0 bg-[#1a1a1a] px-4 z-20 border-t border-gray-700 transition-all duration-500 ease-in-out overflow-hidden ${
-            showActionButtons ? 'py-2 opacity-100' : 'py-0 opacity-0 max-h-0 -bottom-full'
+          <div className={`fixed left-0 right-0 bg-[#1a1a1a] px-4 z-20 border-t border-gray-700 transition-all duration-500 ease-in-out ${
+            showActionButtons ? 'py-3 opacity-100' : 'py-0 opacity-0 -bottom-full'
           }`} style={{
-            bottom: showActionButtons ? 'calc(70px + env(safe-area-inset-bottom, 0px))' : '-100px'
+            bottom: showActionButtons ? 'calc(90px + env(safe-area-inset-bottom, 0px))' : '-100px',
+            minHeight: showActionButtons ? '120px' : '0px'
           }}>
             <div className="max-w-4xl mx-auto">
             {/* Desktop: 1 row 4 columns, Mobile: 2 rows 2 columns */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {/* View All Patients */}
               <button
                 onClick={() => {
                   setInputMessage("List all patients");
                   smartFocusInput(100);
                 }}
-                className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-1.5 py-1 sm:px-3 sm:py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
+                className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-2 py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
                 title="View all patients"
               >
                 <span className="font-medium whitespace-nowrap">View Patients</span>
@@ -3707,7 +3708,7 @@ Examples:
                   setInputMessage("Show bed availability");
                   smartFocusInput(100);
                 }}
-                className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-1.5 py-1 sm:px-3 sm:py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
+                className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-2 py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
                 title="Check bed availability"
               >
                 <span className="font-medium whitespace-nowrap">Bed Status</span>
@@ -3719,7 +3720,7 @@ Examples:
                   setInputMessage("Show emergency status and available emergency beds");
                   smartFocusInput(100);
                 }}
-                className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-1.5 py-1 sm:px-3 sm:py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
+                className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-2 py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
                 title="Emergency status"
               >
                 <span className="font-medium whitespace-nowrap">Emergency</span>
@@ -3731,7 +3732,7 @@ Examples:
                   setInputMessage("Show today's appointments");
                   smartFocusInput(100);
                 }}
-                className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-1.5 py-1 sm:px-3 sm:py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
+                className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-2 py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
                 title="Today's appointments"
               >
                 <span className="font-medium whitespace-nowrap">Today's Schedule</span>
