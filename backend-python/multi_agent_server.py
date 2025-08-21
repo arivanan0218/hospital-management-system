@@ -606,6 +606,29 @@ def get_staff_by_id(staff_id: str) -> Dict[str, Any]:
     
     return {"error": "Multi-agent system required for this operation"}
 
+@mcp.tool()
+def update_staff(staff_id: str, employee_id: str = None, department_id: str = None,
+                position: str = None, salary: float = None, status: str = None) -> Dict[str, Any]:
+    """Update staff information (supports both UUID and employee_id)."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("update_staff",
+                                           staff_id=staff_id, employee_id=employee_id,
+                                           department_id=department_id, position=position,
+                                           salary=salary, status=status)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def update_staff_status(staff_id: str, status: str, notes: str = None) -> Dict[str, Any]:
+    """Update staff status (active, inactive, on_leave, terminated)."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("update_staff_status",
+                                           staff_id=staff_id, status=status, notes=notes)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
 # Continue with remaining tools...
 # [The file would continue with all other tools following the same pattern]
 

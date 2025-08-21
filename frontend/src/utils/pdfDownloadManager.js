@@ -20,7 +20,7 @@ class PDFDownloadManager {
       console.log('📥 Downloading discharge report PDF:', reportNumber);
       
       // Make API call to download PDF
-      const response = await fetch('http://localhost:8000/tools/call', {
+      const response = await fetch('/tools/call', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -112,7 +112,7 @@ class PDFDownloadManager {
     // Convert Windows path to URL-friendly path
     // The server serves from 'reports' directory as root, so remove 'reports\' or 'reports/'
     const urlPath = filePath.replace(/\\/g, '/').replace(/^reports\//, '');
-    const pdfUrl = `http://localhost:8000/${urlPath}`;
+    const pdfUrl = `/${urlPath}`;
     
     console.log('📡 Fetching PDF from:', pdfUrl);
     
