@@ -431,6 +431,10 @@ jobs:
         PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
         HOST: ${{ env.EC2_HOST }}
         USER: ec2-user
+        EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME }}
+        EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+        EMAIL_FROM_NAME: ${{ secrets.EMAIL_FROM_NAME }}
+        EMAIL_FROM_ADDRESS: ${{ secrets.EMAIL_FROM_ADDRESS }}
       run: |
         echo "🔐 Setting up SSH..."
         echo "$PRIVATE_KEY" > private_key.pem
@@ -444,6 +448,10 @@ jobs:
           export AWS_ACCESS_KEY_ID='$AWS_ACCESS_KEY_ID'
           export AWS_SECRET_ACCESS_KEY='$AWS_SECRET_ACCESS_KEY'
           export AWS_DEFAULT_REGION='$AWS_REGION'
+          export EMAIL_USERNAME='$EMAIL_USERNAME'
+          export EMAIL_PASSWORD='$EMAIL_PASSWORD'
+          export EMAIL_FROM_NAME='$EMAIL_FROM_NAME'
+          export EMAIL_FROM_ADDRESS='$EMAIL_FROM_ADDRESS'
           chmod +x ~/deploy-to-ec2.sh
           ~/deploy-to-ec2.sh
         "
