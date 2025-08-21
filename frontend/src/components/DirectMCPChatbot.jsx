@@ -3285,7 +3285,7 @@ Examples:
 
   // Main Chat Interface - Claude Desktop Style with Responsive Design
   return (
-    <div className="h-screen bg-[#1a1a1a] flex flex-col text-white overflow-hidden relative" style={{ height: '100vh', height: '100dvh' }}>
+    <div className="h-screen bg-[#1a1a1a] flex flex-col text-white overflow-hidden relative mobile-viewport-fix" style={{ height: '100dvh' }}>
       {/* Claude-style Header - FIXED */}
       <div className="flex-shrink-0 border-b border-gray-700 px-3 sm:px-4 py-3 bg-[#1a1a1a] relative z-30">
         <div className="flex items-center justify-between">
@@ -3745,8 +3745,22 @@ Examples:
                           handleSendMessage();
                         }
                       }}
-                      onFocus={() => setIsInputFocused(true)}
-                      onBlur={() => setIsInputFocused(false)}
+                      onFocus={() => {
+                        setIsInputFocused(true);
+                        // Prevent mobile viewport jumping on focus
+                        if (window.innerHeight < window.outerHeight) {
+                          // Mobile keyboard is likely present, scroll into view smoothly
+                          setTimeout(() => {
+                            inputFieldRef.current?.scrollIntoView({ 
+                              behavior: 'smooth', 
+                              block: 'nearest' 
+                            });
+                          }, 100);
+                        }
+                      }}
+                      onBlur={() => {
+                        setIsInputFocused(false);
+                      }}
                       placeholder={isConnected ? "Ask anything (Ctrl+/ to focus)" : "Ask anything"}
                       disabled={!isConnected || isLoading}
                       rows={1}
