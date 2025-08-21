@@ -19,8 +19,13 @@ class PDFDownloadManager {
     try {
       console.log('📥 Downloading discharge report PDF:', reportNumber);
       
+      // Determine the correct API URL based on environment
+      const apiUrl = window.location.hostname === 'localhost' && window.location.port === '5173' 
+        ? 'http://localhost:8000/tools/call'  // Local development
+        : '/tools/call';                      // Deployment (through nginx proxy)
+      
       // Make API call to download PDF
-      const response = await fetch('/tools/call', {
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -112,7 +117,13 @@ class PDFDownloadManager {
     // Convert Windows path to URL-friendly path
     // The server serves from 'reports' directory as root, so remove 'reports\' or 'reports/'
     const urlPath = filePath.replace(/\\/g, '/').replace(/^reports\//, '');
-    const pdfUrl = `/${urlPath}`;
+    
+    // Determine the correct base URL based on environment
+    const baseUrl = window.location.hostname === 'localhost' && window.location.port === '5173' 
+      ? 'http://localhost:8000'  // Local development
+      : '';                      // Deployment (through nginx proxy)
+    
+    const pdfUrl = `${baseUrl}/${urlPath}`;
     
     console.log('📡 Fetching PDF from:', pdfUrl);
     
