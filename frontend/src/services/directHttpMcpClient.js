@@ -5,10 +5,10 @@
 
 class DirectHttpMCPClient {
   constructor() {
-   // Use relative URL to go through nginx proxy
-    // This will use the current domain/port and route through nginx
-    this.serverUrl = '';
-    //this.serverUrl = 'http://localhost:8000';
+    // Smart URL detection: use localhost:8000 for local dev, relative URL for deployment
+    this.serverUrl = window.location.hostname === 'localhost' && window.location.port === '5173' 
+      ? 'http://localhost:8000'  // Local development (Vite dev server)
+      : '';                      // Deployment (through nginx proxy)
     this.isConnected = false;
     this.serverInfo = {};
     this.tools = [];
