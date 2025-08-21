@@ -45,6 +45,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./backend-python:/app
+      - pdf_uploads:/app/uploads  # Dedicated volume for PDF files
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -89,6 +90,8 @@ services:
 
 volumes:
   postgres_data:
+    driver: local
+  pdf_uploads:
     driver: local
 
 networks:
