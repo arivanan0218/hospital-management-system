@@ -342,6 +342,50 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
     checkMicrophoneAvailability();
   }, []);
 
+  // Handle mobile viewport changes and virtual keyboard
+  useEffect(() => {
+    const handleViewportChange = () => {
+      if (isMobileDevice()) {
+        // Set CSS variable for actual viewport height
+        const vh = window.innerHeight * 0.01;
+        document.documentElement.style.setProperty('--vh', `${vh}px`);
+        
+        // Force a layout recalculation
+        document.documentElement.style.height = `${window.innerHeight}px`;
+      }
+    };
+
+    const handleResize = () => {
+      handleViewportChange();
+    };
+
+    const handleOrientationChange = () => {
+      // Delay to account for orientation change animation
+      setTimeout(handleViewportChange, 100);
+    };
+
+    // Initial setup
+    handleViewportChange();
+
+    // Add event listeners
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleOrientationChange);
+    
+    // iOS specific visual viewport API for better keyboard handling
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleViewportChange);
+    }
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleOrientationChange);
+      
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleViewportChange);
+      }
+    };
+  }, []);
+
   // Mobile detection utility function
   const isMobileDevice = () => {
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
@@ -3285,7 +3329,13 @@ Examples:
 
   // Main Chat Interface - Claude Desktop Style with Responsive Design
   return (
-    <div className="h-screen bg-[#1a1a1a] flex flex-col text-white overflow-hidden relative mobile-viewport-fix" style={{ height: '100dvh' }}>
+    <div className="h-screen bg-[#1a1a1a] flex flex-col text-white overflow-hidden relative" 
+         style={{ 
+           height: '100dvh',
+           minHeight: '-webkit-fill-available', // iOS Safari fallback
+           // Use CSS variable for better mobile viewport handling
+           height: 'calc(var(--vh, 1vh) * 100)'
+         }}>
       {/* Claude-style Header - FIXED */}
       <div className="flex-shrink-0 border-b border-gray-700 px-3 sm:px-4 py-3 bg-[#1a1a1a] relative z-30">
         <div className="flex items-center justify-between">
@@ -3693,7 +3743,15 @@ Examples:
         </div>
 
         {/* Modern Chat Input - Fixed at bottom */}
-        <div className="bg-[#1a1a1a] px-3 sm:px-4 py-2 flex-shrink-0 border-t border-gray-700">
+        <div className="bg-[#1a1a1a] px-3 sm:px-4 py-2 flex-shrink-0 border-t border-gray-700"
+             style={{
+               position: 'sticky',
+               bottom: 0,
+               zIndex: 40,
+               // Ensure input stays visible on mobile when keyboard appears
+               transform: 'translateZ(0)', // Force hardware acceleration
+               backfaceVisibility: 'hidden' // Performance optimization
+             }}>
           <div className="max-w-4xl mx-auto">
               {/* Voice Status Indicator */}
               {(isRecording || isProcessingVoice || isSpeaking) && (
@@ -3745,22 +3803,8 @@ Examples:
                           handleSendMessage();
                         }
                       }}
-                      onFocus={() => {
-                        setIsInputFocused(true);
-                        // Prevent mobile viewport jumping on focus
-                        if (window.innerHeight < window.outerHeight) {
-                          // Mobile keyboard is likely present, scroll into view smoothly
-                          setTimeout(() => {
-                            inputFieldRef.current?.scrollIntoView({ 
-                              behavior: 'smooth', 
-                              block: 'nearest' 
-                            });
-                          }, 100);
-                        }
-                      }}
-                      onBlur={() => {
-                        setIsInputFocused(false);
-                      }}
+                      onFocus={() => setIsInputFocused(true)}
+                      onBlur={() => setIsInputFocused(false)}
                       placeholder={isConnected ? "Ask anything (Ctrl+/ to focus)" : "Ask anything"}
                       disabled={!isConnected || isLoading}
                       rows={1}
