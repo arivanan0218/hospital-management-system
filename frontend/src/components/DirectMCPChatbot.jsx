@@ -4706,6 +4706,18 @@ Examples:
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-4">
                   <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Equipment ID * 
+                      <span className="text-xs text-gray-400">(e.g., EQ001, EQ002)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={equipmentFormData.equipment_id}
+                      onChange={(e) => handleEquipmentFormChange('equipment_id', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="EQ001"
+                    />
+                  </div>
+                  <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1">Equipment Name *</label>
                     <input
                       type="text"
@@ -4889,6 +4901,18 @@ Examples:
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-4">
                   <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Item Code * 
+                      <span className="text-xs text-gray-400">(e.g., SUP001, MED001)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={supplyFormData.item_code}
+                      onChange={(e) => handleSupplyFormChange('item_code', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="SUP001"
+                    />
+                  </div>
+                  <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1">Supply Name *</label>
                     <input
                       type="text"
@@ -4915,13 +4939,23 @@ Examples:
                     <p className="text-xs text-gray-400 mt-1">Choose the supply category</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Quantity</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Current Stock</label>
                     <input
                       type="number"
-                      value={supplyFormData.quantity}
-                      onChange={(e) => handleSupplyFormChange('quantity', e.target.value)}
+                      value={supplyFormData.current_stock}
+                      onChange={(e) => handleSupplyFormChange('current_stock', e.target.value)}
                       className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Stock quantity"
+                      placeholder="Current stock quantity"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Minimum Stock Level</label>
+                    <input
+                      type="number"
+                      value={supplyFormData.minimum_stock_level}
+                      onChange={(e) => handleSupplyFormChange('minimum_stock_level', e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                      placeholder="Minimum stock level"
                     />
                   </div>
                 </div>
