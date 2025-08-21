@@ -3285,7 +3285,7 @@ Examples:
 
   // Main Chat Interface - Claude Desktop Style with Responsive Design
   return (
-    <div className="h-screen bg-[#1a1a1a] flex flex-col text-white overflow-hidden relative" style={{ height: '100vh', height: '100dvh' }}>
+    <div className="h-screen bg-[#1a1a1a] flex flex-col text-white overflow-hidden relative" style={{ height: '100vh' }}>
       {/* Claude-style Header - FIXED */}
       <div className="flex-shrink-0 border-b border-gray-700 px-3 sm:px-4 py-3 bg-[#1a1a1a] relative z-30">
         <div className="flex items-center justify-between">
