@@ -1009,6 +1009,14 @@ Respond naturally, conversationally, and contextually based on the conversation 
       toolsNeeded.push({ name: 'list_beds', arguments: {} });
     }
     
+    // Bed search by bed number (e.g., "details of bed 201B", "show bed 201B", "get bed 201B info")
+    const bedNumberMatch = message.match(/bed\s+([A-Z0-9]+[A-Z]?)/i);
+    if ((message.includes('details of bed') || message.includes('show bed') || message.includes('get bed') || 
+         message.includes('bed number') || message.includes('find bed')) && bedNumberMatch) {
+      const bedNumber = bedNumberMatch[1].toUpperCase();
+      toolsNeeded.push({ name: 'get_bed_by_number', arguments: { bed_number: bedNumber } });
+    }
+    
     // Enhanced bed creation
     if (message.includes('create bed') || message.includes('add bed') || message.includes('new bed')) {
       const bedParams = this.extractBedParameters(userMessage);
@@ -1376,6 +1384,33 @@ Respond naturally and helpfully based on the user's request and the tool results
                         response += `Bed ${item.bed_number}`;
                         if (item.room_number) response += ` - Room ${item.room_number}`;
                         if (item.status) response += ` (${item.status})`;
+                      }
+                      break;
+                      
+                    case 'get_bed_by_number':
+                      if (item.bed_number) {
+                        response += `🛏️ **Bed ${item.bed_number}** - Complete Details\n\n`;
+                        if (item.id) response += `**Bed ID:** ${item.id}\n`;
+                        if (item.room_id) response += `**Room ID:** ${item.room_id}\n`;
+                        if (item.bed_type) response += `**Bed Type:** ${item.bed_type}\n`;
+                        if (item.status) {
+                          const statusIcon = item.status === 'available' ? '✅' : item.status === 'occupied' ? '🔴' : '⚠️';
+                          response += `**Status:** ${statusIcon} ${item.status.toUpperCase()}\n`;
+                        }
+                        if (item.patient_id) {
+                          response += `**Current Patient:** ${item.patient_id}\n`;
+                        } else {
+                          response += `**Current Patient:** None (Available)\n`;
+                        }
+                        if (item.admission_date) response += `**Admission Date:** ${item.admission_date}\n`;
+                        if (item.notes) response += `**Notes:** ${item.notes}\n`;
+                        response += `\n**Actions Available:**\n`;
+                        if (item.status === 'available') {
+                          response += `• Assign to patient: "Assign bed ${item.bed_number} to patient [name]"\n`;
+                        } else if (item.status === 'occupied') {
+                          response += `• Discharge patient: "Discharge bed ${item.bed_number}"\n`;
+                        }
+                        response += `• Update status: "Update bed ${item.bed_number} status to [status]"\n`;
                       }
                       break;
                       
