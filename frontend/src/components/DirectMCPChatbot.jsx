@@ -3488,8 +3488,7 @@ Examples:
       {activeTab === 'chat' && (
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden" style={{ 
           marginTop: '70px', 
-          marginBottom: '80px',
-          paddingBottom: 'env(safe-area-inset-bottom, 0px)'
+          marginBottom: showActionButtons ? 'calc(130px + env(safe-area-inset-bottom, 0px))' : 'calc(80px + env(safe-area-inset-bottom, 0px))',
         }}>
           {/* Messages Container - ONLY THIS SCROLLS */}
           <div 
@@ -3681,10 +3680,12 @@ Examples:
             </div>
           </div>
 
-          {/* Action Buttons Above Input - FIXED (NOT SCROLLABLE) */}
-          <div className={`bg-[#1a1a1a] px-4 flex-shrink-0 transition-all duration-500 ease-in-out overflow-hidden ${
-            showActionButtons ? 'py-1 opacity-100' : 'py-0 opacity-0 max-h-0'
-          }`}>
+          {/* Action Buttons Above Input - FIXED ABOVE BOTTOM INPUT */}
+          <div className={`fixed left-0 right-0 bg-[#1a1a1a] px-4 z-20 border-t border-gray-700 transition-all duration-500 ease-in-out overflow-hidden ${
+            showActionButtons ? 'py-2 opacity-100' : 'py-0 opacity-0 max-h-0 -bottom-full'
+          }`} style={{
+            bottom: showActionButtons ? 'calc(70px + env(safe-area-inset-bottom, 0px))' : '-100px'
+          }}>
             <div className="max-w-4xl mx-auto">
             {/* Desktop: 1 row 4 columns, Mobile: 2 rows 2 columns */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
