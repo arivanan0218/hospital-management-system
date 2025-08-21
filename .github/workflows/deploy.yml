@@ -20,6 +20,13 @@ env:
   GOOGLE_PROJECT_ID: ${{ secrets.GOOGLE_PROJECT_ID }}
   GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
   GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+  # Email configuration for deployment
+  SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+  SMTP_PORT: ${{ secrets.SMTP_PORT }}
+  EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME }}
+  EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+  EMAIL_FROM_NAME: ${{ secrets.EMAIL_FROM_NAME }}
+  EMAIL_FROM_ADDRESS: ${{ secrets.EMAIL_FROM_ADDRESS }}
 
 jobs:
   test:
@@ -266,6 +273,12 @@ jobs:
           --network hospital-network \
           --restart unless-stopped \
           -e DATABASE_URL="postgresql://postgres:postgres@postgres:5432/hospital_db" \
+          -e SMTP_SERVER="smtp.gmail.com" \
+          -e SMTP_PORT="587" \
+          -e EMAIL_USERNAME="$EMAIL_USERNAME" \
+          -e EMAIL_PASSWORD="$EMAIL_PASSWORD" \
+          -e EMAIL_FROM_NAME="$EMAIL_FROM_NAME" \
+          -e EMAIL_FROM_ADDRESS="$EMAIL_FROM_ADDRESS" \
           135878023409.dkr.ecr.us-east-1.amazonaws.com/hospital-backend:latest
         
         # Start new frontend container
