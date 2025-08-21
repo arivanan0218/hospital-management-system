@@ -342,6 +342,45 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
     checkMicrophoneAvailability();
   }, []);
 
+  // Mobile viewport handling to prevent keyboard issues
+  useEffect(() => {
+    const handleMobileViewport = () => {
+      if (isMobileDevice()) {
+        // Set CSS custom property for real viewport height
+        const vh = window.innerHeight * 0.01;
+        document.documentElement.style.setProperty('--vh', `${vh}px`);
+        
+        // Prevent viewport zoom on input focus
+        const viewport = document.querySelector('meta[name=viewport]');
+        if (!viewport) {
+          const newViewport = document.createElement('meta');
+          newViewport.name = 'viewport';
+          newViewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover';
+          document.head.appendChild(newViewport);
+        }
+      }
+    };
+
+    // Initial setup
+    handleMobileViewport();
+
+    // Handle orientation changes and resize
+    const handleResize = () => {
+      if (isMobileDevice()) {
+        setTimeout(handleMobileViewport, 100); // Delay to account for keyboard animation
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
+  }, []);
+
   // Mobile detection utility function
   const isMobileDevice = () => {
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
@@ -1485,6 +1524,7 @@ Examples:
         document.documentElement.style.height = '100%';
         document.body.style.height = '100%';
         document.body.style.minHeight = '100vh';
+        document.body.style.minHeight = '100dvh';
       };
       
       // Set initial viewport height MULTIPLE TIMES to ensure it takes effect
@@ -3284,9 +3324,9 @@ Examples:
 
   // Main Chat Interface - Claude Desktop Style with Responsive Design
   return (
-    <div className="h-screen bg-[#1a1a1a] flex flex-col text-white overflow-hidden relative" style={{ height: '100vh' }}>
-      {/* Claude-style Header - FIXED */}
-      <div className="flex-shrink-0 border-b border-gray-700 px-3 sm:px-4 py-3 bg-[#1a1a1a] relative z-30">
+    <div className="bg-[#1a1a1a] flex flex-col text-white overflow-hidden relative" style={{ height: 'calc(var(--vh, 1vh) * 100)' }}>
+      {/* Claude-style Header - FIXED AT TOP */}
+      <div className="fixed top-0 left-0 right-0 border-b border-gray-700 px-3 sm:px-4 py-3 bg-[#1a1a1a] z-30">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2 sm:space-x-3">
             <div className="w-6 h-6 sm:w-7 sm:h-7 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs sm:text-sm font-medium shadow-lg">
@@ -3446,11 +3486,19 @@ Examples:
 
       {/* Content Area - MAIN SCROLLABLE CONTAINER */}
       {activeTab === 'chat' && (
-        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden" style={{ 
+          marginTop: '70px', 
+          marginBottom: '80px',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)'
+        }}>
           {/* Messages Container - ONLY THIS SCROLLS */}
           <div 
             ref={messagesContainerRef} 
-            className="flex-1 overflow-y-auto overflow-x-hidden bg-[#1a1a1a]"
+            className="flex-1 overflow-y-auto overflow-x-hidden bg-[#1a1a1a] px-0 sm:px-2"
+            style={{ 
+              WebkitOverflowScrolling: 'touch',
+              scrollBehavior: 'smooth'
+            }}
             onClick={() => {
               // Smart focus input when clicking anywhere in the chat area, but not when selecting text
               const selection = window.getSelection();
@@ -3691,8 +3739,13 @@ Examples:
           </div>
         </div>
 
-        {/* Modern Chat Input - Fixed at bottom */}
-        <div className="bg-[#1a1a1a] px-3 sm:px-4 py-2 flex-shrink-0 border-t border-gray-700">
+        {/* Modern Chat Input - FIXED AT BOTTOM */}
+        <div 
+          className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] px-3 sm:px-4 py-2 border-t border-gray-700 z-30"
+          style={{ 
+            paddingBottom: 'calc(8px + env(safe-area-inset-bottom, 0px))'
+          }}
+        >
           <div className="max-w-4xl mx-auto">
               {/* Voice Status Indicator */}
               {(isRecording || isProcessingVoice || isSpeaking) && (
@@ -3749,10 +3802,13 @@ Examples:
                       placeholder={isConnected ? "Ask anything (Ctrl+/ to focus)" : "Ask anything"}
                       disabled={!isConnected || isLoading}
                       rows={1}
-                      className="w-full bg-transparent border-none outline-none resize-none text-white placeholder-gray-400 text-sm sm:text-base"
+                      className="w-full bg-transparent border-none outline-none resize-none text-white placeholder-gray-400 text-base"
                       style={{
                         minHeight: '20px',
-                        maxHeight: '120px'
+                        maxHeight: '120px',
+                        fontSize: '16px', // Prevents zoom on iOS
+                        WebkitAppearance: 'none',
+                        WebkitBorderRadius: 0
                       }}
                       onInput={(e) => {
                         e.target.style.height = 'auto';
