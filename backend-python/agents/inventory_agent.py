@@ -112,7 +112,8 @@ class InventoryAgent(BaseAgent):
     
     def create_supply(self, item_code: str, name: str, category_id: str, unit_of_measure: str,
                      current_stock: int = 0, minimum_stock_level: int = 10, maximum_stock_level: int = 1000,
-                     unit_cost: float = None, supplier: str = None) -> Dict[str, Any]:
+                     unit_cost: float = None, supplier: str = None, location: str = None,
+                     description: str = None, expiry_date: str = None) -> Dict[str, Any]:
         """Create a new supply item."""
         if not DATABASE_AVAILABLE:
             return {"success": False, "message": "Database not available"}
@@ -128,7 +129,10 @@ class InventoryAgent(BaseAgent):
                 minimum_stock_level=minimum_stock_level,
                 maximum_stock_level=maximum_stock_level,
                 unit_cost=unit_cost,
-                supplier=supplier
+                supplier=supplier,
+                location=location,
+                description=description,
+                expiry_date=datetime.strptime(expiry_date, '%Y-%m-%d').date() if expiry_date else None
             )
             db.add(supply)
             db.commit()
@@ -241,7 +245,7 @@ class InventoryAgent(BaseAgent):
             return {"error": f"Failed to get low stock supplies: {str(e)}"}
 
     def update_supply_stock(self, supply_id: str, quantity_change: int, transaction_type: str,
-                           user_id: str = None, notes: str = None) -> Dict[str, Any]:
+                           performed_by: str, user_id: str = None, notes: str = None) -> Dict[str, Any]:
         """Update supply stock levels and log the transaction."""
         if not DATABASE_AVAILABLE:
             return {"success": False, "message": "Database not available"}
@@ -266,11 +270,13 @@ class InventoryAgent(BaseAgent):
             supply.current_stock = new_stock
             
             # Create inventory transaction record
+            # Use performed_by if provided, otherwise use user_id for backward compatibility
+            user_for_transaction = performed_by or user_id
             transaction = InventoryTransaction(
                 supply_id=uuid.UUID(supply_id),
                 transaction_type=transaction_type,
                 quantity=quantity_change,  # Use quantity instead of quantity_change
-                performed_by=uuid.UUID(user_id) if user_id else None,
+                performed_by=uuid.UUID(user_for_transaction) if user_for_transaction else None,
                 notes=f"{notes or ''} | Stock changed from {old_stock} to {new_stock}".strip(" |")
             )
             

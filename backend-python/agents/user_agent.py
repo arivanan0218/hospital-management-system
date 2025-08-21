@@ -41,7 +41,7 @@ class UserAgent(BaseAgent):
         ]
     
     def create_user(self, username: str, email: str, password_hash: str, role: str, 
-                    first_name: str, last_name: str, phone: str = None) -> Dict[str, Any]:
+                    first_name: str, last_name: str, phone: str = None, is_active: bool = True) -> Dict[str, Any]:
         """Create a new user in the database."""
         if not DATABASE_AVAILABLE:
             return {"success": False, "message": "Database not available"}
@@ -55,7 +55,8 @@ class UserAgent(BaseAgent):
                 role=role,
                 first_name=first_name,
                 last_name=last_name,
-                phone=phone
+                phone=phone,
+                is_active=is_active
             )
             db.add(user)
             db.commit()

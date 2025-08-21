@@ -30,6 +30,7 @@ class RoomBedAgent(BaseAgent):
             "create_bed",
             "list_beds",
             "get_bed_by_id",
+            "get_bed_by_number",
             "assign_bed_to_patient",
             "discharge_bed",
             "update_bed_status"
@@ -325,6 +326,30 @@ class RoomBedAgent(BaseAgent):
                 return {"error": "Bed not found"}
         except Exception as e:
             return {"error": f"Failed to get bed: {str(e)}"}
+
+    def get_bed_by_number(self, bed_number: str) -> Dict[str, Any]:
+        """Get a bed by bed number."""
+        if not DATABASE_AVAILABLE:
+            return {"error": "Database not available"}
+        
+        try:
+            db = self.get_db_session()
+            bed = db.query(Bed).filter(Bed.bed_number == bed_number).first()
+            result = self.serialize_model(bed) if bed else None
+            db.close()
+            
+            if result:
+                # Log the interaction
+                self.log_interaction(
+                    query=f"Get bed by number: {bed_number}",
+                    response=f"Bed {bed_number} found with ID: {result.get('id', 'N/A')}",
+                    tool_used="get_bed_by_number"
+                )
+                return {"data": result}
+            else:
+                return {"error": f"Bed not found with number: {bed_number}"}
+        except Exception as e:
+            return {"error": f"Failed to get bed by number: {str(e)}"}
 
     def assign_bed_to_patient(self, bed_id: str, patient_id: str, 
                              admission_date: str = None) -> Dict[str, Any]:

@@ -112,7 +112,8 @@ class EquipmentAgent(BaseAgent):
     def create_equipment(self, equipment_id: str, name: str, category_id: str, model: str = None,
                         manufacturer: str = None, serial_number: str = None, purchase_date: str = None,
                         warranty_expiry: str = None, status: str = "available", 
-                        department_id: str = None, location: str = None) -> Dict[str, Any]:
+                        department_id: str = None, location: str = None, cost: float = None,
+                        last_maintenance: str = None, next_maintenance: str = None) -> Dict[str, Any]:
         """Create a new equipment record."""
         if not DATABASE_AVAILABLE:
             return {"success": False, "message": "Database not available"}
@@ -121,6 +122,8 @@ class EquipmentAgent(BaseAgent):
             # Parse dates
             purchase_dt = datetime.strptime(purchase_date, "%Y-%m-%d").date() if purchase_date else None
             warranty_dt = datetime.strptime(warranty_expiry, "%Y-%m-%d").date() if warranty_expiry else None
+            last_maint_dt = datetime.strptime(last_maintenance, "%Y-%m-%d").date() if last_maintenance else None
+            next_maint_dt = datetime.strptime(next_maintenance, "%Y-%m-%d").date() if next_maintenance else None
             
             db = self.get_db_session()
             equipment = Equipment(
@@ -134,7 +137,10 @@ class EquipmentAgent(BaseAgent):
                 warranty_expiry=warranty_dt,
                 status=status,
                 department_id=uuid.UUID(department_id) if department_id else None,
-                location=location
+                location=location,
+                cost=cost,
+                last_maintenance=last_maint_dt,
+                next_maintenance=next_maint_dt
             )
             db.add(equipment)
             db.commit()

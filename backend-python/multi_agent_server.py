@@ -175,12 +175,13 @@ def execute_workflow(workflow_name: str, workflow_params: Dict[str, Any]) -> Dic
 
 @mcp.tool()
 def create_user(username: str, email: str, password_hash: str, role: str, 
-                first_name: str, last_name: str, phone: str = None) -> Dict[str, Any]:
+                first_name: str, last_name: str, phone: str = None, is_active: bool = True) -> Dict[str, Any]:
     """Create a new user in the database."""
     if MULTI_AGENT_AVAILABLE and orchestrator:
         result = orchestrator.route_request("create_user", 
                                            username=username, email=email, password_hash=password_hash,
-                                           role=role, first_name=first_name, last_name=last_name, phone=phone)
+                                           role=role, first_name=first_name, last_name=last_name, 
+                                           phone=phone, is_active=is_active)
         return result.get("result", result)
     
     # Fallback to direct implementation if multi-agent not available
@@ -452,6 +453,24 @@ def list_beds(status: str = None, room_id: str = None) -> Dict[str, Any]:
     return {"error": "Multi-agent system required for this operation"}
 
 @mcp.tool()
+def get_bed_by_id(bed_id: str) -> Dict[str, Any]:
+    """Get bed details by bed ID."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("get_bed_by_id", bed_id=bed_id)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def get_bed_by_number(bed_number: str) -> Dict[str, Any]:
+    """Get bed details by bed number."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("get_bed_by_number", bed_number=bed_number)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
 def assign_bed_to_patient(bed_id: str, patient_id: str, admission_date: str = None) -> Dict[str, Any]:
     """Assign a bed to a patient."""
     if MULTI_AGENT_AVAILABLE and orchestrator:
@@ -476,14 +495,15 @@ def discharge_bed(bed_id: str, discharge_date: str = None) -> Dict[str, Any]:
 def create_equipment(equipment_id: str, name: str, category_id: str, model: str = None,
                     manufacturer: str = None, serial_number: str = None, purchase_date: str = None,
                     warranty_expiry: str = None, location: str = None, department_id: str = None,
-                    cost: float = None) -> Dict[str, Any]:
+                    cost: float = None, last_maintenance: str = None, next_maintenance: str = None) -> Dict[str, Any]:
     """Create a new equipment item."""
     if MULTI_AGENT_AVAILABLE and orchestrator:
         result = orchestrator.route_request("create_equipment",
                                            equipment_id=equipment_id, name=name, category_id=category_id,
                                            model=model, manufacturer=manufacturer, serial_number=serial_number,
                                            purchase_date=purchase_date, warranty_expiry=warranty_expiry,
-                                           location=location, department_id=department_id, cost=cost)
+                                           location=location, department_id=department_id, cost=cost,
+                                           last_maintenance=last_maintenance, next_maintenance=next_maintenance)
         return result.get("result", result)
     # Direct DB fallback
     if not DATABASE_AVAILABLE:
@@ -640,12 +660,13 @@ def get_supply_by_id(supply_id: str) -> Dict[str, Any]:
 
 @mcp.tool()
 def update_supply_stock(supply_id: str, quantity_change: int, transaction_type: str,
-                       user_id: str = None, notes: str = None) -> Dict[str, Any]:
+                       performed_by: str = None, user_id: str = None, notes: str = None) -> Dict[str, Any]:
     """Update supply stock levels and log the transaction."""
     if MULTI_AGENT_AVAILABLE and orchestrator:
         result = orchestrator.route_request("update_supply_stock",
                                            supply_id=supply_id, quantity_change=quantity_change,
-                                           transaction_type=transaction_type, user_id=user_id, notes=notes)
+                                           transaction_type=transaction_type, performed_by=performed_by,
+                                           user_id=user_id, notes=notes)
         return result.get("result", result)
     
     return {"error": "Multi-agent system required for this operation"}
