@@ -1485,7 +1485,6 @@ Examples:
         document.documentElement.style.height = '100%';
         document.body.style.height = '100%';
         document.body.style.minHeight = '100vh';
-        document.body.style.minHeight = '100dvh';
       };
       
       // Set initial viewport height MULTIPLE TIMES to ensure it takes effect
