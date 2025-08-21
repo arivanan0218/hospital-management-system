@@ -189,6 +189,22 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   });
   const [isSubmittingLegacyUser, setIsSubmittingLegacyUser] = useState(false);
   
+  // Equipment Category creation popup form
+  const [showEquipmentCategoryForm, setShowEquipmentCategoryForm] = useState(false);
+  const [equipmentCategoryFormData, setEquipmentCategoryFormData] = useState({
+    name: '',
+    description: ''
+  });
+  const [isSubmittingEquipmentCategory, setIsSubmittingEquipmentCategory] = useState(false);
+  
+  // Supply Category creation popup form
+  const [showSupplyCategoryForm, setShowSupplyCategoryForm] = useState(false);
+  const [supplyCategoryFormData, setSupplyCategoryFormData] = useState({
+    name: '',
+    description: ''
+  });
+  const [isSubmittingSupplyCategory, setIsSubmittingSupplyCategory] = useState(false);
+  
   // Dropdown options state for foreign keys
   const [departmentOptions, setDepartmentOptions] = useState([]);
   const [userOptions, setUserOptions] = useState([]);
@@ -831,19 +847,24 @@ Return ONLY one of these values:
 - "create_room" for room creation
 - "create_bed" for bed creation
 - "create_staff" for staff hiring/registration
-- "create_equipment" for equipment registration (NOT categories)
-- "create_supply" for supply registration (NOT categories)
+- "create_equipment" for equipment registration/adding new equipment
+- "create_supply" for supply registration
+- "create_equipment_category" for equipment category creation
+- "create_supply_category" for supply category creation
 - "create_appointment" for patient medical appointments
-- "ai_processing" for everything else
+- "ai_processing" for everything else (including equipment usage, staff assignments, updates, searches, etc.)
 
 Examples:
 - "Register a new patient" → create_patient
 - "Add new staff member" → create_staff  
 - "Create cardiology department" → create_department
 - "Add new equipment" → create_equipment
-- "Create equipment category" → ai_processing
+- "Register equipment" → create_equipment
+- "Create equipment category" → create_equipment_category
+- "Add equipment usage for patient" → ai_processing
+- "Record equipment usage" → ai_processing
 - "Add new supply" → create_supply
-- "Create supply category" → ai_processing
+- "Create supply category" → create_supply_category
 - "Book patient appointment" → create_appointment
 - "Schedule staff meeting" → ai_processing
 - "List all patients" → ai_processing
@@ -869,19 +890,21 @@ Examples:
       
       console.log('🤖 AI Intent Detection Result:', userMessage, '->', intent);
       
-      // STRICT VALIDATION: Only these exact 10 create tools should show popup forms
-      // All other tools (including create_equipment_category, create_supply_category, etc.) use AI processing
+      // STRICT VALIDATION: Only these exact 12 create tools should show popup forms
+      // All other tools use AI processing
       const POPUP_FORM_TOOLS = [
-        'create_user',           // System user creation
-        'create_patient',        // Patient registration/admission  
-        'create_legacy_user',    // Legacy user creation
-        'create_department',     // Department creation
-        'create_room',           // Room creation
-        'create_bed',            // Bed creation
-        'create_staff',          // Staff hiring/registration
-        'create_equipment',      // Equipment registration (NOT categories)
-        'create_supply',         // Supply registration (NOT categories)
-        'create_appointment'     // Patient medical appointments
+        'create_user',                  // System user creation
+        'create_patient',               // Patient registration/admission  
+        'create_legacy_user',           // Legacy user creation
+        'create_department',            // Department creation
+        'create_room',                  // Room creation
+        'create_bed',                   // Bed creation
+        'create_staff',                 // Staff hiring/registration
+        'create_equipment',             // Equipment registration
+        'create_supply',                // Supply registration
+        'create_appointment',           // Patient medical appointments
+        'create_equipment_category',    // Equipment category creation
+        'create_supply_category'        // Supply category creation
       ];
       
       if (POPUP_FORM_TOOLS.includes(intent)) {
@@ -1049,6 +1072,30 @@ Examples:
               timestamp: new Date().toLocaleTimeString()
             };
             setMessages(prev => [...prev, supplyMsg]);
+            return;
+            
+          case 'create_equipment_category':
+            console.log('🏷️ Opening Equipment Category Creation Form');
+            setShowEquipmentCategoryForm(true);
+            const equipCatMsg = {
+              id: Date.now() + 1,
+              text: "I detected you want to create an equipment category! I've opened the equipment category creation form for you. Please provide a name and optional description.",
+              sender: 'ai',
+              timestamp: new Date().toLocaleTimeString()
+            };
+            setMessages(prev => [...prev, equipCatMsg]);
+            return;
+            
+          case 'create_supply_category':
+            console.log('🏷️ Opening Supply Category Creation Form');
+            setShowSupplyCategoryForm(true);
+            const supplyCatMsg = {
+              id: Date.now() + 1,
+              text: "I detected you want to create a supply category! I've opened the supply category creation form for you. Please provide a name and optional description.",
+              sender: 'ai',
+              timestamp: new Date().toLocaleTimeString()
+            };
+            setMessages(prev => [...prev, supplyCatMsg]);
             return;
             
           case 'create_appointment':
@@ -2954,6 +3001,142 @@ Examples:
     const cancelMsg = {
       id: Date.now(),
       text: "Legacy user creation form was closed. You can say 'create legacy user' anytime to open it again.",
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, cancelMsg]);
+  };
+
+  // Equipment Category Form Handlers
+  const handleEquipmentCategoryFormChange = (field, value) => {
+    setEquipmentCategoryFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const submitEquipmentCategory = async () => {
+    const requiredFields = ['name'];
+    const missingFields = requiredFields.filter(field => !equipmentCategoryFormData[field].trim());
+    
+    if (missingFields.length > 0) {
+      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
+      return;
+    }
+
+    setIsSubmittingEquipmentCategory(true);
+
+    try {
+      const response = await aiMcpServiceRef.current.callToolDirectly(
+        'create_equipment_category',
+        equipmentCategoryFormData
+      );
+
+      let responseText = '';
+      if (response && response.success) {
+        responseText = `✅ Equipment category "${equipmentCategoryFormData.name}" created successfully!`;
+        setEquipmentCategoryFormData({ name: '', description: '' });
+        setShowEquipmentCategoryForm(false);
+        // Reload equipment categories for dropdowns
+        await loadDropdownOptions();
+      } else {
+        responseText = `❌ Failed to create equipment category: ${response.message || 'Unknown error'}`;
+      }
+
+      const responseMsg = {
+        id: Date.now(),
+        text: responseText,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, responseMsg]);
+
+    } catch (error) {
+      const errorMsg = {
+        id: Date.now(),
+        text: `❌ Error creating equipment category: ${error.message}`,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setIsSubmittingEquipmentCategory(false);
+    }
+  };
+
+  const closeEquipmentCategoryForm = () => {
+    setShowEquipmentCategoryForm(false);
+    const cancelMsg = {
+      id: Date.now(),
+      text: "Equipment category creation form was closed. You can say 'create equipment category' anytime to open it again.",
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, cancelMsg]);
+  };
+
+  // Supply Category Form Handlers
+  const handleSupplyCategoryFormChange = (field, value) => {
+    setSupplyCategoryFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const submitSupplyCategory = async () => {
+    const requiredFields = ['name'];
+    const missingFields = requiredFields.filter(field => !supplyCategoryFormData[field].trim());
+    
+    if (missingFields.length > 0) {
+      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
+      return;
+    }
+
+    setIsSubmittingSupplyCategory(true);
+
+    try {
+      const response = await aiMcpServiceRef.current.callToolDirectly(
+        'create_supply_category',
+        supplyCategoryFormData
+      );
+
+      let responseText = '';
+      if (response && response.success) {
+        responseText = `✅ Supply category "${supplyCategoryFormData.name}" created successfully!`;
+        setSupplyCategoryFormData({ name: '', description: '' });
+        setShowSupplyCategoryForm(false);
+        // Reload supply categories for dropdowns
+        await loadDropdownOptions();
+      } else {
+        responseText = `❌ Failed to create supply category: ${response.message || 'Unknown error'}`;
+      }
+
+      const responseMsg = {
+        id: Date.now(),
+        text: responseText,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, responseMsg]);
+
+    } catch (error) {
+      const errorMsg = {
+        id: Date.now(),
+        text: `❌ Error creating supply category: ${error.message}`,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setIsSubmittingSupplyCategory(false);
+    }
+  };
+
+  const closeSupplyCategoryForm = () => {
+    setShowSupplyCategoryForm(false);
+    const cancelMsg = {
+      id: Date.now(),
+      text: "Supply category creation form was closed. You can say 'create supply category' anytime to open it again.",
       sender: 'ai',
       timestamp: new Date().toLocaleTimeString()
     };
@@ -5001,16 +5184,6 @@ Examples:
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Minimum Stock Level</label>
-                    <input
-                      type="number"
-                      value={supplyFormData.minimum_stock_level}
-                      onChange={(e) => handleSupplyFormChange('minimum_stock_level', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Minimum stock level"
-                    />
-                  </div>
-                  <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1">Maximum Stock Level</label>
                     <input
                       type="number"
@@ -5021,23 +5194,23 @@ Examples:
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Current Stock</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Location</label>
                     <input
-                      type="number"
-                      value={supplyFormData.current_stock}
-                      onChange={(e) => handleSupplyFormChange('current_stock', e.target.value)}
+                      type="text"
+                      value={supplyFormData.location}
+                      onChange={(e) => handleSupplyFormChange('location', e.target.value)}
                       className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Current stock quantity"
+                      placeholder="Storage location"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Department ID</label>
-                    <input
-                      type="number"
-                      value={supplyFormData.department_id}
-                      onChange={(e) => handleSupplyFormChange('department_id', e.target.value)}
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Description</label>
+                    <textarea
+                      value={supplyFormData.description}
+                      onChange={(e) => handleSupplyFormChange('description', e.target.value)}
                       className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Department ID"
+                      placeholder="Supply description"
+                      rows="3"
                     />
                   </div>
                 </div>
@@ -5239,6 +5412,94 @@ Examples:
               <button onClick={closeLegacyUserForm} disabled={isSubmittingLegacyUser} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
               <button onClick={submitLegacyUser} disabled={isSubmittingLegacyUser} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
                 {isSubmittingLegacyUser ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating Legacy User...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create Legacy User</span></>)}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Equipment Category Creation Form Popup */}
+      {showEquipmentCategoryForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-xl max-h-[90vh] overflow-y-auto">
+            <div className="border-b border-gray-700 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-white">Equipment Category Creation</h2>
+                <button onClick={closeEquipmentCategoryForm} className="text-gray-400 hover:text-white">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Category Name *</label>
+                <input
+                  type="text"
+                  value={equipmentCategoryFormData.name}
+                  onChange={(e) => handleEquipmentCategoryFormChange('name', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  placeholder="e.g., Diagnostic Equipment, Surgical Instruments"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Description (Optional)</label>
+                <textarea
+                  value={equipmentCategoryFormData.description}
+                  onChange={(e) => handleEquipmentCategoryFormChange('description', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  placeholder="Brief description of this category"
+                  rows="3"
+                />
+              </div>
+            </div>
+            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
+              <button onClick={closeEquipmentCategoryForm} disabled={isSubmittingEquipmentCategory} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
+              <button onClick={submitEquipmentCategory} disabled={isSubmittingEquipmentCategory} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
+                {isSubmittingEquipmentCategory ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating Category...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create Category</span></>)}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Supply Category Creation Form Popup */}
+      {showSupplyCategoryForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-xl max-h-[90vh] overflow-y-auto">
+            <div className="border-b border-gray-700 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-white">Supply Category Creation</h2>
+                <button onClick={closeSupplyCategoryForm} className="text-gray-400 hover:text-white">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Category Name *</label>
+                <input
+                  type="text"
+                  value={supplyCategoryFormData.name}
+                  onChange={(e) => handleSupplyCategoryFormChange('name', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  placeholder="e.g., Medications, Surgical Supplies"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Description (Optional)</label>
+                <textarea
+                  value={supplyCategoryFormData.description}
+                  onChange={(e) => handleSupplyCategoryFormChange('description', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  placeholder="Brief description of this category"
+                  rows="3"
+                />
+              </div>
+            </div>
+            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
+              <button onClick={closeSupplyCategoryForm} disabled={isSubmittingSupplyCategory} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
+              <button onClick={submitSupplyCategory} disabled={isSubmittingSupplyCategory} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
+                {isSubmittingSupplyCategory ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating Category...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create Category</span></>)}
               </button>
             </div>
           </div>
