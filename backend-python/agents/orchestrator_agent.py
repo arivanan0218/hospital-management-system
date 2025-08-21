@@ -101,8 +101,16 @@ class OrchestratorAgent(BaseAgent):
                 if hasattr(agent, tool_name):
                     method = getattr(agent, tool_name)
                     
-                    # Execute method (should be synchronous now)
-                    result = method(**kwargs)
+                    # Filter parameters to only include what the method expects
+                    method_signature = inspect.signature(method)
+                    filtered_kwargs = {}
+                    
+                    for param_name in method_signature.parameters:
+                        if param_name in kwargs:
+                            filtered_kwargs[param_name] = kwargs[param_name]
+                    
+                    # Execute method with filtered parameters
+                    result = method(**filtered_kwargs)
                     
                     # Log the routing
                     self.log_interaction(
