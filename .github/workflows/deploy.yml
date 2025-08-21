@@ -50,6 +50,41 @@ jobs:
       run: |
         cd backend-python
         python -c "import database; print('✅ Database module imported successfully')"
+    
+    - name: Test PDF dependencies
+      run: |
+        cd backend-python
+        python -c "
+        try:
+            from reportlab.lib.pagesizes import A4
+            from reportlab.platypus import SimpleDocTemplate, Paragraph
+            from reportlab.lib.styles import getSampleStyleSheet
+            import markdown2
+            print('✅ reportlab imported successfully')
+            print('✅ markdown2 imported successfully')
+            print('✅ PDF dependencies verified')
+            
+            # Test PDF creation
+            doc = SimpleDocTemplate('test.pdf', pagesize=A4)
+            styles = getSampleStyleSheet()
+            story = [Paragraph('CI/CD PDF Test', styles['Title'])]
+            doc.build(story)
+            
+            import os
+            if os.path.exists('test.pdf'):
+                size = os.path.getsize('test.pdf')
+                print(f'✅ PDF creation test passed ({size} bytes)')
+                os.remove('test.pdf')
+            else:
+                print('❌ PDF creation test failed')
+                exit(1)
+        except ImportError as e:
+            print(f'❌ PDF dependency missing: {e}')
+            exit(1)
+        except Exception as e:
+            print(f'❌ PDF creation failed: {e}')
+            exit(1)
+        "
 
   build-and-deploy:
     needs: test
@@ -89,6 +124,37 @@ jobs:
         cd backend-python
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:$IMAGE_TAG .
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:latest .
+        
+        echo "🧪 Testing PDF dependencies in Docker image..."
+        docker run --rm $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:latest python -c "
+        try:
+            from reportlab.lib.pagesizes import A4
+            from reportlab.platypus import SimpleDocTemplate, Paragraph
+            from reportlab.lib.styles import getSampleStyleSheet
+            import markdown2
+            print('✅ Docker image: PDF dependencies verified')
+            
+            # Test PDF creation in container
+            doc = SimpleDocTemplate('/tmp/docker-test.pdf', pagesize=A4)
+            styles = getSampleStyleSheet()
+            story = [Paragraph('Docker PDF Test', styles['Title'])]
+            doc.build(story)
+            
+            import os
+            if os.path.exists('/tmp/docker-test.pdf'):
+                size = os.path.getsize('/tmp/docker-test.pdf')
+                print(f'✅ Docker image: PDF creation works ({size} bytes)')
+            else:
+                print('❌ Docker image: PDF creation failed')
+                exit(1)
+        except ImportError as e:
+            print(f'❌ Docker image: PDF dependency missing: {e}')
+            exit(1)
+        except Exception as e:
+            print(f'❌ Docker image: PDF creation failed: {e}')
+            exit(1)
+        "
+        
         echo "📤 Pushing backend image..."
         docker push $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:$IMAGE_TAG
         docker push $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:latest
@@ -344,6 +410,28 @@ jobs:
                     proxy_set_header X-Forwarded-Proto $scheme;
                 }
                 
+                # PDF and file downloads (route to backend with special headers)
+                location ~ \.(pdf|doc|docx|xls|xlsx)$ {
+                    proxy_pass http://backend;
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto $scheme;
+                    # Special headers for file downloads
+                    proxy_buffering off;
+                    proxy_read_timeout 300s;
+                    proxy_send_timeout 300s;
+                }
+                
+                # Uploads directory (route to backend for file serving)
+                location /uploads/ {
+                    proxy_pass http://backend;
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto $scheme;
+                }
+                
                 # Docs routes (route to backend)
                 location /docs {
                     proxy_pass http://backend;
@@ -424,6 +512,35 @@ jobs:
         
         echo "🎉 Deployment completed!"
         echo " Application URL: http://${{ env.EC2_HOST }}/"
+        
+        echo "🧪 Verifying PDF functionality..."
+        sleep 5
+        
+        # Test PDF dependencies in deployed backend
+        sudo docker exec hospital-backend python -c "
+        try:
+            from reportlab.lib.pagesizes import A4
+            from reportlab.platypus import SimpleDocTemplate, Paragraph
+            from reportlab.lib.styles import getSampleStyleSheet
+            import markdown2
+            
+            doc = SimpleDocTemplate('/tmp/deploy_test.pdf', pagesize=A4)
+            styles = getSampleStyleSheet()
+            story = [Paragraph('Deployment PDF Test Success', styles['Title'])]
+            doc.build(story)
+            
+            import os
+            if os.path.exists('/tmp/deploy_test.pdf'):
+                size = os.path.getsize('/tmp/deploy_test.pdf')
+                print(f'✅ PDF verification passed ({size} bytes)')
+                os.remove('/tmp/deploy_test.pdf')
+            else:
+                print('❌ PDF creation failed in deployment')
+                exit(1)
+        except Exception as e:
+            print(f'❌ PDF verification failed: {e}')
+            exit(1)
+        " && echo "✅ PDF functionality verified in deployment" || echo "⚠️ PDF verification failed - check logs"
         EOF
         
         chmod +x deploy-to-ec2.sh
