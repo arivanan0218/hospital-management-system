@@ -169,13 +169,25 @@ class StaffAgent(BaseAgent):
             return {"error": f"Failed to list staff: {str(e)}"}
 
     def get_staff_by_id(self, staff_id: str) -> Dict[str, Any]:
-        """Get a staff member by ID."""
+        """Get a staff member by ID (supports both UUID and employee_id)."""
         if not DATABASE_AVAILABLE:
             return {"error": "Database not available"}
         
         try:
             db = self.get_db_session()
-            staff = db.query(Staff).filter(Staff.id == uuid.UUID(staff_id)).first()
+            staff = None
+            
+            # First try to find by employee_id (human-readable ID like EMP1112)
+            staff = db.query(Staff).filter(Staff.employee_id == staff_id).first()
+            
+            # If not found by employee_id, try by UUID
+            if not staff:
+                try:
+                    staff = db.query(Staff).filter(Staff.id == uuid.UUID(staff_id)).first()
+                except ValueError:
+                    # Invalid UUID format, stick with employee_id result (None)
+                    pass
+            
             result = self.serialize_model(staff) if staff else None
             db.close()
             
@@ -188,7 +200,7 @@ class StaffAgent(BaseAgent):
                 )
                 return {"data": result}
             else:
-                return {"error": "Staff member not found"}
+                return {"error": f"Staff member with ID '{staff_id}' not found"}
         except Exception as e:
             return {"error": f"Failed to get staff: {str(e)}"}
 
@@ -216,17 +228,28 @@ class StaffAgent(BaseAgent):
 
     def update_staff(self, staff_id: str, employee_id: str = None, department_id: str = None,
                     position: str = None, salary: float = None, status: str = None) -> Dict[str, Any]:
-        """Update staff information."""
+        """Update staff information (supports both UUID and employee_id)."""
         if not DATABASE_AVAILABLE:
             return {"success": False, "message": "Database not available"}
         
         try:
             db = self.get_db_session()
-            staff = db.query(Staff).filter(Staff.id == uuid.UUID(staff_id)).first()
+            staff = None
+            
+            # First try to find by employee_id (human-readable ID like EMP1112)
+            staff = db.query(Staff).filter(Staff.employee_id == staff_id).first()
+            
+            # If not found by employee_id, try by UUID
+            if not staff:
+                try:
+                    staff = db.query(Staff).filter(Staff.id == uuid.UUID(staff_id)).first()
+                except ValueError:
+                    # Invalid UUID format, stick with employee_id result (None)
+                    pass
             
             if not staff:
                 db.close()
-                return {"success": False, "message": "Staff member not found"}
+                return {"success": False, "message": f"Staff member with ID '{staff_id}' not found"}
             
             # Update provided fields
             update_fields = []
@@ -263,17 +286,28 @@ class StaffAgent(BaseAgent):
             return {"success": False, "message": f"Failed to update staff: {str(e)}"}
 
     def update_staff_status(self, staff_id: str, status: str, notes: str = None) -> Dict[str, Any]:
-        """Update staff status (active, inactive, on_leave, terminated)."""
+        """Update staff status (active, inactive, on_leave, terminated) - supports both UUID and employee_id."""
         if not DATABASE_AVAILABLE:
             return {"success": False, "message": "Database not available"}
         
         try:
             db = self.get_db_session()
-            staff = db.query(Staff).filter(Staff.id == uuid.UUID(staff_id)).first()
+            staff = None
+            
+            # First try to find by employee_id (human-readable ID like EMP1112)
+            staff = db.query(Staff).filter(Staff.employee_id == staff_id).first()
+            
+            # If not found by employee_id, try by UUID
+            if not staff:
+                try:
+                    staff = db.query(Staff).filter(Staff.id == uuid.UUID(staff_id)).first()
+                except ValueError:
+                    # Invalid UUID format, stick with employee_id result (None)
+                    pass
             
             if not staff:
                 db.close()
-                return {"success": False, "message": "Staff member not found"}
+                return {"success": False, "message": f"Staff member with ID '{staff_id}' not found"}
             
             old_status = staff.status
             staff.status = status

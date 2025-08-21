@@ -640,20 +640,23 @@ def list_staff(department_id: str = None, status: str = None) -> Dict[str, Any]:
 
 @mcp.tool()
 def get_staff_by_id(staff_id: str) -> Dict[str, Any]:
-    """Get a staff member by employee ID (case-insensitive)."""
+    """Get a staff member by employee ID or UUID (exact match)."""
     if not DATABASE_AVAILABLE:
         return {"error": "Database not available", "staff": None}
     
     try:
         db = get_db_session()
-        # Try to find by employee_id (human-readable ID) - case insensitive
-        staff_member = db.query(Staff).filter(Staff.employee_id.ilike(f"%{staff_id}%")).first()
+        staff_member = None
         
+        # First try to find by employee_id (exact match, case-insensitive)
+        staff_member = db.query(Staff).filter(Staff.employee_id.ilike(staff_id)).first()
+        
+        # If not found by employee_id, try by UUID
         if not staff_member:
-            # If not found by employee_id, try by UUID
             try:
                 staff_member = db.query(Staff).filter(Staff.id == uuid.UUID(staff_id)).first()
             except ValueError:
+                # Invalid UUID format, stick with employee_id result (None)
                 pass
         
         db.close()
