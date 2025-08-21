@@ -5,7 +5,7 @@
 
 class AuthService {
   constructor() {
-    this.baseURL = 'http://localhost:8000'; // Your FastAPI backend
+    this.baseURL = ''; // Use relative URL for deployment
     this.storageKey = 'hospital_users_db';
     this.initializeDefaultUsers();
   }
