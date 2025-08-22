@@ -806,7 +806,6 @@ class TreatmentRecord(Base):
     # Relationships
     patient = relationship("Patient")
     doctor = relationship("User", foreign_keys=[doctor_id])
-    appointment = relationship("Appointment")
     bed = relationship("Bed")
 
 def create_tables():

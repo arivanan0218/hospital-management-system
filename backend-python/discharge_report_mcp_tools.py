@@ -48,8 +48,6 @@ def add_treatment_record(patient_id: str,
                         description: str = "",
                         dosage: str = "",
                         frequency: str = "",
-                        duration: str = "",
-                        appointment_id: str = None,
                         bed_id: str = None) -> Dict[str, Any]:
     """Add a treatment record for a patient."""
     if not DATABASE_AVAILABLE:
@@ -66,9 +64,7 @@ def add_treatment_record(patient_id: str,
             description=description,
             dosage=dosage,
             frequency=frequency,
-            duration=duration,
             start_date=datetime.now(),
-            appointment_id=uuid.UUID(appointment_id) if appointment_id else None,
             bed_id=uuid.UUID(bed_id) if bed_id else None
         )
         
