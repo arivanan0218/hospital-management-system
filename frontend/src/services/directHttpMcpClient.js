@@ -20,7 +20,6 @@ class DirectHttpMCPClient {
       patients: [],
       staff: [],
       departments: [],
-      appointments: [],
       beds: [],
       equipment: [],
       supplies: [],
@@ -567,38 +566,6 @@ class DirectHttpMCPClient {
           }
         },
         
-        // Appointment Management
-        { 
-          name: 'list_appointments', 
-          description: 'List appointments',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              doctor_id: { type: 'string', description: 'Filter by doctor ID' },
-              patient_id: { type: 'string', description: 'Filter by patient ID' },
-              date: { type: 'string', description: 'Filter by date (YYYY-MM-DD)' }
-            },
-            required: []
-          }
-        },
-        { 
-          name: 'create_appointment', 
-          description: 'Create a new appointment',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              patient_id: { type: 'string', description: 'Patient ID' },
-              doctor_id: { type: 'string', description: 'Doctor ID (use staff member ID who is a doctor)' },
-              department_id: { type: 'string', description: 'Department ID' },
-              appointment_date: { type: 'string', description: 'Appointment date and time (YYYY-MM-DD HH:MM)' },
-              duration_minutes: { type: 'integer', description: 'Duration in minutes (default 30)' },
-              reason: { type: 'string', description: 'Reason for appointment' },
-              notes: { type: 'string', description: 'Additional notes' }
-            },
-            required: ['patient_id', 'doctor_id', 'department_id', 'appointment_date']
-          }
-        },
-        
         // Medical Document Management
         { 
           name: 'upload_medical_document', 
@@ -1045,30 +1012,6 @@ class DirectHttpMCPClient {
         required: []
       },
 
-      // APPOINTMENT MANAGEMENT
-      'create_appointment': {
-        type: 'object',
-        properties: {
-          patient_id: { type: 'string', description: 'Patient ID (UUID) - REQUIRED' },
-          doctor_id: { type: 'string', description: 'Doctor ID (UUID) - use staff member ID who is a doctor - REQUIRED' },
-          department_id: { type: 'string', description: 'Department ID (UUID) - REQUIRED' },
-          appointment_date: { type: 'string', description: 'Appointment date and time (YYYY-MM-DD HH:MM) - REQUIRED - avoid timezone suffixes' },
-          duration_minutes: { type: 'integer', description: 'Duration in minutes (default 30)' },
-          reason: { type: 'string', description: 'Reason for appointment' },
-          notes: { type: 'string', description: 'Additional notes' }
-        },
-        required: ['patient_id', 'doctor_id', 'department_id', 'appointment_date']
-      },
-      'list_appointments': {
-        type: 'object',
-        properties: {
-          doctor_id: { type: 'string', description: 'Filter by doctor ID' },
-          patient_id: { type: 'string', description: 'Filter by patient ID' },
-          date: { type: 'string', description: 'Filter by date (YYYY-MM-DD)' }
-        },
-        required: []
-      },
-
       // EQUIPMENT MANAGEMENT
       'create_equipment': {
         type: 'object',
@@ -1272,7 +1215,7 @@ class DirectHttpMCPClient {
           discharge_condition: { type: 'string', description: 'Patient discharge condition (stable, improved, recovered, transferred, deceased, etc.)' },
           discharge_destination: { type: 'string', description: 'Discharge destination (home, another_facility, rehabilitation, hospice, etc.)' },
           discharge_instructions: { type: 'string', description: 'Special discharge instructions or medications' },
-          follow_up_required: { type: 'boolean', description: 'Whether follow-up appointment is required' }
+          follow_up_required: { type: 'boolean', description: 'Whether follow-up care is required' }
         },
         required: ['bed_id']
       },
@@ -1316,7 +1259,6 @@ class DirectHttpMCPClient {
           patient_id: { type: 'string', description: 'Patient ID (UUID) - REQUIRED' },
           include_medical_history: { type: 'boolean', description: 'Include detailed medical history' },
           include_documents: { type: 'boolean', description: 'Include summaries of uploaded medical documents' },
-          include_appointments: { type: 'boolean', description: 'Include appointment history' },
           include_medications: { type: 'boolean', description: 'Include current and past medications' },
           summary_type: { type: 'string', description: 'Type of summary (brief, detailed, comprehensive)' }
         },

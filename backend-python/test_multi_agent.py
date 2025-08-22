@@ -56,8 +56,7 @@ def test_multi_agent_system():
             ("create_bed", "room_bed"),
             ("list_staff", "staff"),
             ("create_equipment", "equipment"),
-            ("list_supplies", "inventory"),
-            ("create_appointment", "appointment")
+            ("list_supplies", "inventory")
         ]
         
         for tool_name, expected_agent in routing_tests:
