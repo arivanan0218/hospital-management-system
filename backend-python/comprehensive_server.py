@@ -1107,7 +1107,7 @@ if __name__ == "__main__":
                             "list_staff", "create_staff", "list_users", "create_user",
                             "list_rooms", "create_room", "list_beds", "create_bed",
                             "list_equipment", "create_equipment", "list_supplies", "create_supply",
-                            "list_appointments", "create_appointment", "get_patient_by_id", "search_patients",
+                            "get_patient_by_id", "search_patients",
                             "assign_bed_to_patient", "discharge_bed", "update_equipment_status", "update_supply_stock"
                         ]
                         error_response = {
@@ -1195,9 +1195,6 @@ if __name__ == "__main__":
                     {"name": "create_supply", "description": "Create a new supply item"},
                     {"name": "update_supply_stock", "description": "Update supply stock levels"},
                     {"name": "create_supply_category", "description": "Create a supply category"},
-                    
-                    {"name": "list_appointments", "description": "List appointments"},
-                    {"name": "create_appointment", "description": "Create a new appointment"},
                     
                     {"name": "create_legacy_user", "description": "Create a legacy user"},
                     {"name": "list_legacy_users", "description": "List all legacy users"},
