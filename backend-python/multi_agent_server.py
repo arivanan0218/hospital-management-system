@@ -1473,9 +1473,15 @@ async def list_tools_http(request: Request):
     try:
         tools_list = []
         
+        # Debug logging
+        print(f"🔍 DEBUG: MULTI_AGENT_AVAILABLE = {MULTI_AGENT_AVAILABLE}")
+        print(f"🔍 DEBUG: orchestrator = {orchestrator}")
+        
         # Get tools from orchestrator if available
         if MULTI_AGENT_AVAILABLE and orchestrator:
+            print("🔍 DEBUG: Getting tools from orchestrator...")
             orchestrator_tools = orchestrator.get_tools()
+            print(f"🔍 DEBUG: Got {len(orchestrator_tools) if orchestrator_tools else 0} tools from orchestrator")
             
             # Handle if get_tools() returns a list or dict
             if isinstance(orchestrator_tools, list):
