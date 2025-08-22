@@ -768,15 +768,11 @@ Best regards,
                 staff_ids = self.find_staff_by_names(participant_names)
                 print(f"Using specific participants: {participant_names} -> {len(staff_ids)} staff members")
             else:
-                # Fallback: Get available doctors and nurses if no specific participants mentioned
-                available_staff = self.session.query(Staff).filter(
-                    Staff.status == 'active',
-                    or_(
-                        Staff.position.ilike('%doctor%'),
-                        Staff.position.ilike('%nurse%'),
-                        Staff.position.ilike('%cardiologist%')
-                    )
-                ).all()
+                # Fallback: If no specific participants mentioned, pick a broader set of active staff
+                # Previously this filtered only doctors/nurses which could be small; use a larger sample
+                available_staff = self.session.query(Staff).join(User).filter(
+                    Staff.status == 'active'
+                ).order_by(User.last_name).limit(50).all()
                 
                 if not available_staff:
                     return {
@@ -1046,14 +1042,30 @@ Best regards,
             
             # Extract new duration if specified
             new_duration_minutes, new_duration_string = self.parse_duration(query)
-            
+
             # Get current meeting details
             old_datetime = meeting.meeting_datetime
             old_duration = meeting.duration_minutes
-            
+
             print(f"📅 Updating meeting from {old_datetime} to {new_datetime}")
             print(f"⏱️ Duration: {old_duration} minutes → {new_duration_minutes} minutes")
-            
+
+            # BEFORE updating the legacy StaffMeeting record, fetch legacy participants so we can notify them
+            legacy_participant_ids = []
+            try:
+                legacy_meeting_pre = self.session.query(StaffMeeting).filter(
+                    StaffMeeting.title == meeting.title,
+                    StaffMeeting.meeting_time == old_datetime
+                ).first()
+                if legacy_meeting_pre:
+                    old_parts = self.session.query(StaffMeetingParticipant).filter(
+                        StaffMeetingParticipant.meeting_id == legacy_meeting_pre.id
+                    ).all()
+                    legacy_participant_ids = [str(p.staff_id) for p in old_parts]
+                    print(f"Found {len(legacy_participant_ids)} legacy participants to notify")
+            except Exception as e:
+                print(f"Warning: could not fetch legacy participants before update: {e}")
+
             # Update the meeting in the database
             try:
                 meeting.meeting_datetime = new_datetime
@@ -1081,16 +1093,66 @@ Best regards,
                     "message": f"Failed to update meeting in database: {str(e)}"
                 }
             
-            # Get participants for the updated meeting
-            participants = self.meeting_manager.get_meeting_participants(str(meeting.id))
-            staff_ids = [p["participant_id"] for p in participants if p["type"] == "staff"]
-            
-            if not staff_ids:
-                # Fallback: get participants from old system
-                old_participants = self.session.query(StaffMeetingParticipant).filter(
-                    StaffMeetingParticipant.meeting_id == old_meeting.id
-                ).all()
-                staff_ids = [str(p.staff_id) for p in old_participants]
+            # Get participants for the updated meeting from both new and legacy systems
+            staff_ids = []
+
+            # 1) Try to get participants from new MeetingManager
+            try:
+                participants = self.meeting_manager.get_meeting_participants(str(meeting.id)) or []
+                for p in participants:
+                    try:
+                        # Support different shapes returned by MeetingManager
+                        pid = None
+                        if isinstance(p, dict):
+                            pid = p.get('participant_id') or p.get('id') or p.get('staff_id')
+                            ptype = (p.get('type') or '').lower()
+                        else:
+                            # If it's an object with attributes
+                            pid = getattr(p, 'participant_id', None) or getattr(p, 'id', None) or getattr(p, 'staff_id', None)
+                            ptype = (getattr(p, 'type', '') or '').lower()
+
+                        if pid and (not ptype or ptype == 'staff'):
+                            staff_ids.append(str(pid))
+                    except Exception:
+                        continue
+            except Exception as e:
+                print(f"Warning: could not get participants from MeetingManager: {e}")
+
+            # 2) Also try legacy StaffMeetingParticipant entries (backwards compatibility)
+            try:
+                legacy_meeting = self.session.query(StaffMeeting).filter(
+                    StaffMeeting.title == meeting.title,
+                    StaffMeeting.meeting_time == old_datetime
+                ).first()
+                if legacy_meeting:
+                    old_participants = self.session.query(StaffMeetingParticipant).filter(
+                        StaffMeetingParticipant.meeting_id == legacy_meeting.id
+                    ).all()
+                    for p in old_participants:
+                        try:
+                            staff_ids.append(str(p.staff_id))
+                        except Exception:
+                            continue
+            except Exception as e:
+                print(f"Warning: could not get legacy participants: {e}")
+
+            # 3) Also include any legacy participant IDs captured before the DB update
+            try:
+                if legacy_participant_ids:
+                    for pid in legacy_participant_ids:
+                        staff_ids.append(str(pid))
+            except Exception:
+                pass
+
+            # Deduplicate while preserving order
+            if staff_ids:
+                seen = set()
+                deduped = []
+                for sid in staff_ids:
+                    if sid not in seen:
+                        seen.add(sid)
+                        deduped.append(sid)
+                staff_ids = deduped
             
             # Update Google Meet if available
             meet_link = meeting.google_meet_link
@@ -1284,16 +1346,40 @@ Best regards,
             
             for staff_id in staff_ids:
                 try:
-                    staff = self.session.query(Staff).join(User).filter(Staff.id == uuid.UUID(staff_id)).first()
-                    if staff and staff.user.email:
-                        print(f"  📧 Sending update email to: {staff.user.first_name} {staff.user.last_name} ({staff.user.email})")
+                    # Try resolving as Staff first
+                    staff = None
+                    user_record = None
+                    try:
+                        staff = self.session.query(Staff).join(User).filter(Staff.id == uuid.UUID(staff_id)).first()
+                    except Exception:
+                        staff = None
+
+                    # If not a Staff (maybe stored as a User ID), try User table
+                    if not staff:
+                        try:
+                            user_record = self.session.query(User).filter(User.id == uuid.UUID(staff_id)).first()
+                        except Exception:
+                            user_record = None
+
+                    # Determine recipient name and email
+                    recipient_name = None
+                    recipient_email = None
+                    if staff and staff.user and staff.user.email:
+                        recipient_name = f"{staff.user.first_name} {staff.user.last_name}"
+                        recipient_email = staff.user.email
+                    elif user_record and getattr(user_record, 'email', None):
+                        recipient_name = f"{getattr(user_record, 'first_name', '')} {getattr(user_record, 'last_name', '')}".strip()
+                        recipient_email = user_record.email
+
+                    if recipient_email:
+                        print(f"  📧 Sending update email to: {recipient_name} ({recipient_email})")
                         
                         # Create email subject
                         email_subject = f"🏥 MEETING UPDATED: {meeting.title} - {new_datetime.strftime('%B %d, %Y')}"
                         
                         msg = MIMEMultipart()
                         msg['From'] = f"{self.email_from_name} <{self.email_from_address}>"
-                        msg['To'] = staff.user.email
+                        msg['To'] = recipient_email
                         msg['Subject'] = email_subject
 
                         # Create meeting link section
@@ -1316,20 +1402,24 @@ Best regards,
                         # Create clean meeting topic for email body
                         meeting_topic = meeting.title.replace(" Meeting", "") if meeting.title.endswith(" Meeting") else meeting.title
                         
-                        body = f"""Dear {staff.user.first_name} {staff.user.last_name},
+                        # Use recipient_name if available, otherwise a generic salutation
+                        salutation = recipient_name if recipient_name else (f"{staff.user.first_name} {staff.user.last_name}" if staff and staff.user else "Staff Member")
+
+                        body = f"""Dear {salutation},
 
 🏥 MEETING UPDATE NOTIFICATION
 
-📋 MEETING DETAILS:
+IMPORTANT: This meeting has been RESCHEDULED / POSTPONED.
+
+What changed:
+• Previous: {old_datetime.strftime('%A, %B %d, %Y at %I:%M %p')} ({old_duration} minutes)
+• New: {new_datetime.strftime('%A, %B %d, %Y at %I:%M %p')} ({new_duration} minutes)
+
+� MEETING DETAILS:
 • Topic: {meeting_topic}
 • NEW Date: {new_datetime.strftime('%A, %B %d, %Y')}
 • NEW Time: {new_datetime.strftime('%I:%M %p')}
 • NEW Duration: {new_duration} minutes
-
-📅 PREVIOUS SCHEDULE:
-• Old Date: {old_datetime.strftime('%A, %B %d, %Y')}
-• Old Time: {old_datetime.strftime('%I:%M %p')}
-• Old Duration: {old_duration} minutes
 
 {meet_section}
 
@@ -1360,9 +1450,9 @@ Best regards,
                         msg.attach(MIMEText(body, 'plain'))
                         server.send_message(msg)
                         emails_sent += 1
-                        print(f"  ✅ SUCCESS: Update email sent to {staff.user.email}")
+                        print(f"  ✅ SUCCESS: Update email sent to {recipient_email}")
                     else:
-                        print(f"  ⚠️ WARNING: Staff member {staff_id} not found or has no email")
+                        print(f"  ⚠️ WARNING: Participant {staff_id} not found or has no email")
                         failed_emails.append(staff_id)
                         
                 except Exception as e:
