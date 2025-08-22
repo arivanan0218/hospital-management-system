@@ -802,7 +802,7 @@ Remember the recent conversation and provide contextually appropriate responses.
 - Confirm actions before executing
 
 **LIST TOOLS RESPONSE FORMAT:**
-When using any LIST tools (list_patients, list_staff, list_departments, list_beds, list_rooms, list_equipment, list_supplies, list_users, list_meetings, list_discharge_reports, list_equipment_categories, list_supply_categories, list_inventory_transactions, list_legacy_users), provide ONLY essential information:
+When using any LIST tools (list_patients, list_staff, list_departments, list_beds, list_rooms, list_equipment, list_supplies, list_appointments, list_users, list_meetings, list_discharge_reports, list_equipment_categories, list_supply_categories, list_inventory_transactions, list_legacy_users), provide ONLY essential information:
 
 - **list_patients**: Only show patient names (first_name + last_name) and patient numbers
 - **list_staff**: Only show staff names (first_name + last_name) and positions
@@ -811,6 +811,7 @@ When using any LIST tools (list_patients, list_staff, list_departments, list_bed
 - **list_rooms**: Only show room numbers and types
 - **list_equipment**: Only show equipment names and status
 - **list_supplies**: Only show supply names and current stock levels
+- **list_appointments**: Only show patient name, doctor name, and appointment date/time
 - **list_users**: Only show usernames and roles
 - **list_meetings**: Only show meeting topics and dates
 - **All other list tools**: Only show names/titles and key status information
@@ -977,7 +978,22 @@ Respond naturally, conversationally, and contextually based on the conversation 
       }
     }
     
-    // Meeting scheduling
+    // Appointment operations
+    if (message.includes('list appointments') || message.includes('show appointments') || message.includes('all appointments') || message.includes('appointments')) {
+      toolsNeeded.push({ name: 'list_appointments', arguments: {} });
+    }
+    
+    // Enhanced appointment creation
+    if (message.includes('create appointment') || message.includes('book appointment') || message.includes('schedule appointment')) {
+      const appointmentParams = this.extractAppointmentParameters(userMessage);
+      if (appointmentParams.patient_id && appointmentParams.doctor_id && appointmentParams.appointment_date) {
+        toolsNeeded.push({ name: 'create_appointment', arguments: appointmentParams });
+      } else {
+        return [{ name: '_ask_for_appointment_details', needsInput: true }];
+      }
+    }
+
+    // Meeting scheduling - Check for meeting requests BEFORE appointment
     if (message.includes('schedule meeting') || message.includes('create meeting') || 
         message.includes('book meeting') || message.includes('meeting') && 
         (message.includes('schedule') || message.includes('book') || message.includes('create') || 
@@ -1213,11 +1229,11 @@ When users say "create new department" without details:
 **2. FOREIGN KEY RESOLUTION:**
 When operations require IDs but users provide names:
 - AUTOMATICALLY search for IDs using available list/search tools
-- Example: "Create meeting for John Doe with Dr. Smith in Cardiology"
+- Example: "Create appointment for John Doe with Dr. Smith in Cardiology"
   1. Search patients for "John Doe" to get patient_id
   2. Search staff for "Dr. Smith" to get doctor_id  
   3. Search departments for "Cardiology" to get department_id
-  4. Then create meeting with resolved IDs
+  4. Then create appointment with resolved IDs
 
 **3. CONVERSATION FLOW:**
 - Remember what the user is trying to accomplish
@@ -1231,7 +1247,7 @@ When operations require IDs but users provide names:
 - Offer to list available options when searches fail
 
 **5. LIST TOOLS RESPONSE FORMAT:**
-When using any LIST tools (list_patients, list_staff, list_departments, list_beds, list_rooms, list_equipment, list_supplies, list_users, list_meetings, list_discharge_reports, list_equipment_categories, list_supply_categories, list_inventory_transactions, list_legacy_users), provide ONLY essential information:
+When using any LIST tools (list_patients, list_staff, list_departments, list_beds, list_rooms, list_equipment, list_supplies, list_appointments, list_users, list_meetings, list_discharge_reports, list_equipment_categories, list_supply_categories, list_inventory_transactions, list_legacy_users), provide ONLY essential information:
 
 - **list_patients**: Only show patient names (first_name + last_name) and patient numbers
 - **list_staff**: Only show staff names (first_name + last_name) and positions
@@ -1240,6 +1256,7 @@ When using any LIST tools (list_patients, list_staff, list_departments, list_bed
 - **list_rooms**: Only show room numbers and types
 - **list_equipment**: Only show equipment names and status
 - **list_supplies**: Only show supply names and current stock levels
+- **list_appointments**: Only show patient name, doctor name, and appointment date/time
 - **list_users**: Only show usernames and roles
 - **list_meetings**: Only show meeting topics and dates
 - **All other list tools**: Only show names/titles and key status information
@@ -1418,6 +1435,15 @@ Respond naturally and helpfully based on the user's request and the tool results
                       }
                       break;
                       
+                    case 'list_appointments':
+                      let appointmentText = '';
+                      if (item.patient_name) appointmentText += `${item.patient_name}`;
+                      if (item.doctor_name) appointmentText += ` with Dr. ${item.doctor_name}`;
+                      if (item.appointment_date) appointmentText += ` on ${item.appointment_date}`;
+                      if (item.appointment_time) appointmentText += ` at ${item.appointment_time}`;
+                      response += appointmentText || 'Appointment';
+                      break;
+                      
                     case 'list_users':
                       if (item.username) {
                         response += `${item.username}`;
@@ -1540,6 +1566,7 @@ Respond naturally and helpfully based on the user's request and the tool results
           'position': 'position',
           'name': 'name',
           'room_number': 'room_number',
+          'appointment_date': 'appointment_date',
           'doctor_id': 'doctor_id',
           'patient_id': 'patient_id',
           'username': 'username',
@@ -1577,6 +1604,8 @@ Respond naturally and helpfully based on the user's request and the tool results
       operationType = 'create_department';
     } else if (params.room_number && params.department_id) {
       operationType = 'create_room';
+    } else if (params.patient_id && params.doctor_id && params.appointment_date) {
+      operationType = 'create_appointment';
     } else if (params.equipment_id && params.name && params.category_id) {
       operationType = 'create_equipment';
     } else if (params.item_code && params.name && params.category_id && params.unit_of_measure) {
@@ -1703,6 +1732,68 @@ Respond naturally and helpfully based on the user's request and the tool results
     const floorMatch = message.match(/floor\s+(\d+)/i);
     if (floorMatch) {
       params.floor_number = parseInt(floorMatch[1]);
+    }
+    
+    return params;
+  }
+
+  /**
+   * Extract appointment parameters from natural language input
+   */
+  extractAppointmentParameters(message) {
+    const params = {};
+    
+    // Extract patient name or ID
+    const patientMatch = message.match(/patient\s+(\w+)|for\s+([a-zA-Z\s]+)(?:\s+with|\s+in|$)/i);
+    if (patientMatch) {
+      const patientInfo = patientMatch[1] || patientMatch[2];
+      if (patientInfo && patientInfo.trim()) {
+        // If it looks like an ID (PAT123), treat as ID; otherwise treat as name
+        if (/^PAT\d+$/i.test(patientInfo.trim())) {
+          params.patient_id = patientInfo.trim();
+        } else {
+          params.patient = patientInfo.trim();
+        }
+      }
+    }
+    
+    // Extract doctor name or ID
+    const doctorMatch = message.match(/doctor\s+([a-zA-Z\s.]+)|with\s+([a-zA-Z\s.]+)(?:\s+in|\s+on|$)/i);
+    if (doctorMatch) {
+      const doctorInfo = doctorMatch[1] || doctorMatch[2];
+      if (doctorInfo && doctorInfo.trim()) {
+        // If it looks like an ID (DOC123), treat as ID; otherwise treat as name
+        if (/^DOC\d+$/i.test(doctorInfo.trim()) || /^D\d+$/i.test(doctorInfo.trim())) {
+          params.doctor_id = doctorInfo.trim();
+        } else {
+          params.doctor = doctorInfo.trim();
+        }
+      }
+    }
+    
+    // Extract department name or ID
+    const deptMatch = message.match(/in\s+([a-zA-Z\s]+)|department\s+([a-zA-Z\s]+)/i);
+    if (deptMatch) {
+      const deptInfo = deptMatch[1] || deptMatch[2];
+      if (deptInfo && deptInfo.trim()) {
+        // If it looks like an ID (DEPT123), treat as ID; otherwise treat as name
+        if (/^DEPT\d+$/i.test(deptInfo.trim())) {
+          params.department_id = deptInfo.trim();
+        } else {
+          params.department = deptInfo.trim();
+        }
+      }
+    }
+    
+    // Extract date and time
+    const dateMatch = message.match(/(\d{4}-\d{2}-\d{2})/);
+    if (dateMatch) {
+      const timeMatch = message.match(/(\d{2}:\d{2})/);
+      if (timeMatch) {
+        params.appointment_date = `${dateMatch[1]} ${timeMatch[1]}`;
+      } else {
+        params.appointment_date = dateMatch[1];
+      }
     }
     
     return params;
@@ -2562,11 +2653,11 @@ Respond naturally and helpfully based on the user's request and the tool results
       "",
       "**CRITICAL: Form-Based CREATE Operations:**",
       "The system uses a DUAL APPROACH for operations:",
-      "1. **POPUP FORMS for CREATE operations:** The 9 main CREATE tools (create_patient, create_user, create_staff, create_department, create_room, create_bed, create_equipment, create_supply, create_legacy_user) are handled by POPUP FORMS",
+      "1. **POPUP FORMS for CREATE operations:** The 10 main CREATE tools (create_patient, create_user, create_staff, create_department, create_room, create_bed, create_equipment, create_supply, create_appointment, create_legacy_user) are handled by POPUP FORMS",
       "2. **DIRECT TOOL CALLS for everything else:** All other operations (list, search, update, delete, assign, discharge, schedule_meeting, etc.) use direct tool calling",
       "",
       "**FORM HANDLING WORKFLOW:**",
-      "- When user requests CREATE operations for the 9 main entities, a popup form will appear",
+      "- When user requests CREATE operations for the 10 main entities, a popup form will appear",
       "- **FORM SUBMISSIONS:** When user submits form data (indicated by structured data like 'Create patient: first_name=\"John\"'), IMMEDIATELY call the appropriate CREATE tool with the provided data",
       "- **CHAT REQUESTS:** For conversational CREATE requests, acknowledge that the form has been opened and guide the user to fill it out",
       "- For FOREIGN KEY fields in forms, guide users to:",
@@ -2584,6 +2675,7 @@ Respond naturally and helpfully based on the user's request and the tool results
       "2. Only call functions after you have ALL required parameters",
       "3. For create_patient, you MUST have: first_name, last_name, date_of_birth",
       "4. For create_user, you MUST have: username, email, password_hash, role, first_name, last_name",
+      "5. For create_appointment, you MUST have: patient_id, doctor_id (NOT staff_id), department_id, appointment_date",
       "",
       "**CRITICAL: Foreign Key Resolution (Claude Desktop Style):**",
       "When users provide human-readable names instead of IDs, always resolve them first:",
@@ -2595,6 +2687,7 @@ Respond naturally and helpfully based on the user's request and the tool results
       "",
       "**WORKFLOW: Always resolve foreign keys before create operations:**",
       "- If user says 'create bed in room 101' → FIRST find room_id for 'room 101', THEN create bed",
+      "- If user says 'create appointment with Dr. Smith' → FIRST find doctor_id for 'Dr. Smith', THEN create appointment",
       "- If user says 'assign bed to John Doe' → FIRST find patient_id for 'John Doe', THEN assign bed",
       "",
       "**NEVER ask users for UUIDs directly - always use human names and resolve automatically**",
@@ -2606,7 +2699,9 @@ Respond naturally and helpfully based on the user's request and the tool results
       "3. If no beds are available, guide user through bed creation form - help them select room from dropdown or search rooms",
       "4. THEN assign the first truly available bed to the patient using direct tool call",
       "5. THEN list available doctors/staff with list_staff()",
-      "6. Provide comprehensive response with next steps for bed assignment and doctor allocation",
+      "6. THEN guide user through appointment creation form - help them select doctor and department from dropdowns",
+      "7. Use simple appointment_date format like '2025-08-10 10:00' instead of '2025-08-10T10:00:00Z'",
+      "8. Provide comprehensive response with next steps for bed assignment and doctor allocation",
       "",
       "**Enhanced Capabilities:**",
       "1. **Smart Parameter Collection**: Ask for missing details conversationally, one at a time",
@@ -2786,25 +2881,58 @@ Respond naturally and helpfully based on the user's request and the tool results
       "- 🛏️ Bed management (room assignments, occupancy)",
       "- 🏥 Equipment tracking (medical devices, maintenance)",
       "- 📦 Supply inventory (medications, consumables)",
-      "-  Reporting and analytics",
+      "- 📅 Appointment scheduling",
+      "- 📊 Reporting and analytics",
       "",
       "🔧 **Function Calling Instructions:**",
-      "- POPUP FORMS: DO NOT call create_patient, create_user, create_staff, create_department, create_room, create_bed, create_equipment, create_supply, or create_legacy_user directly",
+      "- POPUP FORMS: DO NOT call create_patient, create_user, create_staff, create_department, create_room, create_bed, create_equipment, create_supply, create_appointment, or create_legacy_user directly",
       "- DIRECT TOOLS: Use all other function names exactly as provided",
       "- For form-based operations, acknowledge the form has opened and guide user to fill it",
       "- For direct tool operations, extract all provided parameters and call functions normally",
       "- CRITICAL: Always use exact parameter names as defined in schemas:",
+      "  * For appointments: use 'doctor_id' NOT 'staff_id', 'doctor', 'staff', or 'appointment_type'",
       "  * For patients: use 'patient_number' only if provided, otherwise let it auto-generate",
       "  * For equipment: use 'equipment_id' as specified",
       "  * For search_patients: use specific field names (first_name, last_name, phone, email) NOT 'query'",
-      "- For emergency scenarios, guide user through forms first, then use direct tools for bed assignment",
+      "- For emergency scenarios, guide user through forms first, then use direct tools for bed assignment and appointments",
       "- Provide clear, helpful responses based on actual tool results",
       "- If a parameter name doesn't exist in the schema, don't use it",
+      "",
+      "**CRITICAL: Doctor Appointment Creation Workflow:**",
+      "When creating appointments, follow this EXACT sequence to avoid foreign key errors:",
+      "",
+      "1. **First, always get valid doctor information:**",
+      "   - Use list_staff with status active to get all active staff",
+      "   - Filter results to find staff members who are doctors (position contains Doctor or Physician)",
+      "   - NEVER use staff_id directly - appointments table expects doctor_id which maps to staff.user_id",
+      "",
+      "2. **For appointment creation, use this mapping:**",
+      "   - patient_id: Use the patient UUID from create_patient or search_patients",
+      "   - doctor_id: Use staff.user_id (NOT staff.employee_id or staff table primary key)",
+      "   - department_id: Use the department where the doctor works (staff.department_id)",
+      "   - appointment_date: Use format YYYY-MM-DD HH:MM (example 2025-08-10 14:30)",
+      "",
+      "3. **Correct workflow steps:**",
+      "   - Step 1: Call list_staff with status active",
+      "   - Step 2: Find doctor where position contains Doctor",
+      "   - Step 3: Use that doctor user_id as doctor_id in create_appointment",
+      "   - Step 4: Call create_appointment with patient_id, doctor_id, department_id, appointment_date, and reason",
+      "",
+      "4. **Foreign Key Troubleshooting:**",
+      "   - If foreign key error occurs, first verify doctor exists using get_user_by_id",
+      "   - Check if department exists using get_department_by_id",
+      "   - Ensure patient exists using get_patient_by_id",
+      "   - CRITICAL: The appointments table doctor_id field references users.id, NOT staff.id",
+      "",
+      "5. **Error Recovery:**",
+      "   - If appointment creation fails, list available doctors again",
+      "   - Show user available doctors and ask them to choose",
+      "   - Always verify foreign key relationships before creating appointment",
       "",
       "**ALWAYS resolve human names to IDs before create operations - this is how Claude Desktop works!**",
       "",
       "**LIST TOOLS RESPONSE FORMAT:**",
-      "When using any LIST tools (list_patients, list_staff, list_departments, list_beds, list_rooms, list_equipment, list_supplies, list_users, list_meetings, list_discharge_reports, list_equipment_categories, list_supply_categories, list_inventory_transactions, list_legacy_users), provide ONLY essential information:",
+      "When using any LIST tools (list_patients, list_staff, list_departments, list_beds, list_rooms, list_equipment, list_supplies, list_appointments, list_users, list_meetings, list_discharge_reports, list_equipment_categories, list_supply_categories, list_inventory_transactions, list_legacy_users), provide ONLY essential information:",
       "",
       "- **list_patients**: Only show patient names (first_name + last_name) and patient numbers",
       "- **list_staff**: Only show staff names (first_name + last_name) and positions",
@@ -2813,6 +2941,7 @@ Respond naturally and helpfully based on the user's request and the tool results
       "- **list_rooms**: Only show room numbers and types",
       "- **list_equipment**: Only show equipment names and status",
       "- **list_supplies**: Only show supply names and current stock levels",
+      "- **list_appointments**: Only show patient name, doctor name, and appointment date/time",
       "- **list_users**: Only show usernames and roles",
       "- **list_meetings**: Only show meeting topics and dates",
       "- **All other list tools**: Only show names/titles and key status information",
@@ -2828,12 +2957,13 @@ Respond naturally and helpfully based on the user's request and the tool results
       "- Provide clear success/failure feedback",
       "- Hide technical UUIDs from users",
       "- Focus on user-friendly information",
-      "- For emergency scenarios: Guide through forms first, then handle bed assignment",
+      "- For emergency scenarios: Guide through forms first, then handle bed assignment and appointments",
       "- Remember the conversation context",
       "",
       "**IMPORTANT EXAMPLES:**",
       "User: 'Create new patient John Doe' → 'I've opened the patient admission form for you. Please fill in John's details including his date of birth, contact information, and any medical history.'",
       "User: 'Create new staff member' → 'I've opened the staff registration form. Please fill in the staff details. For the User ID, select from the dropdown of available users, and for Department ID, choose from the department dropdown.'",
+      "User: 'Create appointment' → 'I've opened the appointment booking form. Please select the patient, doctor, and department from the dropdown menus, then choose the appointment date and time.'",
       "User: 'List all patients' → Call list_patients tool directly and display results",
       "User: 'Assign bed 101 to patient John Doe' → First search for patient, then call assign_bed_to_patient tool",
       "",
