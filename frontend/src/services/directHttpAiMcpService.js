@@ -983,8 +983,7 @@ Respond naturally, conversationally, and contextually based on the conversation 
         (message.includes('schedule') || message.includes('book') || message.includes('create') || 
          message.includes('need') || message.includes('want'))) {
       const meetingParams = this.extractMeetingParameters(userMessage);
-      // Always use schedule_meeting tool which handles parameter collection internally
-      const query = userMessage; // Pass the full user message as query
+      const query = this.buildMeetingQuery(userMessage, meetingParams);
       toolsNeeded.push({ name: 'schedule_meeting', arguments: { query } });
     }
     
@@ -1713,6 +1712,15 @@ Respond naturally and helpfully based on the user's request and the tool results
   extractMeetingParameters(message) {
     const params = {};
     
+    // Normalize common time formats like "10.30pm" → "10:30 pm"
+    const preNormalized = message.replace(/\b(\d{1,2})\.(\d{2})\s*([ap]m)\b/gi, (_m, h, mm, ap) => `${h}:${mm} ${ap}`);
+    
+    // Prefer an explicitly quoted title anywhere in the message
+    const quoted = preNormalized.match(/["“”']([^"“”']+)["“”']/);
+    if (quoted && quoted[1]) {
+      params.purpose = quoted[1].trim();
+    }
+    
     // Extract meeting topic/purpose
     const topicPatterns = [
       /meeting\s+about\s+([^,\n]+)/i,
@@ -1723,9 +1731,11 @@ Respond naturally and helpfully based on the user's request and the tool results
     ];
     
     for (const pattern of topicPatterns) {
-      const match = message.match(pattern);
+      const match = preNormalized.match(pattern);
       if (match) {
-        params.purpose = match[1].trim();
+        if (!params.purpose) {
+          params.purpose = match[1].trim();
+        }
         break;
       }
     }
@@ -1738,7 +1748,7 @@ Respond naturally and helpfully based on the user's request and the tool results
     ];
     
     for (const pattern of participantPatterns) {
-      const match = message.match(pattern);
+      const match = preNormalized.match(pattern);
       if (match) {
         if (match[2]) {
           // "between X and Y" pattern
@@ -1751,6 +1761,11 @@ Respond naturally and helpfully based on the user's request and the tool results
       }
     }
     
+    // Detect "all staff" / "all staffs" intent
+    if (/\ball\s+staffs?\b/i.test(preNormalized)) {
+      params.participants_scope = 'all_hospital_staff';
+    }
+    
     // Extract date
     const datePatterns = [
       /(\d{4}-\d{2}-\d{2})/,
@@ -1761,7 +1776,7 @@ Respond naturally and helpfully based on the user's request and the tool results
     ];
     
     for (const pattern of datePatterns) {
-      const match = message.match(pattern);
+      const match = preNormalized.match(pattern);
       if (match) {
         if (match[0].toLowerCase() === 'tomorrow') {
           const tomorrow = new Date();
@@ -1783,14 +1798,18 @@ Respond naturally and helpfully based on the user's request and the tool results
     const timePatterns = [
       /at\s+(\d{1,2}:\d{2}(?:\s*[ap]m)?)/i,
       /(\d{1,2}:\d{2})/,
-      /at\s+(\d{1,2})\s*([ap]m)/i
+      /at\s+(\d{1,2})\s*([ap]m)/i,
+      /(\d{1,2})\.(\d{2})\s*([ap]m)/i
     ];
     
     for (const pattern of timePatterns) {
-      const match = message.match(pattern);
+      const match = preNormalized.match(pattern);
       if (match) {
-        if (match[2] && match[2].toLowerCase() === 'am' || match[2].toLowerCase() === 'pm') {
-          params.time = `${match[1]}${match[2]}`;
+        if (match.length === 4 && /[ap]m/i.test(match[3])) {
+          // dot format captured
+          params.time = `${match[1]}:${match[2]} ${match[3].toUpperCase()}`;
+        } else if (match[2] && (match[2].toLowerCase() === 'am' || match[2].toLowerCase() === 'pm')) {
+          params.time = `${match[1]} ${match[2].toUpperCase()}`;
         } else {
           params.time = match[1];
         }
@@ -1820,6 +1839,38 @@ Respond naturally and helpfully based on the user's request and the tool results
     }
     
     return params;
+  }
+
+  /**
+   * Build a precise schedule_meeting query using extracted params
+   */
+  buildMeetingQuery(userMessage, params) {
+    const title = params.purpose ? params.purpose : 'Meeting';
+    const dateStr = params.date ? params.date : (userMessage.toLowerCase().includes('today') ? new Date().toISOString().split('T')[0] : undefined);
+    let timeStr = params.time || '';
+    if (timeStr && /am|pm/i.test(timeStr) && !/:/.test(timeStr)) {
+      timeStr = timeStr.replace(/\b(\d{1,2})\s*([ap]m)\b/i, (_m, h, ap) => `${h}:00 ${ap.toUpperCase()}`);
+    }
+    if (timeStr && /\b([ap]m)\b/i.test(timeStr)) {
+      timeStr = timeStr.replace(/\b([ap]m)\b/i, s => s.toUpperCase());
+    }
+    const durationStr = params.duration_minutes ? `${params.duration_minutes} minutes` : undefined;
+    let participantPhrase = '';
+    if (params.participants_scope === 'all_hospital_staff') {
+      participantPhrase = 'with all hospital staff';
+    } else if (Array.isArray(params.participants) && params.participants.length > 0) {
+      participantPhrase = `with ${params.participants.join(' and ')}`;
+    }
+    const parts = [];
+    // Multiple title cues to maximize backend extraction reliability
+    parts.push(`Schedule "${title}" meeting`);
+    parts.push(`Title: "${title}"`);
+    parts.push(`Topic: "${title}"`);
+    if (participantPhrase) parts.push(participantPhrase);
+    if (dateStr) parts.push(`on ${dateStr}`);
+    if (timeStr) parts.push(`at ${timeStr}`);
+    if (durationStr) parts.push(`for ${durationStr}`);
+    return parts.join(' ');
   }
 
   /**
