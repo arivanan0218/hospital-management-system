@@ -12,7 +12,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from database import (
     test_connection, create_tables, SessionLocal,
     User, Department, Patient, Room, Bed, Staff, Equipment, EquipmentCategory,
-    Supply, SupplyCategory, InventoryTransaction, AgentInteraction, Appointment,
+    Supply, SupplyCategory, InventoryTransaction, AgentInteraction,
     LegacyUser, Meeting, MeetingParticipant, MedicalDocument, ExtractedMedicalData,
     DocumentEmbedding, DischargeReport, BedTurnover, PatientQueue, EquipmentTurnover,
     BedCleaningTask, BedEquipmentAssignment, BedStaffAssignment, BedTurnoverLog,
@@ -676,46 +676,8 @@ def create_sample_data():
         db.add_all([transaction1, transaction2, transaction3])
         db.commit()
         
-        # === STEP 12: Create Appointments (Depends on Patients, Doctors, Departments) ===
-        print("12. Creating appointments...")
-        appointment1 = Appointment(
-            patient_id=patient1.id,
-            doctor_id=doctor_user_1.id,
-            department_id=cardiology_dept.id,
-            appointment_date=datetime(2024, 8, 20, 10, 30),
-            duration_minutes=45,
-            reason="Cardiac consultation",
-            notes="Follow-up for hypertension management",
-            status="scheduled"
-        )
-        
-        appointment2 = Appointment(
-            patient_id=patient2.id,
-            doctor_id=doctor_user_2.id,
-            department_id=emergency_dept.id,
-            appointment_date=datetime(2024, 8, 18, 14, 0),
-            duration_minutes=30,
-            reason="Diabetes check-up",
-            notes="Blood sugar monitoring",
-            status="completed"
-        )
-        
-        appointment3 = Appointment(
-            patient_id=patient3.id,
-            doctor_id=doctor_user_2.id,
-            department_id=emergency_dept.id,
-            appointment_date=datetime(2024, 8, 19, 9, 0),
-            duration_minutes=60,
-            reason="Asthma evaluation",
-            notes="Respiratory function test",
-            status="scheduled"
-        )
-        
-        db.add_all([appointment1, appointment2, appointment3])
-        db.commit()
-        
-        # === STEP 13: Create Meetings (Depends on Users and Departments) ===
-        print("13. Creating meetings...")
+        # === STEP 12: Create Meetings (Depends on Users and Departments) ===
+        print("12. Creating meetings...")
         meeting1 = Meeting(
             title="Weekly Department Meeting",
             description="Weekly cardiology department meeting",
@@ -1000,7 +962,6 @@ def create_sample_data():
         print(f"Supply Categories: {db.query(SupplyCategory).count()}")
         print(f"Supplies: {db.query(Supply).count()}")
         print(f"Inventory Transactions: {db.query(InventoryTransaction).count()}")
-        print(f"Appointments: {db.query(Appointment).count()}")
         print(f"Meetings: {db.query(Meeting).count()}")
         print(f"Meeting Participants: {db.query(MeetingParticipant).count()}")
         print(f"Medical Documents: {db.query(MedicalDocument).count()}")

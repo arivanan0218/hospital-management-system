@@ -15,7 +15,6 @@ try:
     from .staff_agent import StaffAgent
     from .equipment_agent import EquipmentAgent
     from .inventory_agent import InventoryAgent
-    from .appointment_agent import AppointmentAgent
     from .medical_document_agent import MedicalDocumentAgent
     from .meeting_agent import MeetingAgent  # NEW
     from .discharge_agent import DischargeAgent  # NEW
@@ -49,7 +48,6 @@ class OrchestratorAgent(BaseAgent):
                 "staff": StaffAgent(),
                 "equipment": EquipmentAgent(),
                 "inventory": InventoryAgent(),
-                "appointment": AppointmentAgent(),
                 "medical_document": MedicalDocumentAgent(),
                 "meeting": MeetingAgent(),  # NEW
                 "discharge": DischargeAgent(),  # NEW
