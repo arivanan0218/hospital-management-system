@@ -165,20 +165,6 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   });
   const [isSubmittingSupply, setIsSubmittingSupply] = useState(false);
   
-  // Appointment creation popup form
-  const [showAppointmentForm, setShowAppointmentForm] = useState(false);
-  const [appointmentFormData, setAppointmentFormData] = useState({
-    patient_id: '', // Foreign key to patients table
-    doctor_id: '', // Foreign key to users table
-    department_id: '', // Foreign key to departments table
-    appointment_date: '', // DateTime field - combine date and time
-    duration_minutes: 30, // Integer, default 30
-    status: 'scheduled', // scheduled, completed, cancelled, no_show
-    reason: '',
-    notes: ''
-  });
-  const [isSubmittingAppointment, setIsSubmittingAppointment] = useState(false);
-  
   // Legacy User creation popup form
   const [showLegacyUserForm, setShowLegacyUserForm] = useState(false);
   const [legacyUserFormData, setLegacyUserFormData] = useState({
@@ -919,7 +905,7 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
               role: 'system',
               content: `You are an intelligent intent detection system for a hospital management application with multi-agent backend tools. 
 
-POPUP FORM TRIGGERS (Only these EXACT 10 CREATE tools should show popup forms):
+POPUP FORM TRIGGERS (Only these EXACT 9 CREATE tools should show popup forms):
 1. create_user: User creation popup form
 2. create_patient: Patient admission popup form  
 3. create_legacy_user: Legacy user creation popup form
@@ -929,7 +915,6 @@ POPUP FORM TRIGGERS (Only these EXACT 10 CREATE tools should show popup forms):
 7. create_staff: Staff creation popup form
 8. create_equipment: Equipment creation popup form (ONLY this exact tool)
 9. create_supply: Supply creation popup form (ONLY this exact tool)
-10. create_appointment: Appointment booking popup form
 
 CRITICAL: These tools should use AI processing (NOT popup forms):
 - create_equipment_category (AI processing, NOT popup)
@@ -943,11 +928,10 @@ IMPORTANT DISTINCTION:
 - "create supply category" → ai_processing (no popup)
 
 RULES:
-1. Only the exact 10 CREATE tools above trigger popup forms
+1. Only the exact 9 CREATE tools above trigger popup forms
 2. Equipment/Supply categories are handled by AI processing
 3. All listing, searching, updating, deleting operations use AI processing
 4. Staff meetings = AI processing (schedule_meeting tool)
-5. Patient appointments = create_appointment popup form
 
 Return ONLY one of these values:
 - "create_user" for system user creation
@@ -961,7 +945,6 @@ Return ONLY one of these values:
 - "create_supply" for supply registration
 - "create_equipment_category" for equipment category creation
 - "create_supply_category" for supply category creation
-- "create_appointment" for patient medical appointments
 - "ai_processing" for everything else (including equipment usage, staff assignments, updates, searches, etc.)
 
 Examples:
@@ -975,7 +958,6 @@ Examples:
 - "Record equipment usage" → ai_processing
 - "Add new supply" → create_supply
 - "Create supply category" → create_supply_category
-- "Book patient appointment" → create_appointment
 - "Schedule staff meeting" → ai_processing
 - "List all patients" → ai_processing
 - "Update bed status" → ai_processing`
@@ -1012,7 +994,6 @@ Examples:
         'create_staff',                 // Staff hiring/registration
         'create_equipment',             // Equipment registration
         'create_supply',                // Supply registration
-        'create_appointment',           // Patient medical appointments
         'create_equipment_category',    // Equipment category creation
         'create_supply_category'        // Supply category creation
       ];
@@ -1208,19 +1189,6 @@ Examples:
             setMessages(prev => [...prev, supplyCatMsg]);
             return;
             
-          case 'create_appointment':
-            console.log('📅 Opening Appointment Creation Form');
-            await loadDropdownOptions(); // Load patients, users (doctors), and departments
-            setShowAppointmentForm(true);
-            const apptMsg = {
-              id: Date.now() + 1,
-              text: "I detected you want to schedule an appointment! I've opened the appointment booking form for you. Please select a patient, doctor, and department from the dropdown menus.",
-              sender: 'ai',
-              timestamp: new Date().toLocaleTimeString()
-            };
-            setMessages(prev => [...prev, apptMsg]);
-            return;
-            
           case 'create_legacy_user':
             console.log('👤 Opening Legacy User Creation Form');
             setShowLegacyUserForm(true);
@@ -1282,8 +1250,6 @@ Examples:
         thinkingText += 'bed information';
       } else if (userMessage.toLowerCase().includes('department')) {
         thinkingText += 'department data';
-      } else if (userMessage.toLowerCase().includes('appointment')) {
-        thinkingText += 'appointment details';
       } else if (userMessage.toLowerCase().includes('equipment')) {
         thinkingText += 'equipment status';
       } else if (userMessage.toLowerCase().includes('supply')) {
@@ -1328,9 +1294,6 @@ Examples:
               case 'list_patients':
                 thinkingText = 'I can see the patient registry with all available patients.';
                 break;
-              case 'list_appointments':
-                thinkingText = `I can see ${call.arguments?.patient_id ? call.arguments.patient_id + ' has' : 'there are'} appointment${call.result && Array.isArray(call.result) && call.result.length !== 1 ? 's' : ''} scheduled.`;
-                break;
               case 'list_beds':
                 thinkingText = "Identified patient's bed assignment and prepared overview.";
                 break;
@@ -1348,9 +1311,6 @@ Examples:
                 break;
               case 'create_patient':
                 thinkingText = 'Successfully created new patient record.';
-                break;
-              case 'create_appointment':
-                thinkingText = 'Successfully scheduled new appointment.';
                 break;
               default:
                 thinkingText = `Executed ${call.function.replace(/_/g, ' ')} successfully.`;
@@ -1898,31 +1858,6 @@ Examples:
       return result;
     }
     
-    // Handle appointments
-    if (data.appointments && Array.isArray(data.appointments)) {
-      const appointments = data.appointments;
-      let result = `📅 **APPOINTMENT SCHEDULE**\n📊 **Found ${appointments.length} Appointment(s)**\n\n`;
-      
-      appointments.forEach((appt, i) => {
-        result += `📋 **${i + 1}. Appointment**\n`;
-        if (appt.appointment_date) result += `   📅 **Date & Time:** ${appt.appointment_date}\n`;
-        if (appt.patient_id) result += `   👤 **Patient ID:** ${appt.patient_id}\n`;
-        if (appt.doctor_id) result += `   👨‍⚕️ **Doctor ID:** ${appt.doctor_id}\n`;
-        if (appt.department_id) result += `   🏢 **Department:** ${appt.department_id}\n`;
-        if (appt.reason) result += `   🎯 **Reason:** ${appt.reason}\n`;
-        if (appt.duration_minutes) result += `   ⏱️ **Duration:** ${appt.duration_minutes} minutes\n`;
-        if (appt.notes) result += `   📝 **Notes:** ${appt.notes}\n`;
-        result += '\n';
-      });
-      
-      result += `\n💡 **Appointment Actions:**\n`;
-      result += `• Schedule new: "Book appointment for [Patient]"\n`;
-      result += `• Reschedule: "Change appointment [ID]"\n`;
-      result += `• Cancel: "Cancel appointment [ID]"\n`;
-      
-      return result;
-    }
-    
     // Handle equipment
     if (data.equipment && Array.isArray(data.equipment)) {
       const equipment = data.equipment;
@@ -2030,13 +1965,6 @@ Examples:
         if (item.status) bedInfo += ` • Status: ${item.status}`;
         if (item.bed_type) bedInfo += ` • Type: ${item.bed_type}`;
         return bedInfo;
-      }
-      // For appointment objects
-      if (item.appointment_date && item.patient_id) {
-        let apptInfo = `Appointment on ${item.appointment_date}`;
-        if (item.doctor_id) apptInfo += ` with Dr. ${item.doctor_id}`;
-        if (item.reason) apptInfo += ` • Reason: ${item.reason}`;
-        return apptInfo;
       }
       // Generic object formatting
       const keys = Object.keys(item);
@@ -2943,98 +2871,6 @@ Examples:
     setMessages(prev => [...prev, cancelMsg]);
   };
 
-  // Appointment Form Handlers
-  const handleAppointmentFormChange = (field, value) => {
-    setAppointmentFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  const submitAppointment = async () => {
-    const requiredFields = ['patient_id', 'doctor_id', 'department_id', 'appointment_date'];
-    const missingFields = requiredFields.filter(field => !appointmentFormData[field] || appointmentFormData[field].toString().trim() === '');
-    
-    if (missingFields.length > 0) {
-      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
-      return;
-    }
-
-    setIsSubmittingAppointment(true);
-
-    try {
-      const response = await aiMcpServiceRef.current.callToolDirectly('create_appointment', {
-        patient_id: appointmentFormData.patient_id,
-        doctor_id: appointmentFormData.doctor_id,
-        department_id: appointmentFormData.department_id,
-        appointment_date: appointmentFormData.appointment_date,
-        duration_minutes: appointmentFormData.duration_minutes ? parseInt(appointmentFormData.duration_minutes) : 30,
-        status: appointmentFormData.status,
-        reason: appointmentFormData.reason,
-        notes: appointmentFormData.notes
-      });
-
-      setShowAppointmentForm(false);
-      setAppointmentFormData({
-        patient_id: '',
-        doctor_id: '',
-        department_id: '',
-        appointment_date: '',
-        duration_minutes: 30,
-        status: 'scheduled',
-        reason: '',
-        notes: ''
-      });
-
-      let responseText = '';
-      if (response.success) {
-        const appointmentData = response.result?.data || response.data || {};
-        responseText = `✅ Appointment created successfully!
-        
-**Appointment Details:**
-- Patient ID: ${appointmentData.patient_id}
-- Doctor ID: ${appointmentData.doctor_id}
-- Date: ${appointmentData.appointment_date}
-- Duration: ${appointmentData.duration_minutes || 30} minutes
-- Status: ${appointmentData.status}`;
-      } else {
-        responseText = `❌ Failed to create appointment: ${response.message || 'Unknown error'}`;
-      }
-
-      const successMsg = {
-        id: Date.now(),
-        text: `✅ Appointment created successfully!\n\n${responseText}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, successMsg]);
-
-    } catch (error) {
-      console.error('Error creating appointment:', error);
-      
-      const errorMsg = {
-        id: Date.now(),
-        text: `❌ Error creating appointment: ${error.message || 'Unknown error occurred'}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, errorMsg]);
-    } finally {
-      setIsSubmittingAppointment(false);
-    }
-  };
-
-  const closeAppointmentForm = () => {
-    setShowAppointmentForm(false);
-    const cancelMsg = {
-      id: Date.now(),
-      text: "Appointment creation form was closed. You can say 'create appointment' anytime to open it again.",
-      sender: 'ai',
-      timestamp: new Date().toLocaleTimeString()
-    };
-    setMessages(prev => [...prev, cancelMsg]);
-  };
-
   // Legacy User Form Handlers
   const handleLegacyUserFormChange = (field, value) => {
     setLegacyUserFormData(prev => ({
@@ -3811,18 +3647,6 @@ Examples:
                 title="Emergency status"
               >
                 <span className="font-medium whitespace-nowrap">Emergency</span>
-              </button>
-
-              {/* Today's Schedule */}
-              <button
-                onClick={() => {
-                  setInputMessage("Show today's appointments");
-                  smartFocusInput(100);
-                }}
-                className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-2 py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
-                title="Today's appointments"
-              >
-                <span className="font-medium whitespace-nowrap">Today's Schedule</span>
               </button>
             </div>
           </div>
@@ -5364,134 +5188,6 @@ Examples:
               <button onClick={closeSupplyForm} disabled={isSubmittingSupply} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
               <button onClick={submitSupply} disabled={isSubmittingSupply} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
                 {isSubmittingSupply ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating Supply...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create Supply</span></>)}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Appointment Creation Form Popup */}
-      {showAppointmentForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="border-b border-gray-700 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-white">Appointment Creation Form</h2>
-                <button onClick={closeAppointmentForm} className="text-gray-400 hover:text-white">
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-            <div className="px-6 py-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Select Patient *</label>
-                <select
-                  value={appointmentFormData.patient_id}
-                  onChange={(e) => handleAppointmentFormChange('patient_id', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                >
-                  <option value="">Select a patient</option>
-                  {Array.isArray(patientOptions) ? patientOptions.map(patient => (
-                    <option key={patient.id} value={patient.id}>
-                      {patient.first_name} {patient.last_name} ({patient.patient_number})
-                    </option>
-                  )) : []}
-                </select>
-                <p className="text-xs text-gray-400 mt-1">Choose which patient the appointment is for</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Select Doctor *</label>
-                <select
-                  value={appointmentFormData.doctor_id}
-                  onChange={(e) => handleAppointmentFormChange('doctor_id', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                >
-                  <option value="">Select a doctor</option>
-                  {Array.isArray(userOptions) ? userOptions
-                    .filter(user => user.role === 'doctor' || user.role === 'admin')
-                    .map(user => (
-                      <option key={user.id} value={user.id}>
-                        Dr. {user.first_name} {user.last_name} ({user.username})
-                      </option>
-                    )) : []}
-                </select>
-                <p className="text-xs text-gray-400 mt-1">Choose which doctor will see the patient</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Select Department *</label>
-                <select
-                  value={appointmentFormData.department_id}
-                  onChange={(e) => handleAppointmentFormChange('department_id', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                >
-                  <option value="">Select a department</option>
-                  {Array.isArray(departmentOptions) ? departmentOptions.map(dept => (
-                    <option key={dept.id} value={dept.id}>
-                      {dept.name} (Floor {dept.floor_number || 'N/A'})
-                    </option>
-                  )) : []}
-                </select>
-                <p className="text-xs text-gray-400 mt-1">Choose which department the appointment is in</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Appointment Date & Time *</label>
-                <input
-                  type="datetime-local"
-                  value={appointmentFormData.appointment_date}
-                  onChange={(e) => handleAppointmentFormChange('appointment_date', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Reason</label>
-                <input
-                  type="text"
-                  value={appointmentFormData.reason}
-                  onChange={(e) => handleAppointmentFormChange('reason', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Appointment reason"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Duration (minutes)</label>
-                <input
-                  type="number"
-                  value={appointmentFormData.duration_minutes}
-                  onChange={(e) => handleAppointmentFormChange('duration_minutes', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Duration in minutes"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Status</label>
-                <select
-                  value={appointmentFormData.status}
-                  onChange={(e) => handleAppointmentFormChange('status', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                >
-                  <option value="">Select status</option>
-                  <option value="scheduled">Scheduled</option>
-                  <option value="confirmed">Confirmed</option>
-                  <option value="completed">Completed</option>
-                  <option value="cancelled">Cancelled</option>
-                  <option value="no_show">No Show</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Notes</label>
-                <textarea
-                  value={appointmentFormData.notes}
-                  onChange={(e) => handleAppointmentFormChange('notes', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  rows="3"
-                  placeholder="Additional notes"
-                />
-              </div>
-            </div>
-            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
-              <button onClick={closeAppointmentForm} disabled={isSubmittingAppointment} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
-              <button onClick={submitAppointment} disabled={isSubmittingAppointment} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
-                {isSubmittingAppointment ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating Appointment...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create Appointment</span></>)}
               </button>
             </div>
           </div>

@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 try:
     from database import (
         User, Department, Patient, Room, Bed, Staff, Equipment, EquipmentCategory,
-        Supply, SupplyCategory, InventoryTransaction, AgentInteraction, Appointment,
+        Supply, SupplyCategory, InventoryTransaction, AgentInteraction,
         LegacyUser, SessionLocal
     )
     DATABASE_AVAILABLE = True
@@ -926,79 +926,6 @@ def update_supply_stock(supply_id: str, quantity_change: int, transaction_type: 
         return {"success": True, "message": "Supply stock updated successfully", "data": result}
     except Exception as e:
         return {"success": False, "message": f"Failed to update supply stock: {str(e)}"}
-
-# ================================
-# APPOINTMENT CRUD OPERATIONS
-# ================================
-
-@mcp.tool()
-def create_appointment(patient_id: str, doctor_id: str, department_id: str, appointment_date: str,
-                      duration_minutes: int = 30, reason: str = None, notes: str = None) -> Dict[str, Any]:
-    """Create a new appointment."""
-    if not DATABASE_AVAILABLE:
-        return {"success": False, "message": "Database not available"}
-    
-    try:
-        db = get_db_session()
-        
-        # Parse appointment date - handle different formats including timezone
-        try:
-            if appointment_date.endswith('Z'):
-                # Remove Z and parse as UTC
-                appointment_datetime = datetime.fromisoformat(appointment_date[:-1])
-            elif '+' in appointment_date or appointment_date.count('-') > 2:
-                # Handle timezone offset
-                appointment_datetime = datetime.fromisoformat(appointment_date.replace('Z', '+00:00'))
-            else:
-                appointment_datetime = datetime.fromisoformat(appointment_date)
-        except ValueError as e:
-            db.close()
-            return {"success": False, "message": f"Invalid appointment date format: {appointment_date}. Use YYYY-MM-DD HH:MM or YYYY-MM-DDTHH:MM:SS"}
-        
-        appointment = Appointment(
-            patient_id=uuid.UUID(patient_id),
-            doctor_id=uuid.UUID(doctor_id),
-            department_id=uuid.UUID(department_id),
-            appointment_date=appointment_datetime,
-            duration_minutes=duration_minutes,
-            reason=reason,
-            notes=notes
-        )
-        db.add(appointment)
-        db.commit()
-        db.refresh(appointment)
-        result = serialize_model(appointment)
-        db.close()
-        
-        return {"success": True, "message": "Appointment created successfully", "data": result}
-    except Exception as e:
-        db.close()
-        return {"success": False, "message": f"Failed to create appointment: {str(e)}"}
-
-@mcp.tool()
-def list_appointments(doctor_id: str = None, patient_id: str = None, date: str = None) -> Dict[str, Any]:
-    """List appointments, optionally filtered by doctor, patient, or date."""
-    if not DATABASE_AVAILABLE:
-        return {"error": "Database not available", "appointments": [], "count": 0}
-    
-    try:
-        db = get_db_session()
-        query = db.query(Appointment)
-        if doctor_id:
-            query = query.filter(Appointment.doctor_id == uuid.UUID(doctor_id))
-        if patient_id:
-            query = query.filter(Appointment.patient_id == uuid.UUID(patient_id))
-        if date:
-            date_obj = datetime.strptime(date, "%Y-%m-%d").date()
-            query = query.filter(Appointment.appointment_date.cast(Date) == date_obj)
-        
-        appointments = query.all()
-        result = [serialize_model(appointment) for appointment in appointments]
-        db.close()
-        
-        return {"appointments": result, "count": len(result)}
-    except Exception as e:
-        return {"error": f"Failed to list appointments: {str(e)}", "appointments": [], "count": 0}
 
 # ================================
 # AGENT INTERACTION LOGGING
