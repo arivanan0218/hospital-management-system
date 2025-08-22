@@ -926,20 +926,51 @@ def get_meeting_by_id(meeting_id: str) -> Dict[str, Any]:
     return {"error": "Multi-agent system required for meeting retrieval"}
 
 @mcp.tool()
-def update_meeting_status(meeting_id: str, status: str) -> Dict[str, Any]:
+def update_meeting_status(meeting_id: str = None, status: str = None, query: str = None) -> Dict[str, Any]:
     """Update the status of a meeting.
-    
+
+    This wrapper accepts either structured (meeting_id + status) updates or a
+    natural-language `query`. If the incoming parameters look like a natural
+    language cancel/reschedule request (contain words like 'cancel',
+    'reschedule', 'postpone', or include times/dates), we forward the raw
+    query to the `update_meeting` tool so the richer updater (which handles
+    rescheduling and cancellation flows) runs. Otherwise we call the
+    structured `update_meeting_status` route on the orchestrator.
+
     Args:
-        meeting_id: The ID of the meeting to update
+        meeting_id: The ID of the meeting to update (optional when using `query`)
         status: New status (scheduled, in_progress, completed, cancelled)
+        query: Optional natural language update command (e.g., "Cancel the 'X' meeting")
     """
-    if MULTI_AGENT_AVAILABLE and orchestrator:
+    if not MULTI_AGENT_AVAILABLE or not orchestrator:
+        return {"error": "Multi-agent system required for meeting updates"}
+
+    # Prefer explicit natural language query when provided
+    nl = (query or "").strip()
+    if not nl:
+        # If no explicit query, sometimes assistants pass the status as a free-text
+        # natural language string (e.g., "Cancel the meeting titled X tomorrow at 5pm").
+        nl = (status or "").strip()
+
+    # Detect NL cancel/reschedule/update intent heuristically
+    if nl and re.search(r"\b(cancel|cancelled|cancellation|call off|postpone|reschedul|move|shift|postponed|abort)\b", nl, re.IGNORECASE):
+        # Build a reasonable query string including meeting id if provided
+        composed_query = nl
+        if meeting_id:
+            composed_query = f"{nl} meeting id {meeting_id}"
+
+        # Route to update_meeting which handles cancellations and reschedules
+        result = orchestrator.route_request("update_meeting", query=composed_query)
+        return result.get("result", result)
+
+    # If here, treat as a structured status update
+    try:
         result = orchestrator.route_request("update_meeting_status",
                                            meeting_id=meeting_id,
                                            status=status)
         return result.get("result", result)
-    
-    return {"error": "Multi-agent system required for meeting updates"}
+    except Exception as e:
+        return {"error": f"Failed to update meeting status: {e}"}
 
 @mcp.tool()
 def add_meeting_notes(meeting_id: str, notes: str, action_items: str = None) -> Dict[str, Any]:

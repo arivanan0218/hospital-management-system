@@ -3,6 +3,7 @@
 import uuid
 import json
 from typing import Any, Dict, List, Optional, Tuple
+import re
 from datetime import datetime, date
 from .base_agent import BaseAgent
 
@@ -91,6 +92,22 @@ class OrchestratorAgent(BaseAgent):
         import inspect
         
         try:
+            # Intercept structured update_meeting_status calls that contain
+            # natural language cancel/reschedule phrasing and route them
+            # to the richer `update_meeting` handler which sends notifications.
+            if tool_name == 'update_meeting_status':
+                nl = (kwargs.get('query') or '') or (kwargs.get('status') or '')
+                meeting_id = kwargs.get('meeting_id')
+                if nl and re.search(r"\b(cancel|cancelled|cancellation|call off|postpone|reschedul|move|shift|postponed|abort)\b", nl, re.IGNORECASE):
+                    composed_query = nl
+                    if meeting_id:
+                        composed_query = f"{nl} meeting id {meeting_id}"
+                    print(f"Orchestrator: rerouting structured update_meeting_status to update_meeting with query: {composed_query}")
+                    meeting_agent = self.agents.get('meeting')
+                    if meeting_agent and hasattr(meeting_agent, 'update_meeting'):
+                        result = meeting_agent.update_meeting(composed_query)
+                        return {"success": True, "agent": 'meeting', "result": result}
+                    # fallback to normal routing if meeting agent not available
             if tool_name in self.agent_routing:
                 agent_name = self.agent_routing[tool_name]
                 agent = self.agents[agent_name]
