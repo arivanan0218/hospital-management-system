@@ -206,6 +206,56 @@ class MeetingSchedulerAgent:
     def extract_meeting_title(self, query: str) -> str:
         """Extract meeting title from query."""
         try:
+            print(f"🔍 DEBUG: Extracting title from query: '{query}'")
+            # 1) Highest priority: explicit title markers or quoted titles
+            # Try explicit markers like: Subject: "...", Exact Title: "...", Title: "...", Topic: "..."
+            marker_patterns = [
+                r'(?:exact\s*title|subject|title|topic)\s*[:\-]\s*["“”\']([^"“”\']+)["“”\']',
+                r'(?:exact\s*title|subject|title|topic)\s*[:\-]\s*([A-Za-z0-9][^\n]+?)(?=\s+(?:with|between|on|at|for)\b|\s*$)'
+            ]
+
+            for pat in marker_patterns:
+                m = re.search(pat, query, re.IGNORECASE)
+                if m:
+                    extracted = m.group(1).strip()
+                    if extracted and extracted.lower() != 'all hospital staff':
+                        return extracted
+
+            # Pattern: Schedule "TITLE" meeting
+            m = re.search(r'schedule\s+[^\n]*?["“”\']([^"“”\']+)["“”\']\s+meeting', query, re.IGNORECASE)
+            if m:
+                extracted = m.group(1).strip()
+                if extracted and extracted.lower() != 'all hospital staff':
+                    return extracted
+
+            # Pattern: discuss "TITLE"
+            m = re.search(r'(?:discuss|about|regarding)\s+["“”\']([^"“”\']+)["“”\']', query, re.IGNORECASE)
+            if m:
+                extracted = m.group(1).strip()
+                if extracted and extracted.lower() != 'all hospital staff':
+                    print(f"✅ Found title via discuss pattern: '{extracted}'")
+                    return extracted
+
+            # 2) High priority: Any quoted text that looks like a title (not just specific markers)
+            # This catches cases like: discuss about 'Tasks Improvements'
+            quoted_patterns = [
+                r'["""\']([^"""\']{3,})["""\']',  # Any quoted text with 3+ characters
+                r'about\s+["""\']([^"""\']{3,})["""\']',  # "about 'Tasks Improvements'"
+                r'discuss\s+["""\']([^"""\']{3,})["""\']',  # "discuss 'Tasks Improvements'"
+                r'regarding\s+["""\']([^"""\']{3,})["""\']',  # "regarding 'Tasks Improvements'"
+            ]
+
+            for pat in quoted_patterns:
+                m = re.search(pat, query, re.IGNORECASE)
+                if m:
+                    extracted = m.group(1).strip()
+                    # Skip generic terms and validate it's a meaningful title
+                    if (extracted and 
+                        extracted.lower() not in ['all hospital staff', 'hospital staff', 'staff meeting', 'meeting'] and
+                        len(extracted) > 3):
+                        print(f"✅ Found title via quoted pattern: '{extracted}'")
+                        return extracted
+
             # Enhanced patterns to extract meeting topic - prioritize actual topic words over dates/names
             patterns = [
                 r'meeting.*?(?:about|regarding)\s+([a-zA-Z][a-zA-Z\s]+?)\s+(?:between|with|at|tomorrow|today|on\s+\d)',  # "meeting about daily improvement between"
@@ -262,7 +312,7 @@ class MeetingSchedulerAgent:
             skip_words = {
                 'schedule', 'meeting', 'at', 'for', 'on', 'about', 'regarding', 'tomorrow', 'today', 
                 'the', 'a', 'an', 'and', 'or', 'but', 'in', 'with', 'between', 'specifically',
-                'shamil', 'nazif', 'mohamed', 'sarah', 'johnson', 'smith', 'discuss', 'to'
+                'shamil', 'nazif', 'mohamed', 'sarah', 'johnson', 'smith', 'discuss', 'to', 'all', 'staff', 'staffs'
             }
             
             for word in words:
@@ -287,6 +337,7 @@ class MeetingSchedulerAgent:
                 print(f"Fallback meeting topic: '{title}'")
                 return f"{title} Meeting"
             
+            print(f"⚠️ No meaningful title found, using default: 'Hospital Staff Meeting'")
             return "Hospital Staff Meeting"
             
         except Exception as e:
@@ -587,7 +638,11 @@ class MeetingSchedulerAgent:
                         print(f"  Sending email to: {staff.user.first_name} {staff.user.last_name} ({staff.user.email})")
                         
                         # Create proper email subject (clean and professional)
+                        print(f"🔍 DEBUG: Email function received:")
+                        print(f"  - subject parameter: '{subject}'")
+                        print(f"  - meeting_title parameter: '{meeting_title}'")
                         title_to_use = meeting_title or subject  # Use meeting_title if provided, otherwise fallback to subject
+                        print(f"  - title_to_use: '{title_to_use}'")
                         
                         if "daily improvement" in title_to_use.lower() or "improvement" in title_to_use.lower():
                             email_subject = f"🏥 {title_to_use} - {meeting_time.strftime('%B %d, %Y')}"
@@ -891,6 +946,15 @@ Best regards,
                 self.session.rollback()
 
             # Send notifications with Meet link
+            print(f"🔍 DEBUG: Calling send_meeting_notifications with:")
+            print(f"  - staff_ids: {len(staff_ids)} staff members")
+            print(f"  - meeting_time: {meeting_time}")
+            print(f"  - subject (3rd param): '{meeting_title}'")
+            print(f"  - location: 'Conference Room A'")
+            print(f"  - meet_link: {meet_link}")
+            print(f"  - duration_string: '{duration_string}'")
+            print(f"  - meeting_title (7th param): '{meeting_title}'")
+            
             email_result = self.send_meeting_notifications(
                 staff_ids,
                 meeting_time,

@@ -1863,6 +1863,8 @@ Respond naturally and helpfully based on the user's request and the tool results
     }
     const parts = [];
     // Multiple title cues to maximize backend extraction reliability
+    parts.push(`Subject: "${title}"`);
+    parts.push(`Exact Title: "${title}"`);
     parts.push(`Schedule "${title}" meeting`);
     parts.push(`Title: "${title}"`);
     parts.push(`Topic: "${title}"`);
