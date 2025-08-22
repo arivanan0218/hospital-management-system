@@ -242,7 +242,7 @@ class DirectAIMCPService {
 
     // Check for tool-related similarities
     const toolKeywords = ['list', 'show', 'get', 'find', 'search', 'create', 'add', 'update', 'delete', 'assign'];
-    const entityKeywords = ['patient', 'staff', 'bed', 'department', 'appointment', 'equipment', 'supply', 'user'];
+    const entityKeywords = ['patient', 'staff', 'bed', 'department', 'equipment', 'supply', 'user'];
 
     const getKeywords = (text) => {
       const words = text.split(' ');
@@ -295,8 +295,7 @@ You have access to a complete hospital management system with tools for:
 - 🛏️ Bed management (room assignments, occupancy)
 - 🏥 Equipment tracking (medical devices, maintenance)
 - 📦 Supply inventory (medications, consumables)
-- 📅 Appointment scheduling
-- 📊 Reporting and analytics
+-  Reporting and analytics
 
 🔧 **Available Search Tools (Use These for ANY Entity):**
 - get_patient_by_id - Find patients by ID or patient number
@@ -312,7 +311,6 @@ You have access to a complete hospital management system with tools for:
 - list_supplies - Find supplies (can filter for low stock)
 - list_beds - Find beds (can filter by status)
 - list_rooms - Find rooms
-- list_appointments - Find appointments (can filter by doctor/patient/date)
 
 **When user search with the ids (not uuid) Agent should search with list_tools and should give the response**
 
@@ -434,16 +432,15 @@ You have access to a complete hospital management system with tools for:
 4. **Provide insights** - Don't just return raw data, interpret and explain it
 5. **Be helpful** - Suggest next steps or related actions
 6. **Handle errors gracefully** - If something fails, explain why and suggest alternatives
-7. **ALWAYS verify references before creation** - Before creating appointments, check that doctors, patients, and departments exist
-8. **Smart tool selection** - Analyze user request and choose the most appropriate search/get tool
-9. **Complete details** - Always provide full details from search results, not just confirmation
-10. **NO Results headers** - Never start responses with "Results:", "📊 Results:", or similar section headers
-11. **UNIVERSAL RULE: Single ID = Single Entity Response** - When user provides ANY specific ID (EMP001, PAT-123, EQ001, DOC-456, DEPT-789), use get_[entity]_by_id and return ONLY that entity, never a list
-12. **UNIVERSAL RULE: List requests = Multiple Entity Response** - Only use list_[entity] functions when user explicitly asks for multiple items ("all", "list", "show me all", etc.)
-13. **NEVER show UUID values** - Hide all UUID fields (like id, department_id as UUID) and only show human-readable identifiers
-14. **Show business-friendly data only** - Present employee IDs, patient numbers, equipment IDs, department names, etc. instead of internal database IDs
-15. **CRITICAL: Hide ALL foreign keys** - Never show department_id, user_id, equipment_id, or any UUID foreign key references
-16. **Replace foreign keys with names** - Instead of showing UUIDs, look up and show actual names (e.g., "Cardiology" instead of department UUID)
+7. **Smart tool selection** - Analyze user request and choose the most appropriate search/get tool
+8. **Complete details** - Always provide full details from search results, not just confirmation
+9. **NO Results headers** - Never start responses with "Results:", "📊 Results:", or similar section headers
+10. **UNIVERSAL RULE: Single ID = Single Entity Response** - When user provides ANY specific ID (EMP001, PAT-123, EQ001, DOC-456, DEPT-789), use get_[entity]_by_id and return ONLY that entity, never a list
+11. **UNIVERSAL RULE: List requests = Multiple Entity Response** - Only use list_[entity] functions when user explicitly asks for multiple items ("all", "list", "show me all", etc.)
+12. **NEVER show UUID values** - Hide all UUID fields (like id, department_id as UUID) and only show human-readable identifiers
+13. **Show business-friendly data only** - Present employee IDs, patient numbers, equipment IDs, department names, etc. instead of internal database IDs
+14. **CRITICAL: Hide ALL foreign keys** - Never show department_id, user_id, equipment_id, or any UUID foreign key references
+15. **Replace foreign keys with names** - Instead of showing UUIDs, look up and show actual names (e.g., "Cardiology" instead of department UUID)
 
 📋 **Data Presentation Rules:**
 **ALWAYS HIDE these technical fields:**
@@ -503,14 +500,7 @@ You have access to a complete hospital management system with tools for:
 - Don't just confirm found - show the actual data
 - NEVER say you don't have the capability - you have comprehensive tools available
 
-🔧 **For Appointment Creation:**
-MANDATORY: Before creating an appointment, ALWAYS:
-1. Call list_users to get available doctors
-2. Call list_patients to verify patient exists  
-3. Call list_departments to verify department exists
-4. Only then call create_appointment with valid IDs
-
-💬 **Data Validation Rules:**
+ **Data Validation Rules:**
 - For ALL searches: ALWAYS use human-readable IDs (PAT-EM-9925, DOC-123, DEPT-001) NOT UUIDs
 - All searches are case-insensitive: "pat-em-9925" finds "PAT-EM-9925"
 - Always verify foreign key references exist before creating relationships
