@@ -1032,6 +1032,102 @@ Best regards,
             
             print(f"✅ Found meeting: '{meeting.title}' (ID: {meeting.id})")
             
+            # Detect if the user intends to cancel the meeting
+            is_cancel = bool(re.search(r'\b(cancel|cancelled|cancelation|cancellation|abort|call off|call-off|calloff|stop meeting)\b', query, re.IGNORECASE))
+
+            if is_cancel:
+                print("Detected cancel request - proceeding to cancel the meeting")
+                # Update meeting status to cancelled
+                try:
+                    meeting.status = 'cancelled'
+                    meeting.cancelled_at = datetime.now()
+                    meeting.updated_at = datetime.now()
+
+                    # Update legacy StaffMeeting record if exists
+                    old_meeting = self.session.query(StaffMeeting).filter(
+                        StaffMeeting.title == meeting.title,
+                        StaffMeeting.meeting_time == meeting.meeting_datetime
+                    ).first()
+                    if old_meeting:
+                        old_meeting.status = 'cancelled'
+                        old_meeting.updated_at = datetime.now()
+
+                    self.session.commit()
+                    print("✅ Meeting marked as cancelled in database")
+                except Exception as e:
+                    self.session.rollback()
+                    return {"success": False, "message": f"Failed to cancel meeting in database: {e}"}
+
+                # Collect participants (same as update flow)
+                staff_ids = []
+                try:
+                    participants = self.meeting_manager.get_meeting_participants(str(meeting.id)) or []
+                    for p in participants:
+                        try:
+                            pid = None
+                            if isinstance(p, dict):
+                                pid = p.get('participant_id') or p.get('id') or p.get('staff_id')
+                                ptype = (p.get('type') or '').lower()
+                            else:
+                                pid = getattr(p, 'participant_id', None) or getattr(p, 'id', None) or getattr(p, 'staff_id', None)
+                                ptype = (getattr(p, 'type', '') or '').lower()
+
+                            if pid and (not ptype or ptype == 'staff'):
+                                staff_ids.append(str(pid))
+                        except Exception:
+                            continue
+                except Exception as e:
+                    print(f"Warning: could not get participants from MeetingManager for cancellation: {e}")
+
+                try:
+                    legacy_meeting = self.session.query(StaffMeeting).filter(
+                        StaffMeeting.title == meeting.title,
+                        StaffMeeting.meeting_time == meeting.meeting_datetime
+                    ).first()
+                    if legacy_meeting:
+                        old_participants = self.session.query(StaffMeetingParticipant).filter(
+                            StaffMeetingParticipant.meeting_id == legacy_meeting.id
+                        ).all()
+                        for p in old_participants:
+                            try:
+                                staff_ids.append(str(p.staff_id))
+                            except Exception:
+                                continue
+                except Exception as e:
+                    print(f"Warning: could not get legacy participants for cancellation: {e}")
+
+                # Deduplicate participants
+                if staff_ids:
+                    seen = set(); deduped = []
+                    for sid in staff_ids:
+                        if sid not in seen:
+                            seen.add(sid); deduped.append(sid)
+                    staff_ids = deduped
+
+                # Delete Google Meet event if present
+                google_deleted = False
+                if meeting.google_event_id:
+                    try:
+                        google_meet_api = GoogleMeetAPIIntegration(interactive=False)
+                        del_result = google_meet_api.delete_meet_event(meeting.google_event_id)
+                        google_deleted = del_result.get('success', False)
+                    except Exception as e:
+                        print(f"Warning: failed to delete Google Meet event: {e}")
+
+                # Send cancellation notifications
+                email_result = self.send_meeting_cancellation_notifications(
+                    staff_ids,
+                    meeting,
+                    meeting.meeting_datetime,
+                    meet_link=meeting.google_meet_link,
+                    google_deleted=google_deleted
+                )
+
+                if not email_result.get('success'):
+                    return {"success": False, "message": f"Meeting cancelled but failed to send cancellation notifications: {email_result.get('message')}"}
+
+                return {"success": True, "message": f"Meeting '{meeting.title}' cancelled and participants notified.", "data": {"meeting_id": str(meeting.id), "status": "cancelled", "emails_sent": email_result.get('emails_sent', 0)}}
+
             # Extract new date/time from query
             new_datetime = self.parse_meeting_datetime(query)
             if not new_datetime:
@@ -1478,3 +1574,107 @@ Best regards,
                 "total_recipients": len(staff_ids),
                 "message": f"Update email sending failed: {str(e)}"
             }
+
+    def send_meeting_cancellation_notifications(self, staff_ids: List[str], meeting: Any, cancelled_datetime: datetime, meet_link: str = None, google_deleted: bool = False) -> Dict[str, Any]:
+        """Send meeting cancellation notifications to all participants."""
+        try:
+            if not self.email_username or not self.email_password:
+                print("ERROR: Email configuration missing. Set EMAIL_USERNAME and EMAIL_PASSWORD in .env")
+                return {"success": False, "emails_sent": 0, "message": "Email configuration missing"}
+
+            print(f"📧 Sending cancellation notifications to {len(staff_ids)} staff members...")
+            server = smtplib.SMTP(self.email_server, self.email_port)
+            server.starttls()
+            server.login(self.email_username, self.email_password)
+
+            emails_sent = 0
+            failed_emails = []
+
+            for staff_id in staff_ids:
+                try:
+                    staff = None
+                    user_record = None
+                    try:
+                        staff = self.session.query(Staff).join(User).filter(Staff.id == uuid.UUID(staff_id)).first()
+                    except Exception:
+                        staff = None
+
+                    if not staff:
+                        try:
+                            user_record = self.session.query(User).filter(User.id == uuid.UUID(staff_id)).first()
+                        except Exception:
+                            user_record = None
+
+                    recipient_name = None
+                    recipient_email = None
+                    if staff and staff.user and staff.user.email:
+                        recipient_name = f"{staff.user.first_name} {staff.user.last_name}"
+                        recipient_email = staff.user.email
+                    elif user_record and getattr(user_record, 'email', None):
+                        recipient_name = f"{getattr(user_record, 'first_name', '')} {getattr(user_record, 'last_name', '')}".strip()
+                        recipient_email = user_record.email
+
+                    if recipient_email:
+                        print(f"  📧 Sending cancellation email to: {recipient_name} ({recipient_email})")
+                        email_subject = f"🏥 MEETING CANCELLED: {meeting.title}"
+
+                        msg = MIMEMultipart()
+                        msg['From'] = f"{self.email_from_name} <{self.email_from_address}>"
+                        msg['To'] = recipient_email
+                        msg['Subject'] = email_subject
+
+                        meet_section = ""
+                        if meet_link:
+                            meet_section = f"\n🔗 PREVIOUS MEETING LINK: {meet_link}\n"
+
+                        google_info = ""
+                        if google_deleted:
+                            google_info = "\n• The Google Calendar event has been removed."
+
+                        salutation = recipient_name if recipient_name else (f"{staff.user.first_name} {staff.user.last_name}" if staff and staff.user else "Staff Member")
+
+                        body = f"""Dear {salutation},
+
+🏥 MEETING CANCELLATION NOTICE
+
+The following meeting has been cancelled:
+• Topic: {meeting.title}
+• Scheduled for: {cancelled_datetime.strftime('%A, %B %d, %Y at %I:%M %p')}
+{meet_section}
+{google_info}
+
+If you have any questions about this cancellation, please contact the meeting organizer.
+
+Best regards,
+🏥 Hospital Management Team
+
+---
+📧 Reply to this email for meeting-related questions
+"""
+
+                        msg.attach(MIMEText(body, 'plain'))
+                        server.send_message(msg)
+                        emails_sent += 1
+                        print(f"  ✅ SUCCESS: Cancellation email sent to {recipient_email}")
+                    else:
+                        print(f"  ⚠️ WARNING: Participant {staff_id} not found or has no email")
+                        failed_emails.append(staff_id)
+
+                except Exception as e:
+                    print(f"  ❌ ERROR: Failed to send cancellation email to staff {staff_id}: {str(e)}")
+                    failed_emails.append(staff_id)
+
+            server.quit()
+            print(f"📧 Cancellation email sending completed. {emails_sent}/{len(staff_ids)} emails sent successfully.")
+
+            return {
+                "success": emails_sent > 0,
+                "emails_sent": emails_sent,
+                "total_recipients": len(staff_ids),
+                "failed_emails": failed_emails,
+                "message": f"Successfully sent {emails_sent} cancellation emails out of {len(staff_ids)} recipients"
+            }
+
+        except Exception as e:
+            print(f"ERROR in cancellation email sending process: {e}")
+            return {"success": False, "emails_sent": 0, "message": f"Cancellation email sending failed: {str(e)}"}
