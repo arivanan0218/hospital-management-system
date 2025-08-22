@@ -25,7 +25,8 @@ class MeetingAgent(BaseAgent):
             "list_meetings",              # List meetings by date / upcoming
             "get_meeting_by_id",          # Detailed meeting info
             "update_meeting_status",      # Change status
-            "add_meeting_notes"           # Post-meeting notes/action items
+            "add_meeting_notes",          # Post-meeting notes/action items
+            "update_meeting"              # Update meeting date/time and notify participants
         ]
 
     def get_capabilities(self) -> List[str]:
@@ -33,6 +34,7 @@ class MeetingAgent(BaseAgent):
             "Natural language meeting scheduling with Google Meet + email",
             "Meeting storage & participant management",
             "Status / notes updates",
+            "Meeting rescheduling with automatic participant notifications",
         ]
 
     # ---- Tool Implementations ----
@@ -98,6 +100,14 @@ class MeetingAgent(BaseAgent):
             return {"success": False, "message": "Meeting dependencies not available"}
         ok = self.manager.update_meeting_status(meeting_id, status)
         return {"success": ok, "message": "Status updated" if ok else "Failed to update status"}
+
+    def update_meeting(self, query: str) -> Dict[str, Any]:
+        """Update meeting date/time and send updated emails to participants."""
+        if not MEETING_DEPS or not self.scheduler:
+            return {"success": False, "message": "Meeting dependencies not available"}
+        result = self.scheduler.update_meeting(query)
+        self.log_interaction(query=f"Update meeting: {query}", response=result.get("message",""), tool_used="update_meeting")
+        return result
 
     def add_meeting_notes(self, meeting_id: str, notes: str, action_items: str = None) -> Dict[str, Any]:
         if not MEETING_DEPS or not self.manager:
