@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 from sqlalchemy.orm import Session
-from database import SessionLocal, Patient, Bed, User, Staff, Equipment, Appointment
+from database import SessionLocal, Patient, Bed, User, Staff, Equipment
 from discharge_report_models import (
     TreatmentRecord, EquipmentUsage, StaffAssignment, DischargeReport
 )
@@ -65,8 +65,7 @@ class PatientDischargeReportGenerator:
                 "equipment_summary": self._get_equipment_summary(patient.id, admission_date, discharge_date),
                 "staff_summary": self._get_staff_summary(patient.id, admission_date, discharge_date),
                 "medications": self._get_medications_summary(patient.id, admission_date, discharge_date),
-                "procedures": self._get_procedures_summary(patient.id, admission_date, discharge_date),
-                "appointments": self._get_appointments_summary(patient.id, admission_date, discharge_date)
+                "procedures": self._get_procedures_summary(patient.id, admission_date, discharge_date)
             }
             
             # Create discharge report record
@@ -239,24 +238,6 @@ class PatientDischargeReportGenerator:
             "effectiveness": p.effectiveness,
             "notes": p.notes
         } for p in procedures]
-    
-    def _get_appointments_summary(self, patient_id, admission_date, discharge_date) -> List[Dict[str, Any]]:
-        """Get appointments during the stay."""
-        appointments = self.session.query(Appointment).filter(
-            Appointment.patient_id == patient_id,
-            Appointment.appointment_date >= admission_date,
-            Appointment.appointment_date <= discharge_date
-        ).all()
-        
-        return [{
-            "appointment_date": a.appointment_date.isoformat(),
-            "doctor": f"{a.doctor.first_name} {a.doctor.last_name}" if a.doctor else "Unknown",
-            "department": a.department.name if a.department else "Unknown",
-            "duration_minutes": a.duration_minutes,
-            "status": a.status,
-            "reason": a.reason,
-            "notes": a.notes
-        } for a in appointments]
     
     def _format_discharge_report(self, data, report_record) -> str:
         """Format the discharge report as a comprehensive document."""
