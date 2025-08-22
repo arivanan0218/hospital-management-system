@@ -308,6 +308,23 @@ When you first run the integration, it will:
         print("Please download credentials.json from Google Cloud Console")
         return False
 
+    def delete_meet_event(self, event_id: str) -> Dict[str, Any]:
+        """Delete a Google Calendar event by its event ID."""
+        if not self.service:
+            return {"success": False, "message": "Google Calendar API not initialized"}
+
+        try:
+            print(f"Deleting Google Calendar event: {event_id}")
+            self.service.events().delete(calendarId='primary', eventId=event_id).execute()
+            print("Google Calendar event deleted successfully")
+            return {"success": True, "message": "Event deleted"}
+        except HttpError as error:
+            print(f"Google Calendar API error deleting event: {error}")
+            return {"success": False, "message": str(error)}
+        except Exception as e:
+            print(f"Error deleting Google Meet event: {e}")
+            return {"success": False, "message": str(e)}
+
 # Create alias for backwards compatibility
 GoogleMeetAPI = GoogleMeetAPIIntegration
 
