@@ -17,7 +17,7 @@ def create_discharge_report_tables():
         
         # Import all models to ensure they're registered
         from database import (
-            Patient, Staff, Equipment, User, Bed, Appointment,
+            Patient, Staff, Equipment, User, Bed,
             TreatmentRecord, EquipmentUsage, StaffAssignment, DischargeReport
         )
         

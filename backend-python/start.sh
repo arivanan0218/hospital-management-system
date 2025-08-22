@@ -22,7 +22,7 @@ init_database() {
 start_server() {
     echo "Starting Hospital Management Multi-Agent MCP Server..."
     echo "🤖 Multi-Agent Architecture Enabled"
-    echo "🔧 Agents: User, Patient, Department, Room/Bed, Staff, Equipment, Inventory, Appointment"
+    echo "🔧 Agents: User, Patient, Department, Room/Bed, Staff, Equipment, Inventory"
     echo "🎯 Orchestrator: Coordinating all agents"
     echo "📡 Server starting on port 8000..."
     python multi_agent_server.py
