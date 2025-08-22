@@ -1319,19 +1319,6 @@ def get_equipment_turnover_status(equipment_id: str) -> Dict[str, Any]:
     return {"error": "Multi-agent system required for equipment status"}
 
 @mcp.tool()
-def get_patient_medical_history(patient_id: str) -> Dict[str, Any]:
-    """Get patient medical history.
-    
-    Args:
-        patient_id: The ID of the patient
-    """
-    if MULTI_AGENT_AVAILABLE and orchestrator:
-        result = orchestrator.route_request("get_patient_medical_history", patient_id=patient_id)
-        return result.get("result", result)
-    
-    return {"error": "Multi-agent system required for medical history"}
-
-@mcp.tool()
 def download_discharge_report(report_number: str, download_format: str = "pdf") -> Dict[str, Any]:
     """Download a discharge report in the specified format.
     

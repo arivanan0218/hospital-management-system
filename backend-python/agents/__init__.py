@@ -11,7 +11,6 @@ from .room_bed_agent import RoomBedAgent
 from .staff_agent import StaffAgent
 from .equipment_agent import EquipmentAgent
 from .inventory_agent import InventoryAgent
-from .appointment_agent import AppointmentAgent
 from .orchestrator_agent import OrchestratorAgent
 
 __all__ = [
@@ -23,6 +22,5 @@ __all__ = [
     'StaffAgent',
     'EquipmentAgent',
     'InventoryAgent',
-    'AppointmentAgent',
     'OrchestratorAgent'
 ]
