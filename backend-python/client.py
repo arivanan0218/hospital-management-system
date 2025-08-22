@@ -58,6 +58,7 @@ class HospitalManagementClient:
             - Staff management (list staff, departments)
             - Equipment tracking (list equipment, update status)
             - Supply management (check inventory, low stock alerts)
+            - Appointment scheduling
             - Hospital analytics and optimization
             
             Based on the user's query, determine what action they want to take and respond with:
@@ -66,7 +67,7 @@ class HospitalManagementClient:
             3. A helpful explanation
             
             Available tools: list_patients, create_patient, list_beds, assign_bed_to_patient, list_staff, 
-            list_departments, list_equipment, list_supplies, analyze_hospital_state
+            list_departments, list_equipment, list_supplies, create_appointment, analyze_hospital_state
             """
             
             full_prompt = f"{system_prompt}\n\nUser Query: {user_query}\n\nPlease analyze this query and provide a structured response."
@@ -176,6 +177,7 @@ class HospitalManagementClient:
         equipment = await self._safe_call_tool("list_equipment", {})
         supplies = await self._safe_call_tool("list_supplies", {})
         low_stock = await self._safe_call_tool("list_supplies", {"low_stock_only": True})
+        appointments = await self._safe_call_tool("list_appointments", {})
         
         # Analyze data and make intelligent decisions
         analysis = {
@@ -185,6 +187,7 @@ class HospitalManagementClient:
             "bed_occupancy": self._calculate_bed_occupancy(beds),
             "equipment_status": self._analyze_equipment_status(equipment),
             "supply_alerts": len(low_stock.get("supplies", [])),
+            "upcoming_appointments": len(appointments.get("appointments", [])),
             "recommendations": []
         }
         
@@ -198,6 +201,7 @@ class HospitalManagementClient:
         print(f"   🛏️  Bed Occupancy: {analysis['bed_occupancy']['percentage']:.1f}%")
         print(f"   🔧 Equipment Issues: {analysis['equipment_status']['issues']}")
         print(f"   📦 Supply Alerts: {analysis['supply_alerts']}")
+        print(f"   📅 Appointments: {analysis['upcoming_appointments']}")
         
         if analysis["recommendations"]:
             print(f"\n💡 AI Recommendations ({len(analysis['recommendations'])}):")
@@ -252,6 +256,9 @@ class HospitalManagementClient:
                 "admission_date": datetime.now().isoformat()
             })
             print(f"🛏️  Assigned to bed: {optimal_bed['bed_number']}")
+        
+        # Auto-schedule initial appointment
+        await self._auto_schedule_appointment(patient_id, patient_data)
         
         # Check and allocate required supplies
         await self._allocate_patient_supplies(patient_data)
@@ -440,13 +447,15 @@ class HospitalManagementClient:
         """Optimize patient flow through the hospital."""
         print("🚶 Optimizing patient flow...")
         
+        appointments = await self._safe_call_tool("list_appointments", {})
         beds = await self._safe_call_tool("list_beds", {})
         
-        # Analyze bed availability
+        # Analyze appointment density and bed availability
+        appointment_count = len(appointments.get("appointments", []))
         available_beds = len([b for b in beds.get("beds", []) if b.get("status") == "available"])
         
-        if available_beds < 5:
-            print("   ⚠️ Low bed availability")
+        if appointment_count > available_beds:
+            print("   ⚠️ High appointment volume vs bed capacity")
         else:
             print("   ✅ Patient flow balanced")
     
@@ -461,6 +470,28 @@ class HospitalManagementClient:
         # Simple optimization - could be much more sophisticated
         # Consider patient type, department, bed type, etc.
         return available_beds[0]  # Return first available for now
+    
+    async def _auto_schedule_appointment(self, patient_id, patient_data):
+        """Automatically schedule initial appointment for patient."""
+        departments = await self._safe_call_tool("list_departments", {})
+        users = await self._safe_call_tool("list_users", {})
+        
+        if departments.get("departments") and users.get("users"):
+            dept = departments["departments"][0]
+            doctor = users["users"][0]
+            
+            # Schedule appointment for tomorrow
+            appointment_date = (datetime.now() + timedelta(days=1)).isoformat()
+            
+            await self._safe_call_tool("create_appointment", {
+                "patient_id": patient_id,
+                "doctor_id": doctor["id"],
+                "department_id": dept["id"],
+                "appointment_date": appointment_date,
+                "reason": "Initial consultation",
+                "duration_minutes": 30
+            })
+            print(f"📅 Auto-scheduled appointment for {appointment_date[:10]}")
     
     async def _allocate_patient_supplies(self, patient_data):
         """Allocate necessary supplies for patient care."""
@@ -1286,6 +1317,7 @@ class HospitalManagementClient:
             "Staff Management": [],
             "Equipment Management": [],
             "Supply Management": [],
+            "Appointment Management": [],
             "Agent Logging": [],
             "Legacy Support": []
         }
@@ -1306,6 +1338,8 @@ class HospitalManagementClient:
                 categories["Equipment Management"].append(name)
             elif "supply" in name or "stock" in name:
                 categories["Supply Management"].append(name)
+            elif "appointment" in name:
+                categories["Appointment Management"].append(name)
             elif "agent" in name or "log" in name:
                 categories["Agent Logging"].append(name)
             elif "legacy" in name:
@@ -1630,6 +1664,52 @@ class HospitalManagementClient:
         all_supplies_result = await self.session.call_tool("list_supplies", {})
         print(f"Result: {all_supplies_result.content[0].text}")
 
+    async def demo_appointment_management(self):
+        """Demonstrate appointment management operations."""
+        print("\n📅 === APPOINTMENT MANAGEMENT DEMO ===")
+        
+        # Get required data for appointment
+        patients_result = await self.session.call_tool("list_patients", {})
+        users_result = await self.session.call_tool("list_users", {})
+        departments_result = await self.session.call_tool("list_departments", {})
+        
+        try:
+            patients_data = json.loads(patients_result.content[0].text)
+            users_data = json.loads(users_result.content[0].text)
+            departments_data = json.loads(departments_result.content[0].text)
+            
+            if (patients_data.get("patients") and 
+                users_data.get("users") and 
+                departments_data.get("departments")):
+                
+                patient_id = patients_data["patients"][0]["id"]
+                doctor_id = users_data["users"][0]["id"]  # First user as doctor
+                department_id = departments_data["departments"][0]["id"]
+                
+                # Create appointment
+                print("\n1. Creating appointment...")
+                appointment_result = await self.session.call_tool(
+                    "create_appointment",
+                    {
+                        "patient_id": patient_id,
+                        "doctor_id": doctor_id,
+                        "department_id": department_id,
+                        "appointment_date": "2024-08-15T14:30:00",
+                        "duration_minutes": 60,
+                        "reason": "Demo consultation",
+                        "notes": "Demo appointment for testing"
+                    }
+                )
+                print(f"Result: {appointment_result.content[0].text}")
+        
+        except Exception as e:
+            print(f"Error in appointment demo: {e}")
+        
+        # List all appointments
+        print("\n2. Listing all appointments...")
+        list_result = await self.session.call_tool("list_appointments", {})
+        print(f"Result: {list_result.content[0].text}")
+
     async def demo_agent_logging(self):
         """Demonstrate AI agent interaction logging."""
         print("\n🤖 === AI AGENT LOGGING DEMO ===")
@@ -1750,6 +1830,7 @@ class HospitalManagementClient:
                     await self.demo_equipment_management()
                     await self.demo_supply_management()
                     await self.demo_staff_management()
+                    await self.demo_appointment_management()
                     await self.demo_agent_logging()
                     await self.demo_legacy_support()
                     
@@ -1936,6 +2017,7 @@ class HospitalManagementClient:
                         "Staff Management": [],
                         "Equipment Management": [],
                         "Supply Management": [],
+                        "Appointment Management": [],
                         "Agent Logging": [],
                         "Legacy Support": []
                     }
@@ -1956,6 +2038,8 @@ class HospitalManagementClient:
                             categories["Equipment Management"].append(name)
                         elif "supply" in name or "stock" in name:
                             categories["Supply Management"].append(name)
+                        elif "appointment" in name:
+                            categories["Appointment Management"].append(name)
                         elif "agent" in name or "log" in name:
                             categories["Agent Logging"].append(name)
                         elif "legacy" in name:
@@ -1976,17 +2060,18 @@ class HospitalManagementClient:
                     print("5. Equipment Management (AI Agent)")
                     print("6. Supply Management (AI Agent)")
                     print("7. Staff Management (AI Agent)")
-                    print("8. Agent Logging")
-                    print("9. Legacy Support")
+                    print("8. Appointment Management")
+                    print("9. Agent Logging")
+                    print("10. Legacy Support")
                     print("\n=== MASTER DATA MANAGEMENT ===")
-                    print("10. Master Data CRUD Operations")
+                    print("17. Master Data CRUD Operations")
                     print("\n=== AGENTIC AI FEATURES ===")
                     print("11. Analyze Hospital State")
                     print("12. Autonomous Management")
                     print("13. Intelligent Patient Admission")
                     print("14. Smart Resource Optimization")
                     print("15. Run Full Agentic Demo")
-                    print("16. LLM Integration Demo (Natural Language)")
+                    print("18. LLM Integration Demo (Natural Language)")
                     print("\n=== DEMOS ===")
                     print("16. Run Comprehensive Demo")
                     print("0. Exit")
