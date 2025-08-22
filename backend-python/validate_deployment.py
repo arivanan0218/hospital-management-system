@@ -35,14 +35,14 @@ def validate_deployment():
         print("\n2. Validating All Models...")
         from database import (
             User, Patient, Department, Room, Bed, Staff, Equipment, EquipmentCategory,
-            Supply, SupplyCategory, InventoryTransaction, AgentInteraction, Appointment,
+            Supply, SupplyCategory, InventoryTransaction, AgentInteraction,
             MedicalDocument, ExtractedMedicalData, DocumentEmbedding, LegacyUser,
             DischargeReport, BedTurnover, PatientQueue, EquipmentTurnover,
             Meeting, MeetingParticipant, BedCleaningTask, BedEquipmentAssignment,
             BedStaffAssignment, BedTurnoverLog, EquipmentUsage, StaffAssignment,
             StaffInteraction, StaffMeetingParticipant, StaffMeeting, TreatmentRecord
         )
-        validation_results.append(("Model Imports", True, "✅ All 32 models imported successfully"))
+        validation_results.append(("Model Imports", True, "✅ All 31 models imported successfully"))
         
     except ImportError as e:
         validation_results.append(("Model Imports", False, f"❌ Import error: {e}"))
@@ -67,7 +67,7 @@ def validate_deployment():
         
         # Expected tables
         expected_tables = {
-            'agent_interactions', 'appointments', 'bed_cleaning_tasks', 'bed_equipment_assignments',
+            'agent_interactions', 'bed_cleaning_tasks', 'bed_equipment_assignments',
             'bed_staff_assignments', 'bed_turnover_logs', 'beds', 'departments', 'discharge_reports',
             'document_embeddings', 'equipment', 'equipment_categories', 'equipment_usage',
             'extracted_medical_data', 'inventory_transactions', 'legacy_users', 'medical_documents',

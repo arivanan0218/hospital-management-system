@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 try:
     from database import (
         User, Department, Patient, Room, Bed, Staff, Equipment, EquipmentCategory,
-        Supply, SupplyCategory, InventoryTransaction, AgentInteraction, Appointment,
+        Supply, SupplyCategory, InventoryTransaction, AgentInteraction,
         LegacyUser, SessionLocal
     )
     DATABASE_AVAILABLE = True
