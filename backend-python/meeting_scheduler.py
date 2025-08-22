@@ -206,6 +206,56 @@ class MeetingSchedulerAgent:
     def extract_meeting_title(self, query: str) -> str:
         """Extract meeting title from query."""
         try:
+            print(f"🔍 DEBUG: Extracting title from query: '{query}'")
+            # 1) Highest priority: explicit title markers or quoted titles
+            # Try explicit markers like: Subject: "...", Exact Title: "...", Title: "...", Topic: "..."
+            marker_patterns = [
+                r'(?:exact\s*title|subject|title|topic)\s*[:\-]\s*["“”\']([^"“”\']+)["“”\']',
+                r'(?:exact\s*title|subject|title|topic)\s*[:\-]\s*([A-Za-z0-9][^\n]+?)(?=\s+(?:with|between|on|at|for)\b|\s*$)'
+            ]
+
+            for pat in marker_patterns:
+                m = re.search(pat, query, re.IGNORECASE)
+                if m:
+                    extracted = m.group(1).strip()
+                    if extracted and extracted.lower() != 'all hospital staff':
+                        return extracted
+
+            # Pattern: Schedule "TITLE" meeting
+            m = re.search(r'schedule\s+[^\n]*?["“”\']([^"“”\']+)["“”\']\s+meeting', query, re.IGNORECASE)
+            if m:
+                extracted = m.group(1).strip()
+                if extracted and extracted.lower() != 'all hospital staff':
+                    return extracted
+
+            # Pattern: discuss "TITLE"
+            m = re.search(r'(?:discuss|about|regarding)\s+["“”\']([^"“”\']+)["“”\']', query, re.IGNORECASE)
+            if m:
+                extracted = m.group(1).strip()
+                if extracted and extracted.lower() != 'all hospital staff':
+                    print(f"✅ Found title via discuss pattern: '{extracted}'")
+                    return extracted
+
+            # 2) High priority: Any quoted text that looks like a title (not just specific markers)
+            # This catches cases like: discuss about 'Tasks Improvements'
+            quoted_patterns = [
+                r'["""\']([^"""\']{3,})["""\']',  # Any quoted text with 3+ characters
+                r'about\s+["""\']([^"""\']{3,})["""\']',  # "about 'Tasks Improvements'"
+                r'discuss\s+["""\']([^"""\']{3,})["""\']',  # "discuss 'Tasks Improvements'"
+                r'regarding\s+["""\']([^"""\']{3,})["""\']',  # "regarding 'Tasks Improvements'"
+            ]
+
+            for pat in quoted_patterns:
+                m = re.search(pat, query, re.IGNORECASE)
+                if m:
+                    extracted = m.group(1).strip()
+                    # Skip generic terms and validate it's a meaningful title
+                    if (extracted and 
+                        extracted.lower() not in ['all hospital staff', 'hospital staff', 'staff meeting', 'meeting'] and
+                        len(extracted) > 3):
+                        print(f"✅ Found title via quoted pattern: '{extracted}'")
+                        return extracted
+
             # Enhanced patterns to extract meeting topic - prioritize actual topic words over dates/names
             patterns = [
                 r'meeting.*?(?:about|regarding)\s+([a-zA-Z][a-zA-Z\s]+?)\s+(?:between|with|at|tomorrow|today|on\s+\d)',  # "meeting about daily improvement between"
@@ -262,7 +312,7 @@ class MeetingSchedulerAgent:
             skip_words = {
                 'schedule', 'meeting', 'at', 'for', 'on', 'about', 'regarding', 'tomorrow', 'today', 
                 'the', 'a', 'an', 'and', 'or', 'but', 'in', 'with', 'between', 'specifically',
-                'shamil', 'nazif', 'mohamed', 'sarah', 'johnson', 'smith', 'discuss', 'to'
+                'shamil', 'nazif', 'mohamed', 'sarah', 'johnson', 'smith', 'discuss', 'to', 'all', 'staff', 'staffs'
             }
             
             for word in words:
@@ -287,6 +337,7 @@ class MeetingSchedulerAgent:
                 print(f"Fallback meeting topic: '{title}'")
                 return f"{title} Meeting"
             
+            print(f"⚠️ No meaningful title found, using default: 'Hospital Staff Meeting'")
             return "Hospital Staff Meeting"
             
         except Exception as e:
@@ -587,7 +638,11 @@ class MeetingSchedulerAgent:
                         print(f"  Sending email to: {staff.user.first_name} {staff.user.last_name} ({staff.user.email})")
                         
                         # Create proper email subject (clean and professional)
+                        print(f"🔍 DEBUG: Email function received:")
+                        print(f"  - subject parameter: '{subject}'")
+                        print(f"  - meeting_title parameter: '{meeting_title}'")
                         title_to_use = meeting_title or subject  # Use meeting_title if provided, otherwise fallback to subject
+                        print(f"  - title_to_use: '{title_to_use}'")
                         
                         if "daily improvement" in title_to_use.lower() or "improvement" in title_to_use.lower():
                             email_subject = f"🏥 {title_to_use} - {meeting_time.strftime('%B %d, %Y')}"
@@ -713,15 +768,11 @@ Best regards,
                 staff_ids = self.find_staff_by_names(participant_names)
                 print(f"Using specific participants: {participant_names} -> {len(staff_ids)} staff members")
             else:
-                # Fallback: Get available doctors and nurses if no specific participants mentioned
-                available_staff = self.session.query(Staff).filter(
-                    Staff.status == 'active',
-                    or_(
-                        Staff.position.ilike('%doctor%'),
-                        Staff.position.ilike('%nurse%'),
-                        Staff.position.ilike('%cardiologist%')
-                    )
-                ).all()
+                # Fallback: If no specific participants mentioned, pick a broader set of active staff
+                # Previously this filtered only doctors/nurses which could be small; use a larger sample
+                available_staff = self.session.query(Staff).join(User).filter(
+                    Staff.status == 'active'
+                ).order_by(User.last_name).limit(50).all()
                 
                 if not available_staff:
                     return {
@@ -891,6 +942,15 @@ Best regards,
                 self.session.rollback()
 
             # Send notifications with Meet link
+            print(f"🔍 DEBUG: Calling send_meeting_notifications with:")
+            print(f"  - staff_ids: {len(staff_ids)} staff members")
+            print(f"  - meeting_time: {meeting_time}")
+            print(f"  - subject (3rd param): '{meeting_title}'")
+            print(f"  - location: 'Conference Room A'")
+            print(f"  - meet_link: {meet_link}")
+            print(f"  - duration_string: '{duration_string}'")
+            print(f"  - meeting_title (7th param): '{meeting_title}'")
+            
             email_result = self.send_meeting_notifications(
                 staff_ids,
                 meeting_time,
@@ -928,4 +988,493 @@ Best regards,
             return {
                 "success": False,
                 "message": f"Failed to schedule meeting: {str(e)}"
+            }
+
+    def update_meeting(self, query: str) -> Dict[str, Any]:
+        """Update an existing meeting with new date/time and send updated emails to participants."""
+        try:
+            print(f"🔍 DEBUG: Updating meeting with query: '{query}'")
+            
+            # Extract meeting identifier (ID or title)
+            meeting_id = self.extract_meeting_id(query)
+            meeting_title = self.extract_meeting_title_from_update_query(query)
+            
+            if not meeting_id and not meeting_title:
+                return {
+                    "success": False,
+                    "message": "Please provide either a meeting ID or meeting title to update the meeting."
+                }
+            
+            # Find the meeting
+            meeting = None
+            if meeting_id:
+                meeting = self.meeting_manager.get_meeting_by_id(meeting_id)
+                if not meeting:
+                    return {
+                        "success": False,
+                        "message": f"Meeting with ID '{meeting_id}' not found."
+                    }
+            else:
+                # Search by title
+                meetings = self.search_meetings_by_title(meeting_title)
+                if not meetings:
+                    return {
+                        "success": False,
+                        "message": f"No meetings found with title containing '{meeting_title}'."
+                    }
+                if len(meetings) > 1:
+                    return {
+                        "success": False,
+                        "message": f"Multiple meetings found with similar title. Please use the meeting ID to specify which one to update.",
+                        "meetings": [{"id": str(m.id), "title": m.title, "datetime": m.meeting_datetime.isoformat()} for m in meetings]
+                    }
+                meeting = meetings[0]
+            
+            print(f"✅ Found meeting: '{meeting.title}' (ID: {meeting.id})")
+            
+            # Extract new date/time from query
+            new_datetime = self.parse_meeting_datetime(query)
+            if not new_datetime:
+                return {
+                    "success": False,
+                    "message": "Could not parse the new date/time from your request. Please specify when you want to reschedule the meeting."
+                }
+            
+            # Extract new duration if specified
+            new_duration_minutes, new_duration_string = self.parse_duration(query)
+
+            # Get current meeting details
+            old_datetime = meeting.meeting_datetime
+            old_duration = meeting.duration_minutes
+
+            print(f"📅 Updating meeting from {old_datetime} to {new_datetime}")
+            print(f"⏱️ Duration: {old_duration} minutes → {new_duration_minutes} minutes")
+
+            # BEFORE updating the legacy StaffMeeting record, fetch legacy participants so we can notify them
+            legacy_participant_ids = []
+            try:
+                legacy_meeting_pre = self.session.query(StaffMeeting).filter(
+                    StaffMeeting.title == meeting.title,
+                    StaffMeeting.meeting_time == old_datetime
+                ).first()
+                if legacy_meeting_pre:
+                    old_parts = self.session.query(StaffMeetingParticipant).filter(
+                        StaffMeetingParticipant.meeting_id == legacy_meeting_pre.id
+                    ).all()
+                    legacy_participant_ids = [str(p.staff_id) for p in old_parts]
+                    print(f"Found {len(legacy_participant_ids)} legacy participants to notify")
+            except Exception as e:
+                print(f"Warning: could not fetch legacy participants before update: {e}")
+
+            # Update the meeting in the database
+            try:
+                meeting.meeting_datetime = new_datetime
+                meeting.duration_minutes = new_duration_minutes
+                meeting.updated_at = datetime.now()
+                meeting.status = "rescheduled"
+                
+                # Update old StaffMeeting record for backward compatibility
+                old_meeting = self.session.query(StaffMeeting).filter(
+                    StaffMeeting.title == meeting.title,
+                    StaffMeeting.meeting_time == old_datetime
+                ).first()
+                
+                if old_meeting:
+                    old_meeting.meeting_time = new_datetime
+                    old_meeting.duration_minutes = new_duration_minutes
+                
+                self.session.commit()
+                print(f"✅ Meeting updated in database")
+                
+            except Exception as e:
+                self.session.rollback()
+                return {
+                    "success": False,
+                    "message": f"Failed to update meeting in database: {str(e)}"
+                }
+            
+            # Get participants for the updated meeting from both new and legacy systems
+            staff_ids = []
+
+            # 1) Try to get participants from new MeetingManager
+            try:
+                participants = self.meeting_manager.get_meeting_participants(str(meeting.id)) or []
+                for p in participants:
+                    try:
+                        # Support different shapes returned by MeetingManager
+                        pid = None
+                        if isinstance(p, dict):
+                            pid = p.get('participant_id') or p.get('id') or p.get('staff_id')
+                            ptype = (p.get('type') or '').lower()
+                        else:
+                            # If it's an object with attributes
+                            pid = getattr(p, 'participant_id', None) or getattr(p, 'id', None) or getattr(p, 'staff_id', None)
+                            ptype = (getattr(p, 'type', '') or '').lower()
+
+                        if pid and (not ptype or ptype == 'staff'):
+                            staff_ids.append(str(pid))
+                    except Exception:
+                        continue
+            except Exception as e:
+                print(f"Warning: could not get participants from MeetingManager: {e}")
+
+            # 2) Also try legacy StaffMeetingParticipant entries (backwards compatibility)
+            try:
+                legacy_meeting = self.session.query(StaffMeeting).filter(
+                    StaffMeeting.title == meeting.title,
+                    StaffMeeting.meeting_time == old_datetime
+                ).first()
+                if legacy_meeting:
+                    old_participants = self.session.query(StaffMeetingParticipant).filter(
+                        StaffMeetingParticipant.meeting_id == legacy_meeting.id
+                    ).all()
+                    for p in old_participants:
+                        try:
+                            staff_ids.append(str(p.staff_id))
+                        except Exception:
+                            continue
+            except Exception as e:
+                print(f"Warning: could not get legacy participants: {e}")
+
+            # 3) Also include any legacy participant IDs captured before the DB update
+            try:
+                if legacy_participant_ids:
+                    for pid in legacy_participant_ids:
+                        staff_ids.append(str(pid))
+            except Exception:
+                pass
+
+            # Deduplicate while preserving order
+            if staff_ids:
+                seen = set()
+                deduped = []
+                for sid in staff_ids:
+                    if sid not in seen:
+                        seen.add(sid)
+                        deduped.append(sid)
+                staff_ids = deduped
+            
+            # Update Google Meet if available
+            meet_link = meeting.google_meet_link
+            if meeting.google_event_id:
+                try:
+                    print("🔄 Updating Google Meet event...")
+                    google_meet_api = GoogleMeetAPIIntegration(interactive=False)
+                    
+                    # Collect attendee emails
+                    attendee_emails = []
+                    for staff_id in staff_ids:
+                        staff = self.session.query(Staff).join(User).filter(Staff.id == uuid.UUID(staff_id)).first()
+                        if staff and staff.user.email:
+                            attendee_emails.append(staff.user.email)
+                    
+                    # Update the Google Meet event
+                    update_result = google_meet_api.update_meet_event(
+                        event_id=meeting.google_event_id,
+                        title=meeting.title,
+                        start_time=new_datetime,
+                        duration_minutes=new_duration_minutes,
+                        attendees=attendee_emails
+                    )
+                    
+                    if update_result.get('success'):
+                        meet_link = update_result.get('meet_link', meet_link)
+                        print(f"✅ Google Meet event updated successfully")
+                    else:
+                        print(f"⚠️ Google Meet update failed: {update_result.get('message', 'Unknown error')}")
+                        
+                except Exception as e:
+                    print(f"⚠️ Google Meet update failed: {e}")
+                    # Continue with the existing meet link
+            
+            # Send updated meeting notifications
+            email_result = self.send_meeting_update_notifications(
+                staff_ids,
+                meeting,
+                old_datetime,
+                new_datetime,
+                old_duration,
+                new_duration_minutes,
+                meet_link
+            )
+            
+            if not email_result["success"]:
+                return {
+                    "success": False,
+                    "message": f"Meeting updated but failed to send update notifications: {email_result['message']}"
+                }
+            
+            return {
+                "success": True,
+                "message": f"Meeting '{meeting.title}' has been successfully updated and all participants have been notified.",
+                "data": {
+                    "meeting_id": str(meeting.id),
+                    "title": meeting.title,
+                    "old_datetime": old_datetime.isoformat(),
+                    "new_datetime": new_datetime.isoformat(),
+                    "old_duration": f"{old_duration} minutes",
+                    "new_duration": f"{new_duration_minutes} minutes",
+                    "google_meet_link": meet_link,
+                    "emails_sent": email_result["emails_sent"],
+                    "status": "rescheduled"
+                }
+            }
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"Failed to update meeting: {str(e)}"
+            }
+    
+    def extract_meeting_id(self, query: str) -> Optional[str]:
+        """Extract meeting ID from update query."""
+        # Look for UUID patterns
+        uuid_pattern = r'([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})'
+        match = re.search(uuid_pattern, query, re.IGNORECASE)
+        if match:
+            return match.group(1)
+        
+        # Look for "meeting ID" or "ID" patterns
+        id_patterns = [
+            r'meeting\s+id\s*:?\s*([0-9a-f-]+)',
+            r'id\s*:?\s*([0-9a-f-]+)',
+            r'meeting\s+#([0-9a-f-]+)',
+            r'#([0-9a-f-]+)',
+            r'([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})'  # Full UUID pattern
+        ]
+        
+        # Process patterns in order, but prioritize longer matches
+        best_match = None
+        best_length = 0
+        
+        for pattern in id_patterns:
+            match = re.search(pattern, query, re.IGNORECASE)
+            if match:
+                extracted = match.group(1).strip()
+                if extracted and len(extracted) > best_length:
+                    best_match = extracted
+                    best_length = len(extracted)
+        
+        return best_match
+    
+    def extract_meeting_title_from_update_query(self, query: str) -> Optional[str]:
+        """Extract meeting title from update query, excluding update-related words."""
+        # Remove update-related words to focus on the actual title
+        update_words = ['update', 'reschedule', 'postpone', 'change', 'move', 'shift', 'delay', 'earlier', 'later']
+        query_lower = query.lower()
+        
+        for word in update_words:
+            query_lower = query_lower.replace(word, '')
+        
+        # Look for quoted titles
+        quoted = re.search(r'["""\']([^"""\']+)["""\']', query)
+        if quoted:
+            title = quoted.group(1).strip()
+            if title and len(title) > 3:
+                return title
+        
+        # Look for "meeting titled" or "meeting called" patterns
+        title_patterns = [
+            r'meeting\s+titled\s+([^,\n]+)',
+            r'meeting\s+called\s+([^,\n]+)',
+            r'meeting\s+about\s+([^,\n]+)',
+            r'meeting\s+for\s+([^,\n]+)',
+            r'the\s+([^,\n]+?)\s+meeting',  # "the Tasks Improvements meeting"
+            r'our\s+([^,\n]+?)\s+meeting'   # "our staff meeting"
+        ]
+        
+        for pattern in title_patterns:
+            match = re.search(pattern, query, re.IGNORECASE)
+            if match:
+                title = match.group(1).strip()
+                # Clean up the title by removing trailing words that are not part of the title
+                # Remove words like "needs to be moved", "to tomorrow", etc.
+                title = re.sub(r'\s+(?:needs?\s+to\s+be\s+moved?|to\s+tomorrow|to\s+next|until\s+next?|about\s+).*$', '', title, flags=re.IGNORECASE)
+                title = title.strip()
+                if title and len(title) > 3:
+                    return title
+        
+        return None
+    
+    def search_meetings_by_title(self, title_fragment: str) -> List[Any]:
+        """Search for meetings by title fragment."""
+        try:
+            # Search in new Meeting table
+            meetings = self.session.query(Meeting).filter(
+                Meeting.title.ilike(f'%{title_fragment}%')
+            ).order_by(Meeting.meeting_datetime.desc()).all()
+            
+            # Also search in old StaffMeeting table for backward compatibility
+            old_meetings = self.session.query(StaffMeeting).filter(
+                StaffMeeting.title.ilike(f'%{title_fragment}%')
+            ).order_by(StaffMeeting.meeting_time.desc()).all()
+            
+            # Convert old meetings to new format for consistency
+            all_meetings = list(meetings)
+            for old_meeting in old_meetings:
+                # Create a mock meeting object with old meeting data
+                mock_meeting = type('MockMeeting', (), {
+                    'id': old_meeting.id,
+                    'title': old_meeting.title,
+                    'meeting_datetime': old_meeting.meeting_time,
+                    'duration_minutes': old_meeting.duration_minutes,
+                    'location': old_meeting.location
+                })()
+                all_meetings.append(mock_meeting)
+            
+            return all_meetings
+            
+        except Exception as e:
+            print(f"Error searching meetings by title: {e}")
+            return []
+    
+    def send_meeting_update_notifications(self, staff_ids: List[str], meeting: Any, old_datetime: datetime, new_datetime: datetime, old_duration: int, new_duration: int, meet_link: str = None) -> Dict[str, Any]:
+        """Send meeting update notifications to all participants."""
+        try:
+            if not self.email_username or not self.email_password:
+                print("ERROR: Email configuration missing. Set EMAIL_USERNAME and EMAIL_PASSWORD in .env")
+                return {"success": False, "emails_sent": 0, "message": "Email configuration missing"}
+
+            print(f"📧 Sending update notifications to {len(staff_ids)} staff members...")
+            
+            server = smtplib.SMTP(self.email_server, self.email_port)
+            server.starttls()
+            server.login(self.email_username, self.email_password)
+            
+            emails_sent = 0
+            failed_emails = []
+            
+            for staff_id in staff_ids:
+                try:
+                    # Try resolving as Staff first
+                    staff = None
+                    user_record = None
+                    try:
+                        staff = self.session.query(Staff).join(User).filter(Staff.id == uuid.UUID(staff_id)).first()
+                    except Exception:
+                        staff = None
+
+                    # If not a Staff (maybe stored as a User ID), try User table
+                    if not staff:
+                        try:
+                            user_record = self.session.query(User).filter(User.id == uuid.UUID(staff_id)).first()
+                        except Exception:
+                            user_record = None
+
+                    # Determine recipient name and email
+                    recipient_name = None
+                    recipient_email = None
+                    if staff and staff.user and staff.user.email:
+                        recipient_name = f"{staff.user.first_name} {staff.user.last_name}"
+                        recipient_email = staff.user.email
+                    elif user_record and getattr(user_record, 'email', None):
+                        recipient_name = f"{getattr(user_record, 'first_name', '')} {getattr(user_record, 'last_name', '')}".strip()
+                        recipient_email = user_record.email
+
+                    if recipient_email:
+                        print(f"  📧 Sending update email to: {recipient_name} ({recipient_email})")
+                        
+                        # Create email subject
+                        email_subject = f"🏥 MEETING UPDATED: {meeting.title} - {new_datetime.strftime('%B %d, %Y')}"
+                        
+                        msg = MIMEMultipart()
+                        msg['From'] = f"{self.email_from_name} <{self.email_from_address}>"
+                        msg['To'] = recipient_email
+                        msg['Subject'] = email_subject
+
+                        # Create meeting link section
+                        meet_section = ""
+                        if meet_link:
+                            meet_section = f"""
+🔗 JOIN ONLINE MEETING:
+{meet_link}
+
+📝 MEETING ACCESS:
+• Click the Google Meet link above to join
+• Meeting hosted by Hospital Management System
+• Google Calendar invitation will be sent separately
+• Join 5 minutes early for best experience
+
+"""
+                        else:
+                            meet_section = f"📍 LOCATION: {meeting.location}\n"
+
+                        # Create clean meeting topic for email body
+                        meeting_topic = meeting.title.replace(" Meeting", "") if meeting.title.endswith(" Meeting") else meeting.title
+                        
+                        # Use recipient_name if available, otherwise a generic salutation
+                        salutation = recipient_name if recipient_name else (f"{staff.user.first_name} {staff.user.last_name}" if staff and staff.user else "Staff Member")
+
+                        body = f"""Dear {salutation},
+
+🏥 MEETING UPDATE NOTIFICATION
+
+IMPORTANT: This meeting has been RESCHEDULED / POSTPONED.
+
+What changed:
+• Previous: {old_datetime.strftime('%A, %B %d, %Y at %I:%M %p')} ({old_duration} minutes)
+• New: {new_datetime.strftime('%A, %B %d, %Y at %I:%M %p')} ({new_duration} minutes)
+
+� MEETING DETAILS:
+• Topic: {meeting_topic}
+• NEW Date: {new_datetime.strftime('%A, %B %d, %Y')}
+• NEW Time: {new_datetime.strftime('%I:%M %p')}
+• NEW Duration: {new_duration} minutes
+
+{meet_section}
+
+📝 AGENDA:
+• Review current workflows and processes
+• Discussion of improvement opportunities  
+• Team collaboration and feedback
+• Action items and next steps
+• Q&A session
+
+⚠️ IMPORTANT NOTES:
+• The meeting has been rescheduled
+• Please update your calendar
+• Attendance is required for all staff
+• Please join 5 minutes before start time
+• Bring any relevant notes or questions
+• If unable to attend, notify your supervisor immediately
+
+Thank you for your understanding and continued dedication to excellent patient care.
+
+Best regards,
+🏥 Hospital Management Team
+
+---
+📧 Reply to this email for meeting-related questions
+📞 Contact Administration for urgent matters"""
+
+                        msg.attach(MIMEText(body, 'plain'))
+                        server.send_message(msg)
+                        emails_sent += 1
+                        print(f"  ✅ SUCCESS: Update email sent to {recipient_email}")
+                    else:
+                        print(f"  ⚠️ WARNING: Participant {staff_id} not found or has no email")
+                        failed_emails.append(staff_id)
+                        
+                except Exception as e:
+                    print(f"  ❌ ERROR: Failed to send update email to staff {staff_id}: {str(e)}")
+                    failed_emails.append(staff_id)
+
+            server.quit()
+            print(f"📧 Update email sending completed. {emails_sent}/{len(staff_ids)} emails sent successfully.")
+            
+            return {
+                "success": emails_sent > 0,
+                "emails_sent": emails_sent,
+                "total_recipients": len(staff_ids),
+                "failed_emails": failed_emails,
+                "message": f"Successfully sent {emails_sent} update emails out of {len(staff_ids)} recipients"
+            }
+            
+        except Exception as e:
+            print(f"ERROR in update email sending process: {e}")
+            return {
+                "success": False,
+                "emails_sent": 0,
+                "total_recipients": len(staff_ids),
+                "message": f"Update email sending failed: {str(e)}"
             }

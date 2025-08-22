@@ -691,6 +691,17 @@ class DirectHttpMCPClient {
             required: ['meeting_id', 'notes']
           }
         },
+        { 
+          name: 'update_meeting', 
+          description: 'Update meeting date/time and notify all participants',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              query: { type: 'string', description: 'Natural language meeting update request (e.g., "Postpone the Tasks Improvements meeting to tomorrow at 3 PM", "Reschedule meeting ID abc-123 to Friday at 2:30 PM") - REQUIRED' }
+            },
+            required: ['query']
+          }
+        },
 
         // Advanced Reporting & Analytics
         { 
@@ -1205,6 +1216,13 @@ class DirectHttpMCPClient {
           note_type: { type: 'string', description: 'Type of note (general, action_item, decision, follow_up)' }
         },
         required: ['meeting_id', 'notes']
+      },
+      'update_meeting': {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Natural language meeting update request - REQUIRED. Examples: "Postpone the Tasks Improvements meeting to tomorrow at 3 PM", "Reschedule meeting ID abc-123 to Friday at 2:30 PM", "Move the staff meeting to next Monday at 10 AM"' }
+        },
+        required: ['query']
       },
 
       // ADVANCED REPORTING & ANALYTICS

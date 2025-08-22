@@ -987,6 +987,16 @@ Respond naturally, conversationally, and contextually based on the conversation 
       toolsNeeded.push({ name: 'schedule_meeting', arguments: { query } });
     }
     
+    // Meeting updates - Check for meeting update requests
+    if (message.includes('update meeting') || message.includes('reschedule meeting') || 
+        message.includes('postpone meeting') || message.includes('change meeting') || 
+        message.includes('move meeting') || message.includes('shift meeting') ||
+        message.includes('delay meeting') || message.includes('earlier') || message.includes('later') ||
+        (message.includes('meeting') && (message.includes('update') || message.includes('reschedule') || 
+         message.includes('postpone') || message.includes('change') || message.includes('move')))) {
+      toolsNeeded.push({ name: 'update_meeting', arguments: { query: userMessage } });
+    }
+    
     // Bed operations
     if (message.includes('list beds') || message.includes('show beds') || message.includes('all beds') || message.includes('beds')) {
       toolsNeeded.push({ name: 'list_beds', arguments: {} });
@@ -1863,6 +1873,8 @@ Respond naturally and helpfully based on the user's request and the tool results
     }
     const parts = [];
     // Multiple title cues to maximize backend extraction reliability
+    parts.push(`Subject: "${title}"`);
+    parts.push(`Exact Title: "${title}"`);
     parts.push(`Schedule "${title}" meeting`);
     parts.push(`Title: "${title}"`);
     parts.push(`Topic: "${title}"`);
