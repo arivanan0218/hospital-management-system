@@ -242,7 +242,7 @@ class DirectAIMCPService {
 
     // Check for tool-related similarities
     const toolKeywords = ['list', 'show', 'get', 'find', 'search', 'create', 'add', 'update', 'delete', 'assign'];
-    const entityKeywords = ['patient', 'staff', 'bed', 'department', 'appointment', 'equipment', 'supply', 'user'];
+    const entityKeywords = ['patient', 'staff', 'bed', 'department', 'equipment', 'supply', 'user'];
 
     const getKeywords = (text) => {
       const words = text.split(' ');
@@ -295,8 +295,7 @@ You have access to a complete hospital management system with tools for:
 - 🛏️ Bed management (room assignments, occupancy)
 - 🏥 Equipment tracking (medical devices, maintenance)
 - 📦 Supply inventory (medications, consumables)
-- 📅 Appointment scheduling
-- 📊 Reporting and analytics
+-  Reporting and analytics
 
 🔧 **Available Search Tools (Use These for ANY Entity):**
 - get_patient_by_id - Find patients by ID or patient number
@@ -312,7 +311,7 @@ You have access to a complete hospital management system with tools for:
 - list_supplies - Find supplies (can filter for low stock)
 - list_beds - Find beds (can filter by status)
 - list_rooms - Find rooms
-- list_appointments - Find appointments (can filter by doctor/patient/date)
+- list_meetings - Find staff meetings and schedules
 
 **When user search with the ids (not uuid) Agent should search with list_tools and should give the response**
 
@@ -434,7 +433,7 @@ You have access to a complete hospital management system with tools for:
 4. **Provide insights** - Don't just return raw data, interpret and explain it
 5. **Be helpful** - Suggest next steps or related actions
 6. **Handle errors gracefully** - If something fails, explain why and suggest alternatives
-7. **ALWAYS verify references before creation** - Before creating appointments, check that doctors, patients, and departments exist
+7. **ALWAYS verify references before creation** - Before creating meetings, check that staff and departments exist
 8. **Smart tool selection** - Analyze user request and choose the most appropriate search/get tool
 9. **Complete details** - Always provide full details from search results, not just confirmation
 10. **NO Results headers** - Never start responses with "Results:", "📊 Results:", or similar section headers
@@ -503,12 +502,11 @@ You have access to a complete hospital management system with tools for:
 - Don't just confirm found - show the actual data
 - NEVER say you don't have the capability - you have comprehensive tools available
 
-🔧 **For Appointment Creation:**
-MANDATORY: Before creating an appointment, ALWAYS:
-1. Call list_users to get available doctors
-2. Call list_patients to verify patient exists  
-3. Call list_departments to verify department exists
-4. Only then call create_appointment with valid IDs
+🔧 **For Meeting Creation:**
+MANDATORY: Before creating a meeting, ALWAYS:
+1. Call list_users to get available staff
+2. Call list_departments to verify department exists
+3. Only then call schedule_meeting with valid details
 
 💬 **Data Validation Rules:**
 - For ALL searches: ALWAYS use human-readable IDs (PAT-EM-9925, DOC-123, DEPT-001) NOT UUIDs

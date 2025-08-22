@@ -56,10 +56,10 @@ def validate_deployment():
         result = db.execute(text("SELECT COUNT(*) FROM pg_tables WHERE schemaname = 'public';"))
         table_count = result.fetchone()[0]
         
-        if table_count >= 31:
+        if table_count >= 30:
             validation_results.append(("Table Count", True, f"✅ {table_count} tables exist"))
         else:
-            validation_results.append(("Table Count", False, f"❌ Only {table_count} tables, expected >= 31"))
+            validation_results.append(("Table Count", False, f"❌ Only {table_count} tables, expected >= 30"))
         
         # List all tables
         result = db.execute(text("SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename;"))

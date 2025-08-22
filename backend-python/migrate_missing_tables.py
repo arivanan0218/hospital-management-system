@@ -33,7 +33,7 @@ def create_missing_tables():
     
     # Expected tables from local database
     expected_tables = [
-        'agent_interactions', 'appointments', 'bed_cleaning_tasks', 'bed_equipment_assignments',
+        'agent_interactions', 'bed_cleaning_tasks', 'bed_equipment_assignments',
         'bed_staff_assignments', 'bed_turnover_logs', 'beds', 'departments', 'discharge_reports',
         'document_embeddings', 'equipment', 'equipment_categories', 'equipment_usage',
         'extracted_medical_data', 'inventory_transactions', 'legacy_users', 'medical_documents',
@@ -88,7 +88,7 @@ def test_model_integrity():
     all_models = [
         Meeting, MeetingParticipant, User, Department, Patient, Room, Bed, Staff,
         EquipmentCategory, Equipment, SupplyCategory, Supply, InventoryTransaction,
-        AgentInteraction, Appointment, MedicalDocument, ExtractedMedicalData,
+        AgentInteraction, MedicalDocument, ExtractedMedicalData,
         DocumentEmbedding, LegacyUser, DischargeReport, BedTurnover, PatientQueue,
         EquipmentTurnover, BedCleaningTask, BedEquipmentAssignment, BedStaffAssignment,
         BedTurnoverLog, EquipmentUsage, StaffAssignment, StaffInteraction,

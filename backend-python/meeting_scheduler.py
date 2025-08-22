@@ -7,7 +7,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from sqlalchemy import and_, or_
-from database import Staff, Appointment, User, Department, SessionLocal, StaffMeeting, StaffMeetingParticipant
+from database import Staff, User, Department, SessionLocal, StaffMeeting, StaffMeetingParticipant
 from google_meet_api import GoogleMeetAPIIntegration
 from meeting_management import MeetingManager, Meeting, MeetingParticipant
 import os
@@ -550,23 +550,9 @@ class MeetingSchedulerAgent:
         end_time = proposed_time + timedelta(minutes=duration_minutes)  # Use dynamic duration
         
         for staff_id in staff_ids:
-            # Check for existing appointments
-            # Get appointments that might conflict
-            appointments = self.session.query(Appointment).filter(
-                Appointment.doctor_id == uuid.UUID(staff_id),
-                Appointment.appointment_date <= end_time,
-                Appointment.appointment_date >= proposed_time
-            ).all()
-            
-            # Check each appointment for overlap
-            conflicts = 0
-            for appt in appointments:
-                appt_end = appt.appointment_date + timedelta(minutes=30)  # Assume 30 min for existing appointments
-                if appt.appointment_date < end_time and appt_end > proposed_time:
-                    conflicts += 1
-            
-            if conflicts > 0:
-                return False
+            # Since appointments are removed, we only check for existing meetings conflicts
+            # Meeting conflicts are already checked above in the method
+            pass
         return True
 
     def find_next_available_slot(self, staff_ids: List[str], earliest_time: datetime, latest_time: datetime) -> Optional[datetime]:

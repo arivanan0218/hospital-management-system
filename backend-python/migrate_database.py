@@ -77,7 +77,6 @@ def drop_all_tables():
         tables_to_drop = [
             'agent_interactions',
             'inventory_transactions', 
-            'appointments',
             'supplies',
             'supply_categories',
             'equipment',
@@ -169,7 +168,7 @@ def verify_migration():
         required_tables = [
             'users', 'departments', 'patients', 'rooms', 'beds', 'staff',
             'equipment_categories', 'equipment', 'supply_categories', 'supplies',
-            'inventory_transactions', 'agent_interactions', 'appointments', 'legacy_users'
+            'inventory_transactions', 'agent_interactions', 'legacy_users'
         ]
         
         for table in required_tables:

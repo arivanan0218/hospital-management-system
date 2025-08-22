@@ -16,7 +16,7 @@ This hospital management system has been enhanced with a **specialized multi-age
 ├── 👨‍⚕️ Staff Management Agent
 ├── 🔧 Equipment Management Agent
 ├── 📦 Inventory Management Agent
-└── 📅 Appointment Management Agent
+└── 🏗️ Infrastructure & Configuration
 ```
 
 ## 🔧 **Specialized Agents**
@@ -61,10 +61,10 @@ This hospital management system has been enhanced with a **specialized multi-age
 - **Tools**: `create_supply_category`, `create_supply`, `list_supplies`, `update_supply_stock`, `get_low_stock_supplies`, `list_inventory_transactions`
 - **Capabilities**: Supply tracking, stock monitoring, automated reordering, usage analytics
 
-### **📅 Appointment Management Agent**
-- **Role**: Handles patient appointments, doctor schedules, and booking management
-- **Tools**: `create_appointment`, `list_appointments`, `reschedule_appointment`, `cancel_appointment`, `get_doctor_schedule`, `check_appointment_conflicts`
-- **Capabilities**: Appointment scheduling, conflict detection, calendar management, availability tracking
+### **🏗️ Infrastructure & Configuration**
+- **Role**: System setup, deployment, and maintenance operations
+- **Tools**: Database migration, system health checks, configuration management
+- **Capabilities**: Environment setup, deployment automation, system monitoring
 
 ## 🚀 **Getting Started**
 
@@ -223,7 +223,7 @@ backend-python/
 │   ├── staff_agent.py               # Staff management agent
 │   ├── equipment_agent.py           # Equipment management agent
 │   ├── inventory_agent.py           # Inventory management agent
-│   ├── appointment_agent.py         # Appointment management agent
+│   ├── infrastructure_agent.py     # System infrastructure management
 │   └── orchestrator_agent.py        # Master orchestrator agent
 ├── multi_agent_server.py            # New multi-agent MCP server
 ├── start_multi_agent.py             # Startup script
