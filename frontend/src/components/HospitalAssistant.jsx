@@ -61,7 +61,7 @@ const HospitalAssistant = () => {
       
       setMessages([{
         id: Date.now(),
-        text: `🎯 **Hospital Assistant Ready!**\n\n✅ Connected to ${info.name} v${info.version}\n🔧 Available Tools: ${info.toolCount}\n\nI can help you with:\n• 👥 **Patient Management** - Create, search, update patient records\n• 📅 **Appointments** - Schedule and manage appointments\n• 🏥 **Bed Management** - Assign and track bed occupancy\n• 👨‍⚕️ **Staff Operations** - Manage staff assignments and schedules\n• 📋 **Reports** - Generate discharge reports and documents\n• 💊 **Supplies & Equipment** - Track medical supplies and equipment\n• 📊 **Data & Analytics** - Hospital statistics and insights\n\nWhat would you like to do?`,
+        text: `🎯 **Hospital Assistant Ready!**\n\n✅ Connected to ${info.name} v${info.version}\n🔧 Available Tools: ${info.toolCount}\n\nI can help you with:\n• 👥 **Patient Management** - Create, search, update patient records\n• 🏥 **Bed Management** - Assign and track bed occupancy\n• 👨‍⚕️ **Staff Operations** - Manage staff assignments and schedules\n• 📋 **Reports** - Generate discharge reports and documents\n• 💊 **Supplies & Equipment** - Track medical supplies and equipment\n• 📊 **Data & Analytics** - Hospital statistics and insights\n\nWhat would you like to do?`,
         sender: 'ai',
         timestamp: new Date().toLocaleTimeString()
       }]);
@@ -473,7 +473,7 @@ const HospitalAssistant = () => {
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  placeholder="Ask me about patients, appointments, reports, or anything hospital related..."
+                  placeholder="Ask me about patients, reports, or anything hospital related..."
                   className="w-full px-3 py-2 bg-[#2a2a2a] border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
                   rows={2}
                   disabled={isLoading}

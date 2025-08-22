@@ -99,7 +99,6 @@ class User(Base):
 
     # Relationships
     staff = relationship("Staff", back_populates="user", uselist=False)
-    appointments_as_doctor = relationship("Appointment", foreign_keys="Appointment.doctor_id", back_populates="doctor")
     inventory_transactions = relationship("InventoryTransaction", back_populates="performed_by_user")
     agent_interactions = relationship("AgentInteraction", back_populates="user")
     generated_discharge_reports = relationship("DischargeReport", foreign_keys="DischargeReport.generated_by", back_populates="generated_by_user")
@@ -123,7 +122,6 @@ class Department(Base):
     staff = relationship("Staff", back_populates="department")
     rooms = relationship("Room", back_populates="department")
     equipment = relationship("Equipment", back_populates="department")
-    appointments = relationship("Appointment", back_populates="department")
 
 class Patient(Base):
     """Patient table model."""
@@ -148,7 +146,6 @@ class Patient(Base):
 
     # Relationships
     bed = relationship("Bed", back_populates="patient")
-    appointments = relationship("Appointment", back_populates="patient")
     medical_documents = relationship("MedicalDocument", back_populates="patient")
     extracted_medical_data = relationship("ExtractedMedicalData", back_populates="patient")
     discharge_reports = relationship("DischargeReport", back_populates="patient")
@@ -330,27 +327,6 @@ class AgentInteraction(Base):
 
     # Relationships
     user = relationship("User", back_populates="agent_interactions")
-
-class Appointment(Base):
-    """Appointment table model."""
-    __tablename__ = "appointments"
-    
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
-    doctor_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    department_id = Column(UUID(as_uuid=True), ForeignKey("departments.id"), nullable=False)
-    appointment_date = Column(DateTime, nullable=False)
-    duration_minutes = Column(Integer, default=30)
-    status = Column(String(20), default="scheduled")  # scheduled, completed, cancelled, no_show
-    reason = Column(Text)
-    notes = Column(Text)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-
-    # Relationships
-    patient = relationship("Patient", back_populates="appointments")
-    doctor = relationship("User", foreign_keys=[doctor_id], back_populates="appointments_as_doctor")
-    department = relationship("Department", back_populates="appointments")
 
 class MedicalDocument(Base):
     """Medical documents table model for storing uploaded medical files."""
@@ -809,7 +785,6 @@ class TreatmentRecord(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
     doctor_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    appointment_id = Column(UUID(as_uuid=True), ForeignKey("appointments.id"))
     bed_id = Column(UUID(as_uuid=True), ForeignKey("beds.id"))
     treatment_type = Column(String(50), nullable=False)  # medication, procedure, therapy
     treatment_name = Column(String(100), nullable=False)
@@ -829,7 +804,6 @@ class TreatmentRecord(Base):
     # Relationships
     patient = relationship("Patient")
     doctor = relationship("User", foreign_keys=[doctor_id])
-    appointment = relationship("Appointment")
     bed = relationship("Bed")
 
 def create_tables():
@@ -932,7 +906,7 @@ try:
     # Re-export for convenience
     __all__ = [
         'Base', 'engine', 'SessionLocal', 'get_db_session',
-        'User', 'Patient', 'Department', 'Room', 'Bed', 'Staff', 'Appointment', 
+        'User', 'Patient', 'Department', 'Room', 'Bed', 'Staff', 
         'Equipment', 'EquipmentCategory', 'Supply', 'SupplyCategory', 'InventoryTransaction', 
         'AgentInteraction', 'DischargeReport', 'BedTurnover', 'PatientQueue', 'EquipmentTurnover',
         'Meeting', 'MeetingParticipant', 'MedicalDocument', 'ExtractedMedicalData', 'DocumentEmbedding',
@@ -946,7 +920,7 @@ except ImportError as e:
     # Discharge models not available - continue without them
     __all__ = [
         'Base', 'engine', 'SessionLocal', 'get_db_session',
-        'User', 'Patient', 'Department', 'Room', 'Bed', 'Staff', 'Appointment', 
+        'User', 'Patient', 'Department', 'Room', 'Bed', 'Staff', 
         'Equipment', 'EquipmentCategory', 'Supply', 'SupplyCategory', 'InventoryTransaction', 
         'AgentInteraction', 'DischargeReport', 'BedTurnover', 'PatientQueue', 'EquipmentTurnover',
         'Meeting', 'MeetingParticipant', 'MedicalDocument', 'ExtractedMedicalData', 'DocumentEmbedding',
