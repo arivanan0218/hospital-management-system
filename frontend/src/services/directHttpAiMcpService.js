@@ -972,6 +972,31 @@ Respond naturally, conversationally, and contextually based on the conversation 
       if (deptParams.name && deptParams.name.length > 3 && 
           !['new', 'department', 'create', 'add'].includes(deptParams.name.toLowerCase())) {
         toolsNeeded.push({ name: 'create_department', arguments: deptParams });
+      }
+    }
+    
+    // Discharge workflow operations
+    if (message.includes('discharge') && message.includes('patient')) {
+      const dischargeParams = this.extractDischargeParameters(userMessage);
+      toolsNeeded.push({ name: 'discharge_patient_complete', arguments: dischargeParams });
+    }
+    
+    if (message.includes('discharge') && message.includes('status')) {
+      const statusParams = this.extractDischargeStatusParameters(userMessage);
+      toolsNeeded.push({ name: 'get_patient_discharge_status', arguments: statusParams });
+    }
+    
+    if (message.includes('bed') && (message.includes('cleaning') || message.includes('status') || message.includes('turnover'))) {
+      const bedParams = this.extractBedStatusParameters(userMessage);
+      toolsNeeded.push({ name: 'get_bed_status_with_time_remaining', arguments: bedParams });
+    }
+    
+    // Department creation - check if we have sufficient data
+    if (message.includes('create department') || message.includes('add department') || message.includes('new department')) {
+      const deptParams = this.extractDepartmentParameters(userMessage);
+      if (deptParams.name && deptParams.name.length > 3 && 
+          !['new', 'department', 'create', 'add'].includes(deptParams.name.toLowerCase())) {
+        toolsNeeded.push({ name: 'create_department', arguments: deptParams });
       } else {
         return [{ name: '_ask_for_department_details', needsInput: true }];
       }
@@ -2180,13 +2205,24 @@ Respond naturally and helpfully based on the user's request and the tool results
    * Extract ID from message for various entity types
    */
   extractId(message, entityType) {
+    // Handle array input (for multiple entity types)
+    if (Array.isArray(entityType)) {
+      for (const type of entityType) {
+        const result = this.extractId(message, type);
+        if (result) return result;
+      }
+      return null;
+    }
+    
     const patterns = {
       'patient': [/patient\s+([A-Z0-9]+)/i, /pat([0-9]+)/i],
       'staff': [/staff\s+([A-Z0-9]+)/i, /emp([0-9]+)/i],
       'user': [/user\s+([A-Z0-9-]+)/i],
       'department': [/department\s+([A-Z0-9]+)/i, /dept\s+([A-Z0-9]+)/i],
       'doctor': [/doctor\s+([A-Z0-9]+)/i, /dr\s+([A-Z0-9]+)/i],
-      'equipment': [/equipment\s+([A-Z0-9]+)/i, /eq([0-9]+)/i]
+      'equipment': [/equipment\s+([A-Z0-9]+)/i, /eq([0-9]+)/i],
+      'bed': [/bed\s+([A-Z0-9]+)/i, /bed\s+([0-9]+)/i],
+      'supply': [/supply\s+([A-Z0-9]+)/i, /sup([0-9]+)/i]
     };
     
     const entityPatterns = patterns[entityType] || [];
@@ -2236,8 +2272,75 @@ Respond naturally and helpfully based on the user's request and the tool results
    */
   extractDischargeParameters(message) {
     const params = {};
+    
+    // Extract patient identifier (ID, name, or bed)
+    params.patient_id = this.extractId(message, 'patient');
     params.bed_id = this.extractId(message, 'bed') || message.match(/bed\s+([A-Z0-9]+)/i)?.[1];
-    params.discharge_date = this.extractDate(message);
+    
+    // Extract patient name if no ID provided
+    if (!params.patient_id && !params.bed_id) {
+      const nameMatch = message.match(/patient\s+([a-zA-Z\s]+)/i) || 
+                       message.match(/([a-zA-Z\s]+)\s+patient/i) ||
+                       message.match(/discharge\s+([a-zA-Z\s]+)/i);
+      if (nameMatch) {
+        params.patient_name = nameMatch[1].trim();
+      }
+    }
+    
+    // Extract discharge condition
+    const conditionMatch = message.match(/condition\s*:?\s*(stable|improved|critical|deceased)/i) ||
+                          message.match(/(stable|improved|critical|deceased)/i);
+    if (conditionMatch) {
+      params.discharge_condition = conditionMatch[1].toLowerCase();
+    }
+    
+    // Extract discharge destination
+    const destinationMatch = message.match(/destination\s*:?\s*(home|transfer|rehabilitation|nursing_home)/i) ||
+                            message.match(/(home|transfer|rehabilitation|nursing_home)/i);
+    if (destinationMatch) {
+      params.discharge_destination = destinationMatch[1].toLowerCase();
+    }
+    
+    return params;
+  }
+
+  /**
+   * Extract discharge status parameters
+   */
+  extractDischargeStatusParameters(message) {
+    const params = {};
+    
+    // Extract patient identifier
+    params.patient_id = this.extractId(message, 'patient');
+    
+    // Extract patient name if no ID provided
+    if (!params.patient_id) {
+      const nameMatch = message.match(/patient\s+([a-zA-Z\s]+)/i) || 
+                       message.match(/([a-zA-Z\s]+)\s+patient/i) ||
+                       message.match(/status\s+of\s+([a-zA-Z\s]+)/i);
+      if (nameMatch) {
+        params.patient_name = nameMatch[1].trim();
+      }
+    }
+    
+    return params;
+  }
+
+  /**
+   * Extract bed status parameters
+   */
+  extractBedStatusParameters(message) {
+    const params = {};
+    
+    // Extract bed identifier
+    params.bed_id = this.extractId(message, 'bed') || message.match(/bed\s+([A-Z0-9]+)/i)?.[1];
+    
+    // Extract room number if mentioned
+    const roomMatch = message.match(/room\s+([A-Z0-9]+)/i);
+    if (roomMatch) {
+      params.room_number = roomMatch[1];
+    }
+    
     return params;
   }
 

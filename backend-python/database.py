@@ -141,6 +141,7 @@ class Patient(Base):
     blood_type = Column(String(5))
     allergies = Column(Text)
     medical_history = Column(Text)
+    status = Column(String(20), default="active")  # active, discharged, transferred, deceased
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
@@ -812,8 +813,14 @@ def create_tables():
     """Create all tables in the database."""
     try:
         # Drop all tables first to avoid conflicts
-        Base.metadata.drop_all(bind=engine)
-        print("Dropped existing tables")
+        # Use CASCADE to handle dependencies
+        with engine.connect() as conn:
+            conn.execute(text("DROP SCHEMA public CASCADE"))
+            conn.execute(text("CREATE SCHEMA public"))
+            conn.execute(text("GRANT ALL ON SCHEMA public TO postgres"))
+            conn.execute(text("GRANT ALL ON SCHEMA public TO public"))
+            conn.commit()
+        print("Dropped existing schema and recreated")
         
         # Create all tables fresh
         Base.metadata.create_all(bind=engine)

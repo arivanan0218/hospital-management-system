@@ -1084,6 +1084,53 @@ def generate_discharge_report(
     return {"error": "Multi-agent system required for discharge report generation"}
 
 @mcp.tool()
+def discharge_patient_complete(
+    patient_id: str = None,
+    bed_id: str = None,
+    patient_name: str = None,
+    discharge_condition: str = "stable",
+    discharge_destination: str = "home"
+) -> Dict[str, Any]:
+    """Complete comprehensive patient discharge workflow including bed turnover.
+    
+    Args:
+        patient_id: The ID of the patient to discharge (optional if bed_id or patient_name provided)
+        bed_id: The bed ID where the patient is located (optional if patient_id or patient_name provided)
+        patient_name: The name of the patient to discharge (optional if patient_id or bed_id provided)
+        discharge_condition: Condition of patient at discharge (default: stable)
+        discharge_destination: Where patient is going (default: home)
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("discharge_patient_complete",
+                                           patient_id=patient_id,
+                                           bed_id=bed_id,
+                                           patient_name=patient_name,
+                                           discharge_condition=discharge_condition,
+                                           discharge_destination=discharge_destination)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for complete discharge workflow"}
+
+@mcp.tool()
+def get_patient_discharge_status(
+    patient_id: str = None,
+    patient_name: str = None
+) -> Dict[str, Any]:
+    """Get patient discharge status and related information.
+    
+    Args:
+        patient_id: The ID of the patient (optional if patient_name provided)
+        patient_name: The name of the patient (optional if patient_id provided)
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("get_patient_discharge_status",
+                                           patient_id=patient_id,
+                                           patient_name=patient_name)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for discharge status"}
+
+@mcp.tool()
 def add_treatment_record_simple(
     patient_id: str,
     doctor_id: str,
