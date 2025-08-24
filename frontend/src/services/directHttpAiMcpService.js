@@ -940,7 +940,7 @@ Respond naturally, conversationally, and contextually based on the conversation 
         message.includes('look for department') || message.includes('show me department') ||
         message.includes('department named') || message.includes('department called') ||
         // Voice patterns for common department names
-        message.match(/\b(cardiology|cardio|emergency|er|surgery|orthopedic|pediatric|neurology)\b/i)) {
+        message.match(/\b(cardiology|cardio|emergency|er|surgery|orthopedic|pediatric|neurology|radiology|pharmacy|laboratory|lab)\b/i)) {
       const searchParams = this.extractDepartmentSearchParameters(userMessage);
       toolsNeeded.push({ name: 'search_departments', arguments: searchParams });
     }
@@ -976,9 +976,23 @@ Respond naturally, conversationally, and contextually based on the conversation 
     }
     
     // Discharge workflow operations
-    if (message.includes('discharge') && message.includes('patient')) {
+    if (message.includes('discharge bed') || message.includes('bed discharge') || 
+        message.includes('discharge patient') || message.includes('patient discharge')) {
       const dischargeParams = this.extractDischargeParameters(userMessage);
-      toolsNeeded.push({ name: 'discharge_patient_complete', arguments: dischargeParams });
+      
+      // If we have all required parameters as UUIDs, discharge directly
+      if (dischargeParams.patient_id && this.isValidUUID(dischargeParams.patient_id)) {
+        toolsNeeded.push({ name: 'discharge_patient_complete', arguments: dischargeParams });
+      }
+      // For complex discharges, use route_request tool
+      else if (dischargeParams.patient_name || dischargeParams.bed_id) {
+        const query = `Discharge ${dischargeParams.patient_name ? `patient ${dischargeParams.patient_name}` : ''} ${dischargeParams.bed_id ? `from bed ${dischargeParams.bed_id}` : ''}`.trim();
+        toolsNeeded.push({ name: 'route_request', arguments: { query } });
+      }
+      // If we have bed_id but no patient info, ask for patient details
+      else if (dischargeParams.bed_id && !dischargeParams.patient_name && !dischargeParams.patient_id) {
+        return [{ name: '_ask_for_patient_details', needsInput: true }];
+      }
     }
     
     if (message.includes('discharge') && message.includes('status')) {
@@ -1163,32 +1177,34 @@ Respond naturally, conversationally, and contextually based on the conversation 
       }
     }
     
-    // Assignment operations
+    // Assignment operations - Handle complex multi-step bed assignment
     if (message.includes('assign bed') || message.includes('bed assignment')) {
       const assignParams = this.extractBedAssignmentParameters(userMessage);
-      // If we have both bed_id and patient_id, we can assign directly
-      if (assignParams.bed_id && assignParams.patient_id) {
+      console.log('🔧 Bed assignment params extracted:', assignParams);
+      
+      // If we have both bed_id and patient_id as actual UUIDs, we can assign directly
+      if (assignParams.bed_id && assignParams.patient_id && 
+          this.isValidUUID(assignParams.bed_id) && this.isValidUUID(assignParams.patient_id)) {
+        console.log('✅ Direct bed assignment with UUIDs');
         toolsNeeded.push({ name: 'assign_bed_to_patient', arguments: assignParams });
       }
-      // If we have bed_id and patient_name but no patient_id, we need to search for the patient first
-      else if (assignParams.bed_id && assignParams.patient_name) {
-        toolsNeeded.push({ name: 'search_patients', arguments: { name: assignParams.patient_name } });
-        // After finding the patient, we'll need to assign the bed
-        toolsNeeded.push({ name: 'assign_bed_to_patient', arguments: { 
-          bed_id: assignParams.bed_id, 
-          patient_id: '{{patient_id_from_search}}', 
-          admission_date: assignParams.admission_date 
-        }});
+      // For complex assignments, we'll use a single tool call with natural language
+      else if (assignParams.bed_id || assignParams.patient_name) {
+        console.log('🔄 Complex bed assignment, using route_request tool');
+        // Use the route_request tool which can handle complex multi-step operations
+        const query = `Assign ${assignParams.bed_id ? `bed ${assignParams.bed_id}` : 'an available bed'} to ${assignParams.patient_name ? `patient ${assignParams.patient_name}` : 'the specified patient'}`;
+        console.log('📝 Route query:', query);
+        toolsNeeded.push({ name: 'route_request', arguments: { query } });
       }
-      // If we have patient_name but no bed_id, we need to find an available bed
-      else if (assignParams.patient_name && !assignParams.bed_id) {
-        toolsNeeded.push({ name: 'search_patients', arguments: { name: assignParams.patient_name } });
-        toolsNeeded.push({ name: 'list_beds', arguments: { status: 'available' } });
-        toolsNeeded.push({ name: 'assign_bed_to_patient', arguments: { 
-          bed_id: '{{available_bed_id}}', 
-          patient_id: '{{patient_id_from_search}}', 
-          admission_date: assignParams.admission_date 
-        }});
+      // If we have bed_id but no patient info, ask for patient details
+      else if (assignParams.bed_id && !assignParams.patient_name && !assignParams.patient_id) {
+        console.log('❓ Need patient details for bed assignment');
+        return [{ name: '_ask_for_patient_details', needsInput: true }];
+      }
+      // If we have patient info but no bed_id, ask for bed details
+      else if ((assignParams.patient_name || assignParams.patient_id) && !assignParams.bed_id) {
+        console.log('❓ Need bed details for bed assignment');
+        return [{ name: '_ask_for_bed_details', needsInput: true }];
       }
     }
     
@@ -1772,7 +1788,7 @@ Respond naturally and helpfully based on the user's request and the tool results
     const preNormalized = message.replace(/\b(\d{1,2})\.(\d{2})\s*([ap]m)\b/gi, (_m, h, mm, ap) => `${h}:${mm} ${ap}`);
     
     // Prefer an explicitly quoted title anywhere in the message
-    const quoted = preNormalized.match(/["“”']([^"“”']+)["“”']/);
+    const quoted = preNormalized.match(/["""]([^"""]+)["""]/);
     if (quoted && quoted[1]) {
       params.purpose = quoted[1].trim();
     }
@@ -2278,12 +2294,29 @@ Respond naturally and helpfully based on the user's request and the tool results
   }
 
   /**
+   * Validate if a string is a valid UUID
+   */
+  isValidUUID(str) {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(str);
+  }
+
+  /**
    * Extract bed assignment parameters
    */
   extractBedAssignmentParameters(message) {
     const params = {};
-    params.bed_id = this.extractId(message, 'bed') || message.match(/bed\s+([A-Z0-9]+)/i)?.[1];
-    params.patient_id = this.extractId(message, 'patient') || message.match(/patient\s+([A-Z0-9]+)/i)?.[1];
+    
+    // Extract bed identifier - could be bed number (B502) or UUID
+    const bedMatch = message.match(/bed\s+([A-Z0-9]+[A-Z]?)/i);
+    if (bedMatch) {
+      params.bed_id = bedMatch[1].toUpperCase();
+    } else {
+      params.bed_id = this.extractId(message, 'bed');
+    }
+    
+    // Extract patient identifier - could be name or UUID
+    params.patient_id = this.extractId(message, 'patient');
     
     // Extract patient name if no ID provided
     if (!params.patient_id) {
@@ -2296,7 +2329,7 @@ Respond naturally and helpfully based on the user's request and the tool results
       }
     }
     
-    params.admission_date = this.extractDate(message);
+    params.admission_date = this.extractDate(message) || new Date().toISOString();
     return params;
   }
 
