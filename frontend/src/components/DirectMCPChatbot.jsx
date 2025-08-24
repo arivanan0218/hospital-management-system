@@ -6,9 +6,10 @@ import EnhancedMedicalDocumentUpload from './EnhancedMedicalDocumentUpload.jsx';
 import MedicalHistoryViewer from './MedicalHistoryViewer.jsx';
 
 const DirectMCPChatbot = ({ user, onLogout }) => {
-  // Mobile-responsive CSS classes for consistent mobile experience
-  const mobileInputClass = "w-full px-3 py-3 sm:py-2 text-base sm:text-sm";
-  const mobileSelectClass = "w-full px-3 py-3 sm:py-2 text-base sm:text-sm";
+  // Mobile-responsive CSS classes for consistent mobile experience (reduced height)
+  // Reduced vertical padding and font size to make the chat input area shorter
+  const mobileInputClass = "w-full px-3 py-2 sm:py-1 text-sm sm:text-xs";
+  const mobileSelectClass = "w-full px-3 py-2 sm:py-1 text-sm sm:text-xs";
   
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
