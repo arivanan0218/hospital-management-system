@@ -1166,8 +1166,29 @@ Respond naturally, conversationally, and contextually based on the conversation 
     // Assignment operations
     if (message.includes('assign bed') || message.includes('bed assignment')) {
       const assignParams = this.extractBedAssignmentParameters(userMessage);
+      // If we have both bed_id and patient_id, we can assign directly
       if (assignParams.bed_id && assignParams.patient_id) {
         toolsNeeded.push({ name: 'assign_bed_to_patient', arguments: assignParams });
+      }
+      // If we have bed_id and patient_name but no patient_id, we need to search for the patient first
+      else if (assignParams.bed_id && assignParams.patient_name) {
+        toolsNeeded.push({ name: 'search_patients', arguments: { name: assignParams.patient_name } });
+        // After finding the patient, we'll need to assign the bed
+        toolsNeeded.push({ name: 'assign_bed_to_patient', arguments: { 
+          bed_id: assignParams.bed_id, 
+          patient_id: '{{patient_id_from_search}}', 
+          admission_date: assignParams.admission_date 
+        }});
+      }
+      // If we have patient_name but no bed_id, we need to find an available bed
+      else if (assignParams.patient_name && !assignParams.bed_id) {
+        toolsNeeded.push({ name: 'search_patients', arguments: { name: assignParams.patient_name } });
+        toolsNeeded.push({ name: 'list_beds', arguments: { status: 'available' } });
+        toolsNeeded.push({ name: 'assign_bed_to_patient', arguments: { 
+          bed_id: '{{available_bed_id}}', 
+          patient_id: '{{patient_id_from_search}}', 
+          admission_date: assignParams.admission_date 
+        }});
       }
     }
     
@@ -2263,6 +2284,18 @@ Respond naturally and helpfully based on the user's request and the tool results
     const params = {};
     params.bed_id = this.extractId(message, 'bed') || message.match(/bed\s+([A-Z0-9]+)/i)?.[1];
     params.patient_id = this.extractId(message, 'patient') || message.match(/patient\s+([A-Z0-9]+)/i)?.[1];
+    
+    // Extract patient name if no ID provided
+    if (!params.patient_id) {
+      const nameMatch = message.match(/patient\s+([a-zA-Z\s]+)/i) || 
+                       message.match(/([a-zA-Z\s]+)\s+patient/i) ||
+                       message.match(/to\s+([a-zA-Z\s]+)/i) ||
+                       message.match(/assign.*to\s+([a-zA-Z\s]+)/i);
+      if (nameMatch) {
+        params.patient_name = nameMatch[1].trim();
+      }
+    }
+    
     params.admission_date = this.extractDate(message);
     return params;
   }
