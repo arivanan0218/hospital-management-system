@@ -429,6 +429,53 @@ class DirectHttpAIMCPService {
       console.log(`📋 Available tools: ${availableTools.length}`);
       console.log(`💭 Conversation history length: ${this.conversationHistory.length}`);
       
+      // Try manual tool selection first (for better bed status handling)
+      console.log('🔍 Attempting manual tool selection...');
+      const manualTools = await this.determineRequiredToolsWithAI(userMessage, availableTools);
+      if (manualTools && manualTools.length > 0 && !manualTools[0].needsInput) {
+        console.log('✅ Using manual tool selection:', manualTools);
+        
+        // Execute the manually selected tools
+        const toolStart = Date.now();
+        const manualResults = [];
+        for (const tool of manualTools) {
+          try {
+            console.log(`🔧 Executing manual tool: ${tool.name}`);
+            const result = await this.callTool(tool.name, tool.arguments || {});
+            manualResults.push({
+              function: tool.name,  // Use 'function' instead of 'tool' to match expected structure
+              result: result,
+              error: null
+            });
+          } catch (error) {
+            console.error(`❌ Manual tool error:`, error);
+            manualResults.push({
+              function: tool.name,  // Use 'function' instead of 'tool' to match expected structure
+              result: null,
+              error: error.message
+            });
+          }
+        }
+        
+        const toolTime = Date.now() - toolStart;
+        const formattedResponse = this.formatToolResults(userMessage, manualResults);
+        
+        this.addToConversationHistory('assistant', formattedResponse);
+        
+        return {
+          success: true,
+          message: formattedResponse,
+          response: formattedResponse,
+          functionCalls: manualResults,
+          serverInfo: serverInfo,
+          rawResponse: { choices: [{ message: { content: formattedResponse } }] },
+          conversationLength: this.conversationHistory.length,
+          timing: { openAI: 0, tool: toolTime, agent: Date.now() - agentStart }
+        };
+      }
+      
+      console.log('🤖 Manual tool selection failed or empty, falling back to OpenAI...');
+      
       // Call OpenAI with function calling and conversation history (CLAUDE DESKTOP STYLE)
       let gptResponse;
       let allFunctionResults = [];
@@ -506,19 +553,24 @@ class DirectHttpAIMCPService {
    * Intelligent tool determination with AI assistance - Claude Desktop style
    */
   async determineRequiredToolsWithAI(userMessage, availableTools) {
+    console.log('🤖 determineRequiredToolsWithAI called with:', userMessage);
+    
     // Check conversation context for ongoing operations
     const contextualTools = this.analyzeConversationContext(userMessage);
     if (contextualTools.length > 0) {
+      console.log('🤖 Returning contextual tools:', contextualTools);
       return contextualTools;
     }
     
     // Check for complex multi-step scenarios (EMERGENCY HANDLING)
     const emergencyScenario = this.detectEmergencyScenario(userMessage);
     if (emergencyScenario.length > 0) {
+      console.log('🤖 Returning emergency scenario tools:', emergencyScenario);
       return emergencyScenario;
     }
     
     // Fall back to existing logic
+    console.log('🤖 Falling back to main determineRequiredTools');
     return this.determineRequiredTools(userMessage, availableTools);
   }
 
@@ -529,8 +581,11 @@ class DirectHttpAIMCPService {
     const message = userMessage.toLowerCase();
     const toolsNeeded = [];
     
+    console.log('🚨 Emergency scenario detection for:', message);
+    
     // Emergency patient scenario: register + allocate bed + assign doctor
     if (message.includes('emergency') && (message.includes('patient') || message.includes('register'))) {
+      console.log('🚨 Emergency patient scenario detected');
       // Check if patient details are provided in structured format
       if (this.containsStructuredData(userMessage)) {
         const structuredTool = this.parseStructuredInput(userMessage);
@@ -539,30 +594,38 @@ class DirectHttpAIMCPService {
           toolsNeeded.push(structuredTool); // Create patient first
           toolsNeeded.push({ name: 'list_beds', arguments: { status: 'available' } }); // Check available beds
           toolsNeeded.push({ name: 'list_staff', arguments: {} }); // List available doctors
+          console.log('🚨 Emergency tools added:', toolsNeeded);
           return toolsNeeded;
         }
       }
     }
     
-    // Bed allocation with availability check
-    if (message.includes('allocate') && message.includes('bed') && message.includes('availability')) {
+    // Bed allocation with availability check - but NOT for status queries
+    if (message.includes('allocate') && message.includes('bed') && message.includes('availability') && 
+        !message.includes('status') && !message.includes('check') && !message.includes('cleaning')) {
+      console.log('🚨 Bed allocation scenario detected');
       toolsNeeded.push({ name: 'list_beds', arguments: { status: 'available' } });
+      console.log('🚨 Bed allocation tools added:', toolsNeeded);
       return toolsNeeded;
     }
     
-    // Multi-operation requests
-    if (message.includes('register') && message.includes('allocate') && message.includes('bed')) {
+    // Multi-operation requests - but NOT for status queries
+    if (message.includes('register') && message.includes('allocate') && message.includes('bed') &&
+        !message.includes('status') && !message.includes('check') && !message.includes('cleaning')) {
+      console.log('🚨 Multi-operation scenario detected');
       // User wants to register patient AND allocate bed
       if (this.containsStructuredData(userMessage)) {
         const structuredTool = this.parseStructuredInput(userMessage);
         if (structuredTool) {
           toolsNeeded.push(structuredTool);
           toolsNeeded.push({ name: 'list_beds', arguments: { status: 'available' } });
+          console.log('🚨 Multi-operation tools added:', toolsNeeded);
           return toolsNeeded;
         }
       }
     }
     
+    console.log('🚨 No emergency scenario detected');
     return [];
   }
 
@@ -937,11 +1000,14 @@ Respond naturally, conversationally, and contextually based on the conversation 
     const toolsNeeded = [];
     
     console.log('🔍 Analyzing message:', message);
+    console.log('🔍 Full userMessage:', userMessage);
     
     // Check for structured data input (when user provides details directly)
     if (this.containsStructuredData(userMessage)) {
+      console.log('📝 Contains structured data');
       const structuredTool = this.parseStructuredInput(userMessage);
       if (structuredTool) {
+        console.log('🎯 Returning structured tool:', structuredTool);
         return [structuredTool];
       }
     }
@@ -1044,11 +1110,6 @@ Respond naturally, conversationally, and contextually based on the conversation 
       toolsNeeded.push({ name: 'get_patient_discharge_status', arguments: statusParams });
     }
     
-    if (message.includes('bed') && (message.includes('cleaning') || message.includes('status') || message.includes('turnover'))) {
-      const bedParams = this.extractBedStatusParameters(userMessage);
-      toolsNeeded.push({ name: 'get_bed_status_with_time_remaining', arguments: bedParams });
-    }
-
     // Check if this is a multi-assignment request
     const assignmentPatterns = [
       /assign\s+staff\s+([A-Z0-9]+)\s+to\s+patient\s+([a-zA-Z\s]+)/i,
@@ -1100,9 +1161,20 @@ Respond naturally, conversationally, and contextually based on the conversation 
       toolsNeeded.push({ name: 'update_meeting', arguments: { query: userMessage } });
     }
     
-    // Bed operations
-    if (message.includes('list beds') || message.includes('show beds') || message.includes('all beds') || message.includes('beds')) {
+    // Bed operations - specific checks first
+    if (message.includes('bed') && (message.includes('status') || message.includes('cleaning') || message.includes('turnover') || message.includes('remaining') || message.includes('time'))) {
+      console.log('🎯 BED STATUS CHECK TRIGGERED!');
+      const bedParams = this.extractBedStatusParameters(userMessage);
+      console.log('🔍 Detected bed status query, parameters:', bedParams);
+      toolsNeeded.push({ name: 'get_bed_status_with_time_remaining', arguments: bedParams });
+      console.log('✅ Added get_bed_status_with_time_remaining to toolsNeeded');
+    }
+    // Generic bed listing - avoid conflicts with specific bed queries
+    else if (message.includes('list beds') || message.includes('show all beds') || message.includes('all beds') || 
+             (message.includes('beds') && !message.match(/bed\s+[A-Z0-9]+/i))) {
+      console.log('🏥 GENERIC BED LISTING TRIGGERED');
       toolsNeeded.push({ name: 'list_beds', arguments: {} });
+      console.log('⚠️ Added list_beds to toolsNeeded');
     }
     
     // Bed search by bed number (e.g., "details of bed 201B", "show bed 201B", "get bed 201B info")
@@ -1394,6 +1466,8 @@ Respond naturally, conversationally, and contextually based on the conversation 
     }
     
     console.log('🔧 Tools needed:', toolsNeeded);
+    console.log('🔧 Tools needed length:', toolsNeeded.length);
+    console.log('🔧 First tool (if any):', toolsNeeded[0]);
     return toolsNeeded;
   }
 
@@ -1745,6 +1819,7 @@ Respond naturally, conversationally, and contextually based on the conversation 
    * Call a tool directly
    */
   async callTool(toolName, args) {
+    console.log(`🔧 CALLING TOOL: ${toolName} with args:`, args);
     try {
       const response = await fetch('http://localhost:8000/tools/call', {
         method: 'POST',
@@ -1767,16 +1842,19 @@ Respond naturally, conversationally, and contextually based on the conversation 
       }
       
       const result = await response.json();
+      console.log(`🔧 TOOL RESPONSE for ${toolName}:`, result);
       
   if (result.result?.content?.[0]?.text) {
         try {
           const parsedContent = JSON.parse(result.result.content[0].text);
+          console.log(`🔧 PARSED CONTENT for ${toolName}:`, parsedContent);
           return {
             success: parsedContent.success || false,
             message: parsedContent.message || '',
             result: parsedContent.result || parsedContent
           };
         } catch {
+          console.log(`🔧 PARSE ERROR for ${toolName}, raw text:`, result.result.content[0].text);
           return {
             success: false,
             message: 'Could not parse response',
@@ -1927,8 +2005,9 @@ Respond naturally and helpfully based on the user's request and the tool results
     let response = "";
     
     toolResults.forEach(result => {
+      const toolName = result.tool || result.function; // Support both formats
       if (result.error) {
-        response += `❌ **Error with ${result.tool}**: ${result.error}\n\n`;
+        response += `❌ **Error with ${toolName}**: ${result.error}\n\n`;
       } else {
         // Handle both old format (result.result.content[0].text) and new direct format
         let data;
@@ -1947,16 +2026,16 @@ Respond naturally and helpfully based on the user's request and the tool results
         if (data) {
           try {
             if (Array.isArray(data) && data.length > 0) {
-              response += `✅ **${result.tool.replace('_', ' ').toUpperCase()}**\n\n`;
+              response += `✅ **${toolName.replace('_', ' ').toUpperCase()}**\n\n`;
               response += `Found ${data.length} record(s):\n\n`;
               
               // Check if this is a list tool and format accordingly
-              if (result.tool.startsWith('list_')) {
+              if (toolName.startsWith('list_')) {
                 data.forEach((item, index) => {
                   response += `**${index + 1}.** `;
                   
                   // Format based on tool type for brief responses
-                  switch (result.tool) {
+                  switch (toolName) {
                     case 'list_patients':
                       if (item.first_name && item.last_name) {
                         response += `${item.first_name} ${item.last_name}`;
@@ -2083,15 +2162,55 @@ Respond naturally and helpfully based on the user's request and the tool results
               }
               response += "\n";
             } else if (Array.isArray(data) && data.length === 0) {
-              response += `✅ **${result.tool.replace('_', ' ').toUpperCase()}**: No records found\n\n`;
+              response += `✅ **${toolName.replace('_', ' ').toUpperCase()}**: No records found\n\n`;
             } else {
-              response += `✅ **${result.tool.replace('_', ' ').toUpperCase()}**: ${JSON.stringify(data, null, 2)}\n\n`;
+              // Handle single object results
+              if (toolName === 'get_bed_status_with_time_remaining') {
+                // Special formatting for bed status
+                response += `🏥 **BED CLEANING STATUS**\n\n`;
+                if (data.success) {
+                  const bedData = data.result || data;
+                  response += `🛏️ **Bed:** ${bedData.bed_number || 'Unknown'}\n`;
+                  response += `📍 **Room:** ${bedData.room_number || 'Unknown'}\n`;
+                  response += `📊 **Current Status:** ${bedData.current_status || 'Unknown'}\n`;
+                  
+                  const processStatus = bedData.process_status || 'none';
+                  const timeRemaining = bedData.time_remaining_minutes || 0;
+                  const progress = bedData.progress_percentage || 0;
+                  
+                  if (processStatus === 'cleaning') {
+                    response += `🧽 **Process:** CLEANING IN PROGRESS\n`;
+                    response += `⏱️ **Time Remaining:** ${timeRemaining} minutes\n`;
+                    response += `📈 **Progress:** ${progress.toFixed(1)}%\n`;
+                    response += `\n💡 The bed is currently being cleaned and will be ready in ${timeRemaining} minutes.\n`;
+                  } else if (processStatus === 'initiated') {
+                    response += `🚀 **Process:** CLEANING INITIATED\n`;
+                    response += `⏱️ **Estimated Duration:** ${timeRemaining} minutes\n`;
+                    response += `📈 **Progress:** ${progress.toFixed(1)}%\n`;
+                    response += `\n💡 Cleaning process has been started and will begin shortly.\n`;
+                  } else if (processStatus === 'none') {
+                    response += `✅ **Process:** READY FOR USE\n`;
+                    response += `⏱️ **Wait Time:** 0 minutes\n`;
+                    response += `📈 **Status:** 100% Ready\n`;
+                    response += `\n💡 The bed is clean and available for immediate use.\n`;
+                  } else {
+                    response += `🔄 **Process:** ${processStatus.toUpperCase()}\n`;
+                    response += `⏱️ **Time Remaining:** ${timeRemaining} minutes\n`;
+                    response += `📈 **Progress:** ${progress.toFixed(1)}%\n`;
+                  }
+                } else {
+                  response += `❌ ${data.message || 'Unable to retrieve bed status'}\n`;
+                }
+                response += `\n`;
+              } else {
+                response += `✅ **${toolName.replace('_', ' ').toUpperCase()}**: ${JSON.stringify(data, null, 2)}\n\n`;
+              }
             }
           } catch {
-            response += `✅ **${result.tool.replace('_', ' ').toUpperCase()}**: ${typeof data === 'string' ? data : JSON.stringify(data)}\n\n`;
+            response += `✅ **${toolName.replace('_', ' ').toUpperCase()}**: ${typeof data === 'string' ? data : JSON.stringify(data)}\n\n`;
           }
         } else {
-          response += `✅ **${result.tool.replace('_', ' ').toUpperCase()}**: Operation completed successfully\n\n`;
+          response += `✅ **${toolName.replace('_', ' ').toUpperCase()}**: Operation completed successfully\n\n`;
         }
       }
     });
@@ -3049,8 +3168,15 @@ Respond naturally and helpfully based on the user's request and the tool results
   extractBedStatusParameters(message) {
     const params = {};
     
-    // Extract bed identifier
-    params.bed_id = this.extractId(message, 'bed') || message.match(/bed\s+([A-Z0-9]+)/i)?.[1];
+    // Extract bed identifier (could be bed_id UUID or bed_number like "401A")
+    // First try to get from "bed" pattern
+    const bedMatch = message.match(/bed\s+([A-Z0-9-]+)/i);
+    if (bedMatch) {
+      params.bed_id = bedMatch[1];
+    } else {
+      // Try other patterns for bed identification
+      params.bed_id = this.extractId(message, 'bed');
+    }
     
     // Extract room number if mentioned
     const roomMatch = message.match(/room\s+([A-Z0-9]+)/i);
@@ -3058,6 +3184,7 @@ Respond naturally and helpfully based on the user's request and the tool results
       params.room_number = roomMatch[1];
     }
     
+    console.log('🔍 Extracted bed status parameters:', params);
     return params;
   }
 
