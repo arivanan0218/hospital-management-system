@@ -445,32 +445,15 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
            ('ontouchstart' in window); // Check for touch capability
   };
 
-  // Function to adjust view when keyboard appears on mobile devices
-  const adjustViewForMobileKeyboard = React.useCallback(() => {
-    if (isMobileDevice() && inputFieldRef.current) {
-      // Add a small delay to allow keyboard to appear
-      setTimeout(() => {
-        // Scroll the input into view
-        inputFieldRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        
-        // Additional scroll adjustment to ensure input is above keyboard
-        const scrollY = window.scrollY || window.pageYOffset;
-        window.scrollTo({
-          top: Math.max(0, scrollY - 150),
-          behavior: 'smooth'
-        });
-      }, 300);
-    }
-  }, []);
-
   // Smart focus function - focuses input but prevents keyboard popup on mobile
   const smartFocusInput = (delay = 100) => {
     setTimeout(() => {
       if (inputFieldRef.current) {
         if (isMobileDevice()) {
-          // On mobile: We now want to focus and adjust the view for keyboard
-          inputFieldRef.current.focus();
-          adjustViewForMobileKeyboard();
+          // On mobile: Don't focus automatically to prevent keyboard popup
+          // Just ensure input is visually focused (via state) without actual DOM focus
+          setIsInputFocused(true);
+          setTimeout(() => setIsInputFocused(false), 1000);
         } else {
           // On desktop: normal focus behavior
           inputFieldRef.current.focus();
@@ -1595,16 +1578,7 @@ Examples:
       let timeoutId;
       const handleResize = () => {
         clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => {
-          setVH();
-          // Check if resize is likely due to keyboard appearing
-          const wasResizedByKeyboard = window.innerHeight < window.outerHeight * 0.75;
-          
-          if (wasResizedByKeyboard && isInputFocused) {
-            // Ensure input is visible above keyboard
-            adjustViewForMobileKeyboard();
-          }
-        }, 150);
+        timeoutId = setTimeout(setVH, 150);
       };
       
       // Listen for viewport changes
@@ -1628,23 +1602,23 @@ Examples:
         });
       }
       
-      // Enhanced handling for input focus
-      const handleFocusIn = (e) => {
+      // Prevent page scroll when focusing input on mobile
+      const preventScroll = (e) => {
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-          // Small delay to allow keyboard to show up
           setTimeout(() => {
-            // Scroll input into view when keyboard appears
-            e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            
-            // Additional adjustments to ensure input is above keyboard
-            if (e.target === inputFieldRef.current) {
-              adjustViewForMobileKeyboard();
-            }
-          }, 300);
+            window.scrollTo(0, 0);
+            document.body.scrollTop = 0;
+            document.documentElement.scrollTop = 0;
+            // Ensure background color is maintained during keyboard transitions
+            document.body.style.backgroundColor = '#1a1a1a';
+            document.documentElement.style.backgroundColor = '#1a1a1a';
+            document.body.style.height = '100%';
+            document.body.style.minHeight = '100vh';
+          }, 100);
         }
       };
       
-      // Handle keyboard hide event
+      // Handle keyboard hide event to prevent white flash
       const handleFocusOut = () => {
         setTimeout(() => {
           setVH();
@@ -1656,7 +1630,7 @@ Examples:
         }, 150);
       };
       
-      document.addEventListener('focusin', handleFocusIn);
+      document.addEventListener('focusin', preventScroll);
       document.addEventListener('focusout', handleFocusOut);
       
       // Cleanup
@@ -1665,7 +1639,7 @@ Examples:
         window.removeEventListener('orientationchange', handleResize);
         window.removeEventListener('load', setVH);
         window.removeEventListener('DOMContentLoaded', setVH);
-        document.removeEventListener('focusin', handleFocusIn);
+        document.removeEventListener('focusin', preventScroll);
         document.removeEventListener('focusout', handleFocusOut);
         clearTimeout(timeoutId);
         
@@ -1680,7 +1654,7 @@ Examples:
         document.documentElement.style.height = '';
       };
     }
-  }, [isInputFocused, adjustViewForMobileKeyboard]);
+  }, []);
 
   // Force layout correction after component mount - fixes initial blank space
   useEffect(() => {
@@ -3634,7 +3608,7 @@ Examples:
             showActionButtons ? 'py-3 opacity-100' : 'py-0 opacity-0 -bottom-full'
           }`} style={{
             bottom: showActionButtons ? 'calc(90px + env(safe-area-inset-bottom, 0px))' : '-100px',
-            minHeight: showActionButtons ? '120px' : '0px'
+            minHeight: showActionButtons ? '90px' : '0px'
           }}>
             <div className="max-w-4xl mx-auto">
             {/* Desktop: 1 row 4 columns, Mobile: 2 rows 2 columns */}
@@ -3694,11 +3668,7 @@ Examples:
         <div 
           className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] px-3 sm:px-4 py-2 border-t border-gray-700 z-30"
           style={{ 
-            paddingBottom: 'calc(8px + env(safe-area-inset-bottom, 0px))',
-            position: 'fixed',
-            willChange: 'transform',
-            transform: isInputFocused && isMobileDevice() ? 'translateY(-10vh)' : 'translateY(0)',
-            transition: 'transform 0.3s ease-out'
+            paddingBottom: 'calc(4px + env(safe-area-inset-bottom, 0px))'
           }}
         >
           <div className="max-w-4xl mx-auto">
@@ -3736,12 +3706,12 @@ Examples:
               
               <div className="relative">
                 {/* Main Input Container - Rounded Rectangle */}
-                <div className={`bg-[#2a2a2a] rounded-2xl sm:rounded-3xl border px-3 sm:px-4 py-3 sm:py-4 transition-colors duration-200 ${
+                <div className={`bg-[#2a2a2a] rounded-2xl sm:rounded-3xl border px-3 sm:px-4 py-2 sm:py-4 transition-colors duration-200 ${
                   isInputFocused ? 'border-blue-500' : 'border-gray-600'
                 }`}>
                   
                   {/* First Row - Text Input (Full Width) */}
-                  <div className="mb-2 sm:mb-3">
+                  <div className="mb-1 sm:mb-3">
                     <textarea
                       ref={inputFieldRef}
                       value={inputMessage}
@@ -3752,32 +3722,15 @@ Examples:
                           handleSendMessage();
                         }
                       }}
-                      onFocus={() => {
-                        setIsInputFocused(true);
-                        // Scroll to make input visible above keyboard on mobile
-                        if (isMobileDevice()) {
-                          // Small delay to let keyboard appear
-                          setTimeout(() => {
-                            // Scroll the input into view
-                            inputFieldRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                            
-                            // Force additional scroll to ensure it's visible above keyboard
-                            const scrollY = window.scrollY || window.pageYOffset;
-                            window.scrollTo({
-                              top: Math.max(0, scrollY - 150),
-                              behavior: 'smooth'
-                            });
-                          }, 300);
-                        }
-                      }}
+                      onFocus={() => setIsInputFocused(true)}
                       onBlur={() => setIsInputFocused(false)}
                       placeholder={isConnected ? "Ask anything (Ctrl+/ to focus)" : "Ask anything"}
                       disabled={!isConnected || isLoading}
                       rows={1}
                       className="w-full bg-transparent border-none outline-none resize-none text-white placeholder-gray-400 text-base"
                       style={{
-                        minHeight: '20px',
-                        maxHeight: '120px',
+                        minHeight: '18px',
+                        maxHeight: '100px',
                         fontSize: '16px', // Prevents zoom on iOS
                         WebkitAppearance: 'none',
                         WebkitBorderRadius: 0
@@ -3785,21 +3738,6 @@ Examples:
                       onInput={(e) => {
                         e.target.style.height = 'auto';
                         e.target.style.height = e.target.scrollHeight + 'px';
-                        
-                        // On mobile, ensure the view adjusts as user types
-                        if (isMobileDevice()) {
-                          // Scroll input into view
-                          inputFieldRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                          
-                          // Also force move the entire input area above keyboard
-                          setTimeout(() => {
-                            // Additional upward scroll for safety
-                            window.scrollTo({
-                              top: Math.max(0, window.scrollY - 150),
-                              behavior: 'smooth'
-                            });
-                          }, 100);
-                        }
                       }}
                     />
                   </div>
