@@ -3747,6 +3747,13 @@ Examples:
                       onInput={(e) => {
                         e.target.style.height = 'auto';
                         e.target.style.height = e.target.scrollHeight + 'px';
+                        // iOS mobile fix: scroll input into view while typing
+                        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+                        if (isIOS) {
+                          setTimeout(() => {
+                            e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          }, 100);
+                        }
                       }}
                     />
                   </div>
