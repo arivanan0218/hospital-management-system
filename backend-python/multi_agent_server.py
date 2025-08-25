@@ -483,12 +483,27 @@ def assign_bed_to_patient(bed_id: str, patient_id: str, admission_date: str = No
 
 @mcp.tool()
 def discharge_bed(bed_id: str, discharge_date: str = None) -> Dict[str, Any]:
-    """Discharge a patient from a bed."""
+    """Discharge a patient from a bed.
+    Attempts full discharge workflow (report + turnover) before falling back to simple bed discharge.
+    """
     if MULTI_AGENT_AVAILABLE and orchestrator:
-        result = orchestrator.route_request("discharge_bed", bed_id=bed_id, discharge_date=discharge_date)
-        return result.get("result", result)
+        # Prefer comprehensive workflow to ensure report generation before clearing bed
+        try:
+            comp = orchestrator.route_request("discharge_patient_complete", bed_id=bed_id)
+            comp_result = comp.get("result", comp)
+            if isinstance(comp_result, dict) and comp_result.get("success"):
+                return comp_result
+        except Exception as e:
+            print(f"⚠️ Comprehensive discharge failed for bed {bed_id}: {e}")
+        
+        # Fallback to simple discharge if comprehensive fails
+        try:
+            result = orchestrator.route_request("discharge_bed", bed_id=bed_id, discharge_date=discharge_date)
+            return result.get("result", result)
+        except Exception as e:
+            return {"success": False, "message": f"Failed to discharge bed: {e}"}
     
-    return {"success": False, "message": "Multi-agent system required for this operation"}
+    return {"error": "Multi-agent system required for bed discharge"}
 
 # ================================
 # STAFF MANAGEMENT TOOLS
