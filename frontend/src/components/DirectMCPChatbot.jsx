@@ -213,6 +213,19 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   const lastMessageCountRef = useRef(0);
   const inputFieldRef = useRef(null); // Add ref for input field
   const plusMenuRef = useRef(null); // Add ref for plus menu dropdown
+  
+  // Mobile input visibility handler - ensures input is visible when typing
+  useEffect(() => {
+    // When input message changes, ensure the input is visible on mobile
+    if (isMobileDevice() && inputMessage && inputFieldRef.current) {
+      const scrollToInput = () => {
+        inputFieldRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      };
+      
+      // Small delay to let the keyboard appear fully
+      setTimeout(scrollToInput, 150);
+    }
+  }, [inputMessage]);
   // Touch / swipe refs for mobile swipe navigation (upload/history -> chat)
   const touchStartXRef = useRef(null);
   const touchStartYRef = useRef(null);
@@ -1637,9 +1650,9 @@ Examples:
       const preventScroll = (e) => {
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
           setTimeout(() => {
-            window.scrollTo(0, 0);
-            document.body.scrollTop = 0;
-            document.documentElement.scrollTop = 0;
+            // Instead of forcing scroll to top, scroll the element into view
+            e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
             // Ensure background color is maintained during keyboard transitions
             document.body.style.backgroundColor = '#1a1a1a';
             document.documentElement.style.backgroundColor = '#1a1a1a';
@@ -3667,7 +3680,15 @@ Examples:
                     <textarea
                       ref={inputFieldRef}
                       value={inputMessage}
-                      onChange={(e) => setInputMessage(e.target.value)}
+                      onChange={(e) => {
+                        setInputMessage(e.target.value);
+                        // When typing, ensure input is visible by scrolling to it on mobile
+                        if (isMobileDevice() && inputFieldRef.current) {
+                          setTimeout(() => {
+                            inputFieldRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                          }, 50);
+                        }
+                      }}
                       onKeyPress={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
@@ -3683,6 +3704,8 @@ Examples:
                           setTimeout(() => {
                             if (inputFieldRef.current) {
                               inputFieldRef.current.focus();
+                              // Scroll input field into view
+                              inputFieldRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
                             }
                           }, 50);
                         }
@@ -3703,8 +3726,13 @@ Examples:
                       onInput={(e) => {
                         e.target.style.height = 'auto';
                         e.target.style.height = e.target.scrollHeight + 'px';
-
-
+                        
+                        // Ensure input remains visible when textarea changes height on mobile
+                        if (isMobileDevice() && inputFieldRef.current) {
+                          setTimeout(() => {
+                            inputFieldRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                          }, 10);
+                        }
                       }}
                     />
                   </div>
