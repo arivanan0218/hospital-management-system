@@ -3428,7 +3428,7 @@ Examples:
       {activeTab === 'chat' && (
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden" style={{ 
           marginTop: '70px', 
-          marginBottom: 'calc(80px + env(safe-area-inset-bottom, 0px))',
+          marginBottom: 'calc(120px + env(safe-area-inset-bottom, 0px))',
         }}>
           {/* Messages Container - ONLY THIS SCROLLS */}
           <div 
@@ -3618,9 +3618,9 @@ Examples:
 
         {/* Modern Chat Input - FIXED AT BOTTOM */}
         <div 
-          className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] px-2 sm:px-4 py-1 border-t border-gray-700 z-30"
+          className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] px-3 sm:px-4 py-2 border-t border-gray-700 z-30"
           style={{ 
-            paddingBottom: 'calc(2px + env(safe-area-inset-bottom, 0px))'
+            paddingBottom: 'calc(4px + env(safe-area-inset-bottom, 0px))'
           }}
         >
           <div className="max-w-4xl mx-auto">
@@ -3658,12 +3658,12 @@ Examples:
               
               <div className="relative">
                 {/* Main Input Container - Rounded Rectangle */}
-                <div className={`bg-[#2a2a2a] rounded-2xl sm:rounded-3xl border px-2 sm:px-4 py-1 sm:py-4 transition-colors duration-200 ${
+                <div className={`bg-[#2a2a2a] rounded-2xl sm:rounded-3xl border px-3 sm:px-4 py-2 sm:py-4 transition-colors duration-200 ${
                   isInputFocused ? 'border-blue-500' : 'border-gray-600'
                 }`}>
                   
                   {/* First Row - Text Input (Full Width) */}
-                  <div className="mb-0 sm:mb-3">
+                  <div className="mb-1 sm:mb-3">
                     <textarea
                       ref={inputFieldRef}
                       value={inputMessage}
@@ -3682,22 +3682,9 @@ Examples:
                           // Force re-focus after a small delay to ensure keyboard appears
                           setTimeout(() => {
                             if (inputFieldRef.current) {
-                              // Scroll the element into view with smooth behavior
-                              inputFieldRef.current.scrollIntoView({ 
-                                behavior: 'smooth', 
-                                block: 'end'
-                              });
-                              
-                              // Force re-focus after scrolling
                               inputFieldRef.current.focus();
-                              
-                              // Also scroll window to ensure input is visible
-                              window.scrollTo({
-                                top: document.body.scrollHeight, // Scroll to bottom to ensure input is visible
-                                behavior: 'smooth'
-                              });
                             }
-                          }, 100); // Shorter delay to make it more responsive
+                          }, 50);
                         }
                       }}
 
