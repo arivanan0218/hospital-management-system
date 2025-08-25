@@ -349,6 +349,38 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isConnected]);
+  
+  // Auto-focus input field when user starts typing anywhere in the chat
+  useEffect(() => {
+    const handleKeyPress = (event) => {
+      // Ignore if already focused on an input or if it's a special key (like arrows, etc)
+      if (event.target.tagName === 'INPUT' || 
+          event.target.tagName === 'TEXTAREA' || 
+          event.altKey || 
+          event.ctrlKey || 
+          event.metaKey ||
+          event.key.length > 1) {
+        return;
+      }
+      
+      // Only handle printable characters (letters, numbers, etc.)
+      if (inputFieldRef.current && 
+          isConnected && 
+          !isLoading &&
+          activeTab === 'chat' &&
+          /^[\w\s.,?!@#$%^&*()-=+;:'"[\]{}|\\/<>~`]$/.test(event.key)) {
+        
+        // Focus the input field
+        inputFieldRef.current.focus();
+        
+        // Append the typed character to the input (since we're not in the field yet)
+        setInputMessage(prev => prev + event.key);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyPress);
+    return () => document.removeEventListener('keydown', handleKeyPress);
+  }, [isConnected, isLoading, activeTab]);
 
   // Handle outside clicks for plus menu
   useEffect(() => {
@@ -445,18 +477,23 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
            ('ontouchstart' in window); // Check for touch capability
   };
 
-  // Smart focus function - focuses input but prevents keyboard popup on mobile
+  // Smart focus function - focuses input and activates keyboard on mobile
   const smartFocusInput = (delay = 100) => {
     setTimeout(() => {
       if (inputFieldRef.current) {
+        // Always focus the input field, even on mobile
+        inputFieldRef.current.focus();
+        setIsInputFocused(true);
+        
+        // Keep visual focus for a bit after actual focus
         if (isMobileDevice()) {
-          // On mobile: Don't focus automatically to prevent keyboard popup
-          // Just ensure input is visually focused (via state) without actual DOM focus
-          setIsInputFocused(true);
-          setTimeout(() => setIsInputFocused(false), 1000);
-        } else {
-          // On desktop: normal focus behavior
-          inputFieldRef.current.focus();
+          // On mobile: keep visual focus longer
+          setTimeout(() => {
+            // Check if the element is still focused before removing the visual focus
+            if (document.activeElement !== inputFieldRef.current) {
+              setIsInputFocused(false);
+            }
+          }, 2000);
         }
       }
     }, delay);
@@ -1392,8 +1429,16 @@ Examples:
     } finally {
       setIsLoading(false);
       
-      // Auto-focus the input field after AI response (smart focus prevents mobile keyboard popup)
-      smartFocusInput(100);
+      // Auto-focus the input field after AI response with keyboard showing on mobile
+      if (inputFieldRef.current) {
+        setTimeout(() => {
+          if (inputFieldRef.current) {
+            // Focus the input field to show keyboard on mobile
+            inputFieldRef.current.focus();
+            setIsInputFocused(true);
+          }
+        }, 300);
+      }
     }
   };
 
@@ -3425,13 +3470,9 @@ Examples:
               // Smart focus input when clicking anywhere in the chat area, but not when selecting text
               const selection = window.getSelection();
               if (inputFieldRef.current && isConnected && selection.toString().length === 0) {
-                if (isMobileDevice()) {
-                  // On mobile: focus without keyboard popup
-                  smartFocusInput(0);
-                } else {
-                  // On desktop: normal focus
-                  inputFieldRef.current.focus();
-                }
+                // Always focus the input field to show the keyboard on mobile
+                inputFieldRef.current.focus();
+                setIsInputFocused(true);
               }
             }}
           >
@@ -3723,7 +3764,18 @@ Examples:
                         }
                       }}
 
-                      onFocus={() => setIsInputFocused(true)}
+                      onFocus={() => {
+                        setIsInputFocused(true);
+                        // Ensure keyboard appears and stays open on mobile
+                        if (isMobileDevice()) {
+                          // Force re-focus after a small delay to ensure keyboard appears
+                          setTimeout(() => {
+                            if (inputFieldRef.current) {
+                              inputFieldRef.current.focus();
+                            }
+                          }, 50);
+                        }
+                      }}
 
                       onBlur={() => setIsInputFocused(false)}
                       placeholder={isConnected ? "Ask anything (Ctrl+/ to focus)" : "Ask anything"}
