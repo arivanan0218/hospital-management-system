@@ -1612,16 +1612,41 @@ Respond naturally, conversationally, and contextually based on the conversation 
     console.log(`🔧 Assigning staff ${staffId} to patient ${patientId}...`);
     
     try {
+      // If staffId looks like an employee ID (EMP001), find the actual staff UUID
+      let actualStaffId = staffId;
+      
+      if (staffId.startsWith('EMP')) {
+        const staffResponse = await this.callTool('list_staff', {});
+        if (staffResponse.success && staffResponse.result?.data) {
+          const staff = staffResponse.result.data.find(s => s.employee_id === staffId);
+          if (!staff) {
+            return {
+              type: 'staff',
+              success: false,
+              message: `Staff with employee ID ${staffId} not found`
+            };
+          }
+          actualStaffId = staff.id; // Use the UUID
+          console.log(`✅ Found staff: ${staff.first_name} ${staff.last_name} (UUID: ${actualStaffId})`);
+        } else {
+          return {
+            type: 'staff',
+            success: false,
+            message: 'Could not retrieve staff list'
+          };
+        }
+      }
+      
       const response = await this.callTool('assign_staff_to_patient_simple', {
-        staff_id: staffId,
+        staff_id: actualStaffId,
         patient_id: patientId,
         assignment_type: 'primary_care'
       });
       
       return {
         type: 'staff',
-        success: response.success,
-        message: response.message || 'Staff assigned successfully',
+        success: response.success && response.result?.success,
+        message: response.result?.success ? 'Staff assigned successfully' : (response.result?.message || response.message || 'Assignment failed'),
         details: response
       };
     } catch (error) {
@@ -1671,19 +1696,30 @@ Respond naturally, conversationally, and contextually based on the conversation 
         };
       }
       
-      // Assign the equipment
+      // Get a staff member for the assignment
+      const staffResponse = await this.callTool('list_staff', {});
+      if (!staffResponse.success || !staffResponse.result?.data?.length) {
+        return {
+          type: 'equipment',
+          success: false,
+          message: 'No staff available for equipment assignment'
+        };
+      }
+      
+      const staff = staffResponse.result.data[0]; // Use first available staff
+      
+      // Assign the equipment using the working tool
       const response = await this.callTool('add_equipment_usage_simple', {
-        equipment_id: equipment.id,
+        equipment_id: equipment.id, // Use equipment UUID
         patient_id: patientId,
-        staff_id: 'EMP002',
-        purpose: 'patient_care',
-        start_time: new Date().toISOString()
+        staff_id: staff.id, // Use staff UUID
+        purpose: 'patient_care'
       });
       
       return {
         type: 'equipment',
-        success: response.success,
-        message: response.message || `Equipment ${equipmentName} assigned successfully`,
+        success: response.success && response.result?.success,
+        message: response.result?.success ? `Equipment ${equipmentName} assigned successfully` : (response.result?.message || response.message || 'Assignment failed'),
         details: response
       };
     } catch (error) {
@@ -1725,19 +1761,39 @@ Respond naturally, conversationally, and contextually based on the conversation 
         };
       }
       
-      // Assign the supply
+      if (supply.current_stock <= 0) {
+        return {
+          type: 'supply',
+          success: false,
+          message: `Supply ${supplyName} is out of stock`
+        };
+      }
+      
+      // Get a staff member to perform the transaction
+      const staffResponse = await this.callTool('list_staff', {});
+      if (!staffResponse.success || !staffResponse.result?.data?.length) {
+        return {
+          type: 'supply',
+          success: false,
+          message: 'No staff available for supply allocation'
+        };
+      }
+      
+      const staff = staffResponse.result.data[0]; // Use first available staff
+      
+      // Assign the supply using correct parameters
       const response = await this.callTool('update_supply_stock', {
         supply_id: supply.id,
-        quantity_change: -1,
-        transaction_type: 'patient_usage',
-        performed_by: 'EMP002',
-        notes: `Assigned to patient ${patientId}`
+        quantity_change: -1, // Allocate 1 unit
+        transaction_type: 'ALLOCATION',
+        performed_by: staff.id,
+        notes: `Allocated to patient ${patientId}`
       });
       
       return {
         type: 'supply',
         success: response.success,
-        message: response.message || `Supply ${supplyName} assigned successfully`,
+        message: response.success ? `Supply ${supplyName} allocated successfully` : (response.message || 'Allocation failed'),
         details: response
       };
     } catch (error) {
@@ -1776,17 +1832,17 @@ Respond naturally, conversationally, and contextually based on the conversation 
         };
       }
       
-      // Assign the bed
+      // Assign the bed with correct date format
       const response = await this.callTool('assign_bed_to_patient', {
         bed_id: bed.id,
         patient_id: patientId,
-        admission_date: new Date().toISOString()
+        admission_date: new Date().toISOString().split('T')[0] // Use YYYY-MM-DD format
       });
       
       return {
         type: 'bed',
-        success: response.success,
-        message: response.message || `Bed ${bedNumber} assigned successfully`,
+        success: response.success && response.result?.success,
+        message: response.result?.success ? `Bed ${bedNumber} assigned successfully` : (response.result?.message || response.message || 'Assignment failed'),
         details: response
       };
     } catch (error) {
