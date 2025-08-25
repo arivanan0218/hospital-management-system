@@ -3411,7 +3411,7 @@ Examples:
       {activeTab === 'chat' && (
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden" style={{ 
           marginTop: '70px', 
-          marginBottom: showActionButtons ? 'calc(150px + env(safe-area-inset-bottom, 0px))' : 'calc(80px + env(safe-area-inset-bottom, 0px))',
+          marginBottom: showActionButtons ? 'calc(150px + env(safe-area-inset-bottom, 0px))' : 'calc(120px + env(safe-area-inset-bottom, 0px))',
         }}>
           {/* Messages Container - ONLY THIS SCROLLS */}
           <div 
@@ -3722,7 +3722,16 @@ Examples:
                           handleSendMessage();
                         }
                       }}
-                      onFocus={() => setIsInputFocused(true)}
+                      onFocus={e => {
+                        setIsInputFocused(true);
+                        // iOS mobile fix: scroll input into view when focused
+                        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+                        if (isIOS) {
+                          setTimeout(() => {
+                            e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          }, 300);
+                        }
+                      }}
                       onBlur={() => setIsInputFocused(false)}
                       placeholder={isConnected ? "Ask anything (Ctrl+/ to focus)" : "Ask anything"}
                       disabled={!isConnected || isLoading}
