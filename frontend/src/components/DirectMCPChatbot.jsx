@@ -445,32 +445,15 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
            ('ontouchstart' in window); // Check for touch capability
   };
 
-  // Function to adjust view when keyboard appears on mobile devices
-  const adjustViewForMobileKeyboard = React.useCallback(() => {
-    if (isMobileDevice() && inputFieldRef.current) {
-      // Add a small delay to allow keyboard to appear
-      setTimeout(() => {
-        // Scroll the input into view
-        inputFieldRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        
-        // Additional scroll adjustment to ensure input is above keyboard
-        const scrollY = window.scrollY || window.pageYOffset;
-        window.scrollTo({
-          top: Math.max(0, scrollY - 150),
-          behavior: 'smooth'
-        });
-      }, 300);
-    }
-  }, []);
-
   // Smart focus function - focuses input but prevents keyboard popup on mobile
   const smartFocusInput = (delay = 100) => {
     setTimeout(() => {
       if (inputFieldRef.current) {
         if (isMobileDevice()) {
-          // On mobile: We now want to focus and adjust the view for keyboard
-          inputFieldRef.current.focus();
-          adjustViewForMobileKeyboard();
+          // On mobile: Don't focus automatically to prevent keyboard popup
+          // Just ensure input is visually focused (via state) without actual DOM focus
+          setIsInputFocused(true);
+          setTimeout(() => setIsInputFocused(false), 1000);
         } else {
           // On desktop: normal focus behavior
           inputFieldRef.current.focus();
@@ -1595,16 +1578,7 @@ Examples:
       let timeoutId;
       const handleResize = () => {
         clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => {
-          setVH();
-          // Check if resize is likely due to keyboard appearing
-          const wasResizedByKeyboard = window.innerHeight < window.outerHeight * 0.75;
-          
-          if (wasResizedByKeyboard && isInputFocused) {
-            // Ensure input is visible above keyboard
-            adjustViewForMobileKeyboard();
-          }
-        }, 150);
+        timeoutId = setTimeout(setVH, 150);
       };
       
       // Listen for viewport changes
@@ -1628,23 +1602,23 @@ Examples:
         });
       }
       
-      // Enhanced handling for input focus
-      const handleFocusIn = (e) => {
+      // Prevent page scroll when focusing input on mobile
+      const preventScroll = (e) => {
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-          // Small delay to allow keyboard to show up
           setTimeout(() => {
-            // Scroll input into view when keyboard appears
-            e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            
-            // Additional adjustments to ensure input is above keyboard
-            if (e.target === inputFieldRef.current) {
-              adjustViewForMobileKeyboard();
-            }
-          }, 300);
+            window.scrollTo(0, 0);
+            document.body.scrollTop = 0;
+            document.documentElement.scrollTop = 0;
+            // Ensure background color is maintained during keyboard transitions
+            document.body.style.backgroundColor = '#1a1a1a';
+            document.documentElement.style.backgroundColor = '#1a1a1a';
+            document.body.style.height = '100%';
+            document.body.style.minHeight = '100vh';
+          }, 100);
         }
       };
       
-      // Handle keyboard hide event
+      // Handle keyboard hide event to prevent white flash
       const handleFocusOut = () => {
         setTimeout(() => {
           setVH();
@@ -1656,7 +1630,7 @@ Examples:
         }, 150);
       };
       
-      document.addEventListener('focusin', handleFocusIn);
+      document.addEventListener('focusin', preventScroll);
       document.addEventListener('focusout', handleFocusOut);
       
       // Cleanup
@@ -1665,7 +1639,7 @@ Examples:
         window.removeEventListener('orientationchange', handleResize);
         window.removeEventListener('load', setVH);
         window.removeEventListener('DOMContentLoaded', setVH);
-        document.removeEventListener('focusin', handleFocusIn);
+        document.removeEventListener('focusin', preventScroll);
         document.removeEventListener('focusout', handleFocusOut);
         clearTimeout(timeoutId);
         
@@ -1680,7 +1654,7 @@ Examples:
         document.documentElement.style.height = '';
       };
     }
-  }, [isInputFocused, adjustViewForMobileKeyboard]);
+  }, []);
 
   // Force layout correction after component mount - fixes initial blank space
   useEffect(() => {
@@ -3694,11 +3668,7 @@ Examples:
         <div 
           className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] px-3 sm:px-4 py-2 border-t border-gray-700 z-30"
           style={{ 
-            paddingBottom: 'calc(8px + env(safe-area-inset-bottom, 0px))',
-            position: 'fixed',
-            willChange: 'transform',
-            transform: isInputFocused && isMobileDevice() ? 'translateY(-10vh)' : 'translateY(0)',
-            transition: 'transform 0.3s ease-out'
+            paddingBottom: 'calc(8px + env(safe-area-inset-bottom, 0px))'
           }}
         >
           <div className="max-w-4xl mx-auto">
@@ -3752,21 +3722,13 @@ Examples:
                           handleSendMessage();
                         }
                       }}
-                      onFocus={() => {
+                      onFocus={e => {
                         setIsInputFocused(true);
-                        // Scroll to make input visible above keyboard on mobile
-                        if (isMobileDevice()) {
-                          // Small delay to let keyboard appear
+                        // iOS mobile fix: scroll input into view when focused
+                        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+                        if (isIOS) {
                           setTimeout(() => {
-                            // Scroll the input into view
-                            inputFieldRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                            
-                            // Force additional scroll to ensure it's visible above keyboard
-                            const scrollY = window.scrollY || window.pageYOffset;
-                            window.scrollTo({
-                              top: Math.max(0, scrollY - 150),
-                              behavior: 'smooth'
-                            });
+                            e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
                           }, 300);
                         }
                       }}
@@ -3785,19 +3747,17 @@ Examples:
                       onInput={(e) => {
                         e.target.style.height = 'auto';
                         e.target.style.height = e.target.scrollHeight + 'px';
-                        
-                        // On mobile, ensure the view adjusts as user types
-                        if (isMobileDevice()) {
-                          // Scroll input into view
-                          inputFieldRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                          
-                          // Also force move the entire input area above keyboard
+                        // iOS mobile fix: scroll input into view while typing
+                        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+                        if (isIOS) {
                           setTimeout(() => {
-                            // Additional upward scroll for safety
-                            window.scrollTo({
-                              top: Math.max(0, window.scrollY - 150),
-                              behavior: 'smooth'
-                            });
+                            e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          }, 100);
+                        }
+                        // Always scroll messages container to bottom on input
+                        if (window.innerWidth <= 768 && messagesContainerRef.current) {
+                          setTimeout(() => {
+                            messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
                           }, 100);
                         }
                       }}
