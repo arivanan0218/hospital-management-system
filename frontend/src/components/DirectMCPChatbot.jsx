@@ -3754,6 +3754,12 @@ Examples:
                             e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
                           }, 100);
                         }
+                        // Always scroll messages container to bottom on input
+                        if (window.innerWidth <= 768 && messagesContainerRef.current) {
+                          setTimeout(() => {
+                            messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+                          }, 100);
+                        }
                       }}
                     />
                   </div>
