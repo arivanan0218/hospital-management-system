@@ -388,27 +388,42 @@ class DischargeAgent(BaseAgent):
             return {"success": False, "message": str(e)}
 
     def get_bed_status_with_time_remaining(self, bed_id: str) -> Dict[str, Any]:
-        """Get bed status with estimated time remaining for current process."""
+        """Get bed status with estimated time remaining for current process.
+        
+        Args:
+            bed_id: Can be either a bed UUID or bed number (e.g., "401A")
+        """
         if not DISCHARGE_DEPS:
             return {"success": False, "message": "Discharge dependencies not available"}
         
         from database import SessionLocal, BedTurnover, Bed
         db = SessionLocal()
         try:
-            bed = db.query(Bed).filter(Bed.id == uuid.UUID(bed_id)).first()
+            # Try to find bed by UUID first, then by bed number
+            bed = None
+            try:
+                # Try as UUID first
+                bed = db.query(Bed).filter(Bed.id == uuid.UUID(bed_id)).first()
+            except (ValueError, TypeError):
+                # If not a valid UUID, try as bed number
+                bed = db.query(Bed).filter(Bed.bed_number == bed_id).first()
+            
             if not bed:
                 db.close()
-                return {"success": False, "message": "Bed not found"}
+                return {"success": False, "message": f"Bed not found with identifier: {bed_id}"}
+            
+            # Use the actual bed UUID for turnover queries
+            actual_bed_id = bed.id
             
             # Get active turnover process
             turnover = db.query(BedTurnover).filter(
-                BedTurnover.bed_id == uuid.UUID(bed_id),
+                BedTurnover.bed_id == actual_bed_id,
                 BedTurnover.status.in_(["initiated", "cleaning"])
             ).first()
             
             result = {
                 "success": True,
-                "bed_id": bed_id,
+                "bed_id": str(actual_bed_id),
                 "bed_number": bed.bed_number,
                 "current_status": bed.status,
                 "room_number": bed.room.room_number if bed.room else "Unknown",
