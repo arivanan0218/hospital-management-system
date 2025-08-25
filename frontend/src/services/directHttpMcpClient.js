@@ -818,6 +818,32 @@ class DirectHttpMCPClient {
    */
   enhanceToolsWithSchemas(backendTools) {
     const detailedSchemas = {
+      'add_equipment_usage_by_codes': {
+        type: 'object',
+        properties: {
+          patient_number: { type: 'string', description: 'Patient number (e.g., "P591793") - REQUIRED' },
+          equipment_id: { type: 'string', description: 'Equipment ID/code (e.g., "EQ001") - REQUIRED' },
+          employee_id: { type: 'string', description: 'Employee ID (e.g., "EMP001") - REQUIRED' },
+          purpose: { type: 'string', description: 'Purpose of equipment usage (e.g., "Monitoring", "Treatment") - REQUIRED' },
+          start_time: { type: 'string', description: 'Start time (ISO string, optional)' },
+          end_time: { type: 'string', description: 'End time (ISO string, optional)' },
+          notes: { type: 'string', description: 'Additional notes (optional)' }
+        },
+        required: ['patient_number', 'equipment_id', 'employee_id', 'purpose']
+      },
+      'add_treatment_record_by_codes': {
+        type: 'object',
+        properties: {
+          patient_number: { type: 'string', description: 'Patient number (e.g., "P591793") - REQUIRED' },
+          employee_id: { type: 'string', description: 'Employee ID (e.g., "EMP001") - REQUIRED' },
+          treatment_type: { type: 'string', description: 'Type of treatment (e.g., "Medication", "Surgery", "Therapy") - REQUIRED' },
+          treatment_name: { type: 'string', description: 'Name of the treatment or procedure (e.g., "Paracetamol 500mg", "Appendectomy") - REQUIRED' },
+          start_date: { type: 'string', description: 'Start date of treatment (YYYY-MM-DD) - REQUIRED' },
+          end_date: { type: 'string', description: 'End date of treatment (YYYY-MM-DD, optional)' },
+          notes: { type: 'string', description: 'Additional notes (optional)' }
+        },
+        required: ['patient_number', 'employee_id', 'treatment_type', 'treatment_name', 'start_date']
+      },
       // BED MANAGEMENT
       'create_bed': {
         type: 'object',

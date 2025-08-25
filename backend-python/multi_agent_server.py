@@ -6,6 +6,7 @@ import random
 import sys
 import traceback
 import uuid
+import re
 from datetime import datetime, date
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
@@ -1155,7 +1156,6 @@ def add_treatment_record_simple(
     
     return {"error": "Multi-agent system required for adding treatment records"}
 
-@mcp.tool()
 def add_equipment_usage_simple(
     patient_id: str,
     equipment_id: str,
@@ -1179,6 +1179,38 @@ def add_equipment_usage_simple(
         return result.get("result", result)
     
     return {"error": "Multi-agent system required for adding equipment usage records"}
+
+@mcp.tool()
+def add_equipment_usage_by_codes(
+    patient_number: str,
+    equipment_id: str,
+    employee_id: str,
+    purpose: str,
+    start_time: str = None,
+    end_time: str = None,
+    notes: str = None
+) -> Dict[str, Any]:
+    """Add equipment usage using patient_number, equipment_id (code), and employee_id (staff code), not UUIDs.
+    Args:
+        patient_number: The patient number (business code)
+        equipment_id: The equipment code (business code)
+        employee_id: The staff employee code (business code)
+        purpose: Purpose of equipment usage
+        start_time: Start time (ISO string, optional)
+        end_time: End time (ISO string, optional)
+        notes: Additional notes (optional)
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("add_equipment_usage_by_codes",
+                                           patient_number=patient_number,
+                                           equipment_id=equipment_id,
+                                           employee_id=employee_id,
+                                           purpose=purpose,
+                                           start_time=start_time,
+                                           end_time=end_time,
+                                           notes=notes)
+        return result.get("result", result)
+    return {"error": "Multi-agent system required for adding equipment usage records by codes"}
 
 @mcp.tool()
 def assign_staff_to_patient_simple(

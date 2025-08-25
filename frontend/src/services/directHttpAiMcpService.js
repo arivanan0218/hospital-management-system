@@ -267,6 +267,28 @@ class DirectHttpAIMCPService {
     }));
   }
 
+  /**
+   * Expose add_equipment_usage_by_codes for direct tool calls
+   */
+  async addEquipmentUsageByCodes(args) {
+    // args: { patient_number, equipment_id, employee_id, purpose, start_time, end_time, notes }
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+    return this.mcpClient.callTool('add_equipment_usage_by_codes', args);
+  }
+
+  /**
+   * Expose add_treatment_record_by_codes for direct tool calls
+   */
+  async addTreatmentRecordByCodes(args) {
+    // args: { patient_number, employee_id, treatment_type, treatment_name, start_date, end_date, notes }
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+    return this.mcpClient.callTool('add_treatment_record_by_codes', args);
+  }
+
 
 
   /**
@@ -570,17 +592,28 @@ class DirectHttpAIMCPService {
    */
   async handleIncompleteRequest(tool) {
     const requestType = tool.name;
-    
+
     switch (requestType) {
       case '_ask_for_department_details':
         return "I'd be happy to create a new department! What should I call this department? For example: 'Cardiology', 'Emergency', 'Pediatrics', etc.";
-        
+
       case '_ask_for_patient_details':
         return "To create a new patient, I need:\n\n" +
                "📝 **Required:** First Name, Last Name, Date of Birth (YYYY-MM-DD)\n" +
                "📋 **Optional:** Gender, Phone, Email, Address\n\n" +
                "**Example:** *Create patient John Doe born 1985-05-15*";
-               
+
+      case 'add_equipment_usage_by_codes':
+        return "To add a record of equipment usage, please provide the following details:\n\n" +
+          "1. Patient Number (e.g., 'P591793'): The unique identifier of the patient who used or for whom the equipment was used.\n" +
+          "2. Employee ID (e.g., 'EMP001'): The unique identifier of the staff member who operated or oversaw the equipment usage.\n" +
+          "3. Equipment ID (e.g., 'EQ123'): The unique identifier of the equipment used.\n" +
+          "4. Purpose: The reason or purpose for using the equipment.\n" +
+          "5. Start Time (YYYY-MM-DD or YYYY-MM-DD HH:MM): The date and time when the equipment usage started.\n" +
+          "6. End Time (YYYY-MM-DD or YYYY-MM-DD HH:MM, optional): The date and time when the equipment usage ended, if applicable.\n" +
+          "7. Notes (optional): Any additional details or context about the equipment's usage.\n\n" +
+          "Please provide these details in your response.";
+
       // Add more intelligent prompts for other incomplete requests
       default:
         return "Please provide the required information for this operation.";
@@ -787,6 +820,14 @@ Remember the recent conversation and provide contextually appropriate responses.
 
 **INCOMPLETE REQUESTS:**
 - For "create new department" → Ask: "What should I call this department?"
+- For "add equipment usage" (add_equipment_usage_by_codes) → Ask for:
+  * Patient Number (patient_number): The unique identifier for the patient who used the equipment.
+  * Equipment ID/Code (equipment_id): The code for the equipment used (e.g., "EQ001").
+  * Employee ID (employee_id): The identifier for the staff member who operated or supervised the equipment.
+  * Purpose (purpose): The reason for equipment usage (e.g., "Monitoring", "Treatment").
+  * Start Time (start_time, optional): When the equipment usage began (YYYY-MM-DD or ISO format).
+  * End Time (end_time, optional): When the equipment usage ended (YYYY-MM-DD or ISO format).
+  * Notes (notes, optional): Any relevant notes regarding the equipment usage.
 - Never create with placeholder names
 - Collect required information conversationally
 

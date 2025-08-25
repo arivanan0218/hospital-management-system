@@ -23,6 +23,7 @@ class DischargeAgent(BaseAgent):
             # Existing discharge tools
             "generate_discharge_report",
             "add_treatment_record_simple",
+            "add_treatment_record_by_codes",
             "add_equipment_usage_simple",
             "assign_staff_to_patient_simple",
             "complete_equipment_usage_simple",
@@ -97,6 +98,44 @@ class DischargeAgent(BaseAgent):
                 staff_id=uuid.UUID(staff_id),
                 purpose=purpose,
                 start_time=datetime.now(),
+            )
+            db.add(eu)
+            db.commit()
+            db.refresh(eu)
+            db.close()
+            return {"success": True, "data": {"id": str(eu.id)}}
+        except Exception as e:
+            db.rollback()
+            db.close()
+            return {"success": False, "message": str(e)}
+
+    def add_equipment_usage_by_codes(self, patient_number: str, equipment_id: str, employee_id: str, purpose: str, start_time: str = None, end_time: str = None, notes: str = None) -> Dict[str, Any]:
+        """Add equipment usage using patient_number, equipment_id (code), and employee_id (staff code), not UUIDs."""
+        if not DISCHARGE_DEPS:
+            return {"success": False, "message": "Discharge dependencies not available"}
+        from database import SessionLocal, Patient as CorePatient, Staff as CoreStaff, Equipment as CoreEquipment, EquipmentUsage as CoreEquipmentUsage
+        db = SessionLocal()
+        try:
+            patient = db.query(CorePatient).filter(CorePatient.patient_number == patient_number).first()
+            if not patient:
+                db.close()
+                return {"success": False, "message": f"Patient with number {patient_number} not found"}
+            staff = db.query(CoreStaff).filter(CoreStaff.employee_id == employee_id).first()
+            if not staff:
+                db.close()
+                return {"success": False, "message": f"Staff with employee_id {employee_id} not found"}
+            equipment = db.query(CoreEquipment).filter(CoreEquipment.equipment_id == equipment_id).first()
+            if not equipment:
+                db.close()
+                return {"success": False, "message": f"Equipment with equipment_id {equipment_id} not found"}
+            eu = CoreEquipmentUsage(
+                patient_id=patient.id,
+                equipment_id=equipment.id,
+                staff_id=staff.id,
+                purpose=purpose,
+                start_time=datetime.fromisoformat(start_time) if start_time else datetime.now(),
+                end_time=datetime.fromisoformat(end_time) if end_time else None,
+                notes=notes
             )
             db.add(eu)
             db.commit()
@@ -1010,3 +1049,99 @@ class DischargeAgent(BaseAgent):
         except Exception as e:
             db.close()
             return {"success": False, "message": f"Failed to get discharge status: {str(e)}"}
+
+    def add_treatment_record_by_codes(self,
+                                      patient_id: str = None,
+                                      patient_number: str = None,
+                                      staff_id: str = None,
+                                      employee_id: str = None,
+                                      treatment_type: str = None,
+                                      treatment_name: str = None,
+                                      start_date: str = None) -> Dict[str, Any]:
+        """Add a treatment record using patient_number and employee_id (staff code).
+        Falls back to UUIDs if provided. Resolves doctor_id from staff.user_id.
+        Allows optional start_date (ISO date/time or YYYY-MM-DD)."""
+        if not DISCHARGE_DEPS:
+            return {"success": False, "message": "Discharge dependencies not available"}
+        if not treatment_type or not treatment_name:
+            return {"success": False, "message": "treatment_type and treatment_name are required"}
+
+        from database import SessionLocal, TreatmentRecord as CoreTreatmentRecord, Patient as CorePatient, Staff as CoreStaff
+        db = SessionLocal()
+        try:
+            # Resolve patient
+            patient_uuid = None
+            if patient_id:
+                try:
+                    patient_uuid = uuid.UUID(patient_id)
+                except Exception:
+                    patient_uuid = None
+            if not patient_uuid and patient_number:
+                p = db.query(CorePatient).filter(CorePatient.patient_number == patient_number).first()
+                if not p:
+                    db.close()
+                    return {"success": False, "message": f"Patient not found for number {patient_number}"}
+                patient_uuid = p.id
+            if not patient_uuid:
+                db.close()
+                return {"success": False, "message": "Provide patient_number or patient_id"}
+
+            # Resolve staff to doctor user id
+            staff_rec = None
+            if employee_id:
+                staff_rec = db.query(CoreStaff).filter(CoreStaff.employee_id == employee_id).first()
+            elif staff_id:
+                try:
+                    staff_uuid = uuid.UUID(staff_id)
+                    staff_rec = db.query(CoreStaff).filter(CoreStaff.id == staff_uuid).first()
+                except Exception:
+                    staff_rec = None
+            if not staff_rec:
+                db.close()
+                return {"success": False, "message": "Staff not found for given employee_id/staff_id"}
+            if not getattr(staff_rec, 'user_id', None):
+                db.close()
+                return {"success": False, "message": "Selected staff has no linked user_id"}
+
+            doctor_user_id = staff_rec.user_id
+
+            # Parse optional start_date
+            start_dt = datetime.now()
+            if start_date:
+                try:
+                    # Accept YYYY-MM-DD or full ISO
+                    if len(start_date) == 10:
+                        start_dt = datetime.fromisoformat(start_date)
+                    else:
+                        start_dt = datetime.fromisoformat(start_date)
+                except Exception:
+                    # keep default now
+                    pass
+
+            # Enforce DB limits and preserve full text in notes when truncated
+            full_type = (treatment_type or '').strip()
+            full_name = (treatment_name or '').strip()
+            type_db = full_type[:50]
+            name_db = full_name[:100]
+            notes_extra = None
+            if len(full_type) > 50 or len(full_name) > 100:
+                notes_extra = f"Full treatment_type: {full_type}\nFull treatment_name: {full_name}"
+
+            tr = CoreTreatmentRecord(
+                patient_id=patient_uuid,
+                doctor_id=doctor_user_id,
+                treatment_type=type_db,
+                treatment_name=name_db,
+                start_date=start_dt,
+                notes=notes_extra
+            )
+            db.add(tr)
+            db.commit()
+            db.refresh(tr)
+            result = {"id": str(tr.id), "patient_id": str(patient_uuid), "doctor_user_id": str(doctor_user_id)}
+            db.close()
+            return {"success": True, "data": result}
+        except Exception as e:
+            db.rollback()
+            db.close()
+            return {"success": False, "message": str(e)}
