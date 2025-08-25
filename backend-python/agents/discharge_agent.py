@@ -18,6 +18,42 @@ class DischargeAgent(BaseAgent):
         super().__init__("Discharge Report Agent", "discharge_agent")
         self.generator = PatientDischargeReportGenerator() if DISCHARGE_DEPS else None
 
+    # Helper: robust patient lookup by name (supports "First Last" or partials)
+    def _find_patient_by_name(self, db, patient_name: str):
+        try:
+            from database import Patient as CorePatient
+        except Exception:
+            return None
+        if not patient_name:
+            return None
+        # Normalize and split tokens
+        name = (patient_name or "").strip()
+        tokens = [t for t in name.replace('  ', ' ').split(' ') if t]
+        q = db.query(CorePatient)
+        # Prefer two-token match: First Last
+        if len(tokens) >= 2:
+            first, last = tokens[0], tokens[1]
+            # 1) First startswith + Last startswith
+            p = (q.filter(CorePatient.first_name.ilike(f"{first}%"),
+                          CorePatient.last_name.ilike(f"{last}%")).first())
+            if p:
+                return p
+            # 2) Try reversed order
+            p = (q.filter(CorePatient.first_name.ilike(f"{last}%"),
+                          CorePatient.last_name.ilike(f"{first}%")).first())
+            if p:
+                return p
+            # 3) Fallback: first or last contains either token
+            p = (q.filter((CorePatient.first_name.ilike(f"%{first}%")) |
+                          (CorePatient.last_name.ilike(f"%{last}%"))).first())
+            if p:
+                return p
+        # Single-token fallback: match either first or last name
+        token = tokens[0]
+        p = (q.filter((CorePatient.first_name.ilike(f"%{token}%")) |
+                      (CorePatient.last_name.ilike(f"%{token}%"))).first())
+        return p
+
     def get_tools(self) -> List[str]:
         return [
             # Existing discharge tools
@@ -852,7 +888,7 @@ class DischargeAgent(BaseAgent):
         if not DISCHARGE_DEPS:
             return {"success": False, "message": "Discharge dependencies not available"}
         
-        from database import SessionLocal, Patient, Bed, DischargeReport
+        from database import SessionLocal, Patient, Bed, DischargeReport, BedTurnover
         db = SessionLocal()
         
         try:
@@ -866,6 +902,11 @@ class DischargeAgent(BaseAgent):
                 bed = db.query(Bed).filter(Bed.id == uuid.UUID(bed_id)).first()
                 if bed and bed.patient_id:
                     patient = db.query(Patient).filter(Patient.id == bed.patient_id).first()
+                else:
+                    # Fallback: use most recent turnover to identify previous patient
+                    recent_turnover = db.query(BedTurnover).filter(BedTurnover.bed_id == uuid.UUID(bed_id)).order_by(BedTurnover.discharge_time.desc()).first()
+                    if recent_turnover and recent_turnover.previous_patient_id:
+                        patient = db.query(Patient).filter(Patient.id == recent_turnover.previous_patient_id).first()
             elif patient_name:
                 # Search by name (partial match)
                 patient = db.query(Patient).filter(
@@ -880,26 +921,31 @@ class DischargeAgent(BaseAgent):
             # Get bed if not already found
             if not bed:
                 bed = db.query(Bed).filter(Bed.patient_id == patient.id).first()
+                # If still no bed, try latest turnover for that patient
+                if not bed:
+                    recent_turnover = db.query(BedTurnover).filter(BedTurnover.previous_patient_id == patient.id).order_by(BedTurnover.discharge_time.desc()).first()
+                    if recent_turnover:
+                        bed = db.query(Bed).filter(Bed.id == recent_turnover.bed_id).first()
             
             if not bed:
                 db.close()
                 return {"success": False, "message": "Patient is not assigned to a bed"}
             
-            # Generate discharge report
-            discharge_result = self.generate_discharge_report(
+            # Generate discharge report with explicit patient_id BEFORE clearing bed assignment
+            discharge_result = self.generator.generate_discharge_report(
                 bed_id=str(bed.id),
                 discharge_condition=discharge_condition,
-                discharge_destination=discharge_destination
+                discharge_destination=discharge_destination,
+                patient_id=str(patient.id)
             )
             
             if not discharge_result.get("success"):
                 db.close()
                 return {"success": False, "message": f"Failed to generate discharge report: {discharge_result.get('message')}"}
             
-            # Try to extract report number for direct download hints
+            # Extract report number and construct download URL
             report_number = None
             try:
-                # Common shapes
                 report_number = (
                     discharge_result.get("report_number")
                     or (discharge_result.get("data", {}) or {}).get("report_number")
@@ -910,7 +956,7 @@ class DischargeAgent(BaseAgent):
                 report_number = None
             download_url = f"/discharge/{report_number}.pdf" if report_number else None
             
-            # Start bed turnover process
+            # Start bed turnover process (puts bed into cleaning)
             turnover_result = self.start_bed_turnover_process(
                 bed_id=str(bed.id),
                 previous_patient_id=str(patient.id),
@@ -922,13 +968,11 @@ class DischargeAgent(BaseAgent):
                 db.close()
                 return {"success": False, "message": f"Failed to start bed turnover: {turnover_result.get('message')}"}
             
-            # Update patient status to discharged
+            # Only now clear bed assignment and update statuses
             patient.status = "discharged"
             patient.updated_at = datetime.now()
-            
-            # Update bed discharge date
             bed.discharge_date = datetime.now()
-            bed.patient_id = None  # Remove patient assignment
+            bed.patient_id = None
             bed.status = "cleaning"
             
             # Commit all changes
@@ -952,7 +996,7 @@ class DischargeAgent(BaseAgent):
             
             result = {
                 "success": True,
-                "message": f"Patient {patient.first_name} {patient.last_name} discharged successfully",
+                "message": f"Patient {patient.first_name} {patient.last_name} discharged successfully" + (f". Discharge report {report_number} generated and ready for download." if report_number else ""),
                 "patient_id": str(patient.id),
                 "bed_id": str(bed.id),
                 "report_number": report_number,
@@ -1045,10 +1089,8 @@ class DischargeAgent(BaseAgent):
             if patient_id:
                 patient = db.query(Patient).filter(Patient.id == uuid.UUID(patient_id)).first()
             elif patient_name:
-                patient = db.query(Patient).filter(
-                    Patient.first_name.ilike(f"%{patient_name}%") | 
-                    Patient.last_name.ilike(f"%{patient_name}%")
-                ).first()
+                # Use robust name lookup
+                patient = self._find_patient_by_name(db, patient_name)
             
             if not patient:
                 db.close()

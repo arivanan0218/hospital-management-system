@@ -412,14 +412,34 @@ class RoomBedAgent(BaseAgent):
                 db.close()
                 return {"success": False, "message": f"Bed is not occupied (current status: {bed.status})"}
             
-            # Discharge patient from bed
-            patient_id = bed.patient_id
+            # Preserve previous patient before clearing
+            previous_patient_id = bed.patient_id
+            
+            # Discharge patient from bed (simple flow)
             bed.patient_id = None
             bed.status = "available"
             if discharge_date:
                 bed.discharge_date = datetime.strptime(discharge_date, "%Y-%m-%d").date()
             else:
                 bed.discharge_date = date.today()
+            
+            # Create a BedTurnover record to retain history for report generation fallbacks
+            try:
+                from database import BedTurnover
+                from datetime import datetime as dt
+                turnover = BedTurnover(
+                    bed_id=bed.id,
+                    previous_patient_id=previous_patient_id,
+                    status="initiated",
+                    turnover_type="standard",
+                    discharge_time=dt.now(),
+                    estimated_cleaning_duration=30,
+                    priority_level="normal"
+                )
+                db.add(turnover)
+            except Exception as e:
+                # If turnover creation fails, continue with basic discharge
+                print(f"⚠️ Failed to create BedTurnover during discharge: {e}")
             
             db.commit()
             db.refresh(bed)
@@ -429,7 +449,7 @@ class RoomBedAgent(BaseAgent):
             # Log the interaction
             self.log_interaction(
                 query=f"Discharge bed {bed_id}",
-                response=f"Bed {bed.bed_number} discharged, patient {patient_id} released",
+                response=f"Bed {bed.bed_number} discharged, patient {previous_patient_id} released",
                 tool_used="discharge_bed"
             )
             

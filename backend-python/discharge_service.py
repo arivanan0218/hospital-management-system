@@ -30,7 +30,8 @@ class PatientDischargeReportGenerator:
                                 discharge_destination: str = "home",
                                 discharge_instructions: str = "",
                                 follow_up_required: str = "",
-                                generated_by_user_id: str = None) -> Dict[str, Any]:
+                                generated_by_user_id: str = None,
+                                patient_id: str = None) -> Dict[str, Any]:
         """
         Generate a comprehensive discharge report for a patient.
         """
@@ -45,16 +46,26 @@ class PatientDischargeReportGenerator:
             patient = None
             admission_date = None
             
-            if bed.patient_id:
-                # Bed is currently occupied
-                patient = bed.patient
-                admission_date = bed.admission_date
-            else:
-                # Bed is available, check if it was recently discharged
-                # Look for the most recent patient assignment through historical data
-                patient = self._find_recent_patient_for_bed(bed_id)
+            # If a patient_id is explicitly provided, use that as authoritative
+            if patient_id:
+                try:
+                    patient = self.session.query(Patient).filter(Patient.id == uuid.UUID(patient_id)).first()
+                except Exception:
+                    patient = None
                 if patient:
                     admission_date = self._find_admission_date_for_patient_bed(patient.id, bed_id)
+            
+            if not patient:
+                if bed.patient_id:
+                    # Bed is currently occupied
+                    patient = bed.patient
+                    admission_date = bed.admission_date
+                else:
+                    # Bed is available, check if it was recently discharged
+                    # Look for the most recent patient assignment through historical data
+                    patient = self._find_recent_patient_for_bed(bed_id)
+                    if patient:
+                        admission_date = self._find_admission_date_for_patient_bed(patient.id, bed_id)
                 
             if not patient:
                 return {"success": False, "message": "No patient found for this bed (current or recent)"}
@@ -66,7 +77,7 @@ class PatientDischargeReportGenerator:
                 discharge_date = discharge_date or datetime.now()
             
             discharge_date = discharge_date or datetime.now()
-            admission_date = bed.admission_date or datetime.now() - timedelta(days=1)
+            admission_date = admission_date or bed.admission_date or (datetime.now() - timedelta(days=1))
             length_of_stay = (discharge_date - admission_date).days
             
             # Generate report sections
@@ -410,6 +421,23 @@ class PatientDischargeReportGenerator:
     def _find_recent_patient_for_bed(self, bed_id: str) -> Optional[Patient]:
         """Find the most recent patient who was assigned to this bed."""
         try:
+            # Primary fallback: check bed turnover logs for the most recent previous patient
+            try:
+                from database import BedTurnover  # local import to avoid circular refs at module load
+                recent_turnover = (self.session.query(BedTurnover)
+                                   .filter(BedTurnover.bed_id == uuid.UUID(bed_id))
+                                   .order_by(BedTurnover.discharge_time.desc())
+                                   .first())
+                if recent_turnover and recent_turnover.previous_patient_id:
+                    patient = self.session.query(Patient).filter(
+                        Patient.id == recent_turnover.previous_patient_id
+                    ).first()
+                    if patient:
+                        return patient
+            except Exception as e:
+                # Continue with legacy fallbacks
+                print(f"Turnover fallback lookup failed: {e}")
+
             # Look through treatment records for recent activity on this bed
             recent_treatment = (self.session.query(TreatmentRecord)
                               .filter(TreatmentRecord.bed_id == uuid.UUID(bed_id))
@@ -448,7 +476,7 @@ class PatientDischargeReportGenerator:
         except Exception as e:
             print(f"Error finding recent patient: {e}")
             return None
-    
+
     def _find_admission_date_for_patient_bed(self, patient_id: uuid.UUID, bed_id: str) -> Optional[datetime]:
         """Find the admission date for a patient on a specific bed."""
         try:
@@ -492,12 +520,13 @@ class PatientDischargeReportGenerator:
             if earliest_assignment:
                 return earliest_assignment.created_at
             
-            # Default to a reasonable estimate (1 day before discharge)
+            # Default to a reasonable estimate (1 day before now)
             return datetime.now() - timedelta(days=1)
             
         except Exception as e:
             print(f"Error finding admission date: {e}")
-            return datetime.now() - timedelta(days=1).strip()
+            # Default fallback without invalid .strip()
+            return datetime.now() - timedelta(days=1)
 
 # Convenience function for easy import
 def generate_patient_discharge_report(**kwargs):
