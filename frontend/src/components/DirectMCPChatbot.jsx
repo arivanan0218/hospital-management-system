@@ -202,8 +202,26 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   
   // Auto-scroll to bottom only when new messages are added, not on timer updates
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length]); // Only trigger on message count change, not message content changes
+    const scrollToBottom = () => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      
+      // iOS keyboard fix: extra scroll for iOS devices when keyboard is likely open
+      if (/iPhone|iPad|iPod/i.test(navigator.userAgent) && isInputFocused) {
+        setTimeout(() => {
+          window.scrollTo(0, document.body.scrollHeight);
+          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, 300);
+      }
+    };
+    
+    scrollToBottom();
+    
+    // Add listener for resize events (like keyboard appearing/disappearing)
+    const handleResize = () => scrollToBottom();
+    window.addEventListener('resize', handleResize);
+    
+    return () => window.removeEventListener('resize', handleResize);
+  }, [messages.length, isInputFocused]); // Also trigger on input focus changes
 
   // Auto-connect when component mounts if user is authenticated
   useEffect(() => {
@@ -445,15 +463,25 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
            ('ontouchstart' in window); // Check for touch capability
   };
 
-  // Smart focus function - focuses input but prevents keyboard popup on mobile
+  // Smart focus function - focuses input and ensures visibility with keyboard
   const smartFocusInput = (delay = 100) => {
     setTimeout(() => {
       if (inputFieldRef.current) {
         if (isMobileDevice()) {
-          // On mobile: Don't focus automatically to prevent keyboard popup
-          // Just ensure input is visually focused (via state) without actual DOM focus
+          // On mobile: Focus and scroll into view
+          inputFieldRef.current.focus();
+          
+          // For iOS specifically, we need to scroll to the bottom to make sure the input is visible
+          if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+            setTimeout(() => {
+              // Scroll to bottom of page to ensure input is visible with keyboard open
+              window.scrollTo(0, document.body.scrollHeight);
+              // Also ensure the messages container is scrolled to the bottom
+              messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }, 300); // Small delay to let keyboard appear
+          }
+          
           setIsInputFocused(true);
-          setTimeout(() => setIsInputFocused(false), 1000);
         } else {
           // On desktop: normal focus behavior
           inputFieldRef.current.focus();
@@ -3231,7 +3259,7 @@ Examples:
 
   // Main Chat Interface - Claude Desktop Style with Responsive Design
   return (
-    <div className="bg-[#1a1a1a] flex flex-col text-white overflow-hidden relative" style={{ height: 'calc(var(--vh, 1vh) * 100)' }}>
+    <div className="bg-[#1a1a1a] flex flex-col text-white overflow-hidden relative" style={{ height: 'calc(var(--vh, 1vh) * 100)', paddingBottom: 'calc(80px + env(safe-area-inset-bottom, 0px))' }}>
       {/* Claude-style Header - FIXED AT TOP */}
       <div className="fixed top-0 left-0 right-0 border-b border-gray-700 px-3 sm:px-4 py-3 bg-[#1a1a1a] z-30">
         <div className="flex items-center justify-between">
@@ -3411,7 +3439,7 @@ Examples:
       {activeTab === 'chat' && (
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden" style={{ 
           marginTop: '70px', 
-          marginBottom: showActionButtons ? 'calc(150px + env(safe-area-inset-bottom, 0px))' : 'calc(120px + env(safe-area-inset-bottom, 0px))',
+          marginBottom: showActionButtons ? 'calc(170px + env(safe-area-inset-bottom, 0px))' : 'calc(100px + env(safe-area-inset-bottom, 0px))',
         }}>
           {/* Messages Container - ONLY THIS SCROLLS */}
           <div 
@@ -3419,7 +3447,8 @@ Examples:
             className="flex-1 overflow-y-auto overflow-x-hidden bg-[#1a1a1a] px-0 sm:px-2"
             style={{ 
               WebkitOverflowScrolling: 'touch',
-              scrollBehavior: 'smooth'
+              scrollBehavior: 'smooth',
+              paddingBottom: 'calc(20px + env(safe-area-inset-bottom, 0px))'
             }}
             onClick={() => {
               // Smart focus input when clicking anywhere in the chat area, but not when selecting text
@@ -3668,7 +3697,10 @@ Examples:
         <div 
           className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] px-3 sm:px-4 py-2 border-t border-gray-700 z-30"
           style={{ 
-            paddingBottom: 'calc(8px + env(safe-area-inset-bottom, 0px))'
+            paddingBottom: 'calc(8px + env(safe-area-inset-bottom, 0px))',
+            position: 'fixed', /* Ensure it stays fixed on iOS */
+            bottom: 0,
+            width: '100%'
           }}
         >
           <div className="max-w-4xl mx-auto">
@@ -3722,13 +3754,13 @@ Examples:
                           handleSendMessage();
                         }
                       }}
-                      onFocus={e => {
+                      onFocus={() => {
                         setIsInputFocused(true);
-                        // iOS mobile fix: scroll input into view when focused
-                        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-                        if (isIOS) {
+                        // iOS keyboard fix - scroll into view when input is focused
+                        if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
                           setTimeout(() => {
-                            e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            window.scrollTo(0, document.body.scrollHeight);
+                            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
                           }, 300);
                         }
                       }}
@@ -3747,18 +3779,11 @@ Examples:
                       onInput={(e) => {
                         e.target.style.height = 'auto';
                         e.target.style.height = e.target.scrollHeight + 'px';
-                        // iOS mobile fix: scroll input into view while typing
-                        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-                        if (isIOS) {
-                          setTimeout(() => {
-                            e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                          }, 100);
-                        }
-                        // Always scroll messages container to bottom on input
-                        if (window.innerWidth <= 768 && messagesContainerRef.current) {
-                          setTimeout(() => {
-                            messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
-                          }, 100);
+                        
+                        // For iOS: scroll to bottom when typing to keep input in view
+                        if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+                          window.scrollTo(0, document.body.scrollHeight);
+                          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
                         }
                       }}
                     />
