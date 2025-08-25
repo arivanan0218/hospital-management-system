@@ -147,16 +147,18 @@ class DischargeAgent(BaseAgent):
             db.close()
             return {"success": False, "message": str(e)}
 
-    def assign_staff_to_patient_simple(self, patient_id: str, staff_id: str, assignment_type: str) -> Dict[str, Any]:
+    def assign_staff_to_patient_simple(self, patient_id: str, staff_id: str, assignment_type: str = None, role: str = None) -> Dict[str, Any]:
         if not DISCHARGE_DEPS:
             return {"success": False, "message": "Discharge dependencies not available"}
+        # Support both "assignment_type" (agent) and "role" (server wrapper)
+        assignment_value = assignment_type or role or "assigned"
         from database import SessionLocal, StaffAssignment as CoreStaffAssignment
         db = SessionLocal()
         try:
             sa = CoreStaffAssignment(
                 patient_id=uuid.UUID(patient_id),
                 staff_id=uuid.UUID(staff_id),
-                assignment_type=assignment_type,
+                assignment_type=assignment_value,
                 start_date=datetime.now()
             )
             db.add(sa)
@@ -232,15 +234,17 @@ class DischargeAgent(BaseAgent):
                 db.close()
                 return {"success": False, "message": "Bed not found"}
             
-            # Create new bed turnover record
+            # Create new bed turnover record; start cleaning immediately for countdown UI
+            estimated_minutes = 30 if turnover_type in ("standard", None) else (60 if turnover_type == "deep_clean" else 45)
             turnover = BedTurnover(
                 bed_id=uuid.UUID(bed_id),
                 previous_patient_id=uuid.UUID(previous_patient_id) if previous_patient_id else None,
-                status="initiated",
+                status="cleaning",
                 turnover_type=turnover_type,
                 priority_level=priority_level,
                 discharge_time=datetime.now(),
-                estimated_cleaning_duration=60 if turnover_type == "deep_clean" else 45
+                cleaning_start_time=datetime.now(),
+                estimated_cleaning_duration=estimated_minutes
             )
             
             db.add(turnover)
@@ -259,7 +263,7 @@ class DischargeAgent(BaseAgent):
                 "status": turnover.status,
                 "estimated_duration": turnover.estimated_cleaning_duration,
                 "priority": priority_level,
-                "message": f"Bed turnover process initiated for bed {bed.bed_number}"
+                "message": f"Bed turnover process initiated for bed {bed.bed_number} and cleaning started"
             }
             
             db.close()
@@ -270,18 +274,40 @@ class DischargeAgent(BaseAgent):
             db.close()
             return {"success": False, "message": str(e)}
 
-    def complete_bed_cleaning(self, turnover_id: str, inspector_id: str = None, inspection_passed: bool = True, inspector_notes: str = "") -> Dict[str, Any]:
-        """Complete bed cleaning process and mark bed as ready."""
+    def complete_bed_cleaning(self, turnover_id: str = None, bed_id: str = None, inspector_id: str = None, inspection_passed: bool = True, inspector_notes: str = "", cleaned_by: str = None, cleaning_notes: str = None) -> Dict[str, Any]:
+        """Complete bed cleaning process and mark bed as ready.
+        Supports both turnover_id (agent) and bed_id/cleaned_by (server wrapper) styles."""
         if not DISCHARGE_DEPS:
             return {"success": False, "message": "Discharge dependencies not available"}
         
         from database import SessionLocal, BedTurnover, Bed
         db = SessionLocal()
         try:
-            turnover = db.query(BedTurnover).filter(BedTurnover.id == uuid.UUID(turnover_id)).first()
+            turnover = None
+            if turnover_id:
+                try:
+                    turnover = db.query(BedTurnover).filter(BedTurnover.id == uuid.UUID(turnover_id)).first()
+                except Exception:
+                    turnover = None
+            elif bed_id:
+                # Find active turnover for the bed
+                turnover = db.query(BedTurnover).filter(
+                    BedTurnover.bed_id == uuid.UUID(bed_id),
+                    BedTurnover.status.in_(["initiated", "cleaning"])
+                ).first()
+            
             if not turnover:
                 db.close()
                 return {"success": False, "message": "Turnover record not found"}
+            
+            # Use cleaned_by as alias for inspector_id; cleaning_notes for inspector_notes
+            if cleaned_by and not inspector_id:
+                try:
+                    inspector_id = str(uuid.UUID(cleaned_by))
+                except Exception:
+                    inspector_id = None
+            if cleaning_notes and not inspector_notes:
+                inspector_notes = cleaning_notes
             
             # Update turnover record
             turnover.cleaning_end_time = datetime.now()
@@ -290,7 +316,10 @@ class DischargeAgent(BaseAgent):
             turnover.inspector_notes = inspector_notes
             
             if inspector_id:
-                turnover.assigned_inspector_id = uuid.UUID(inspector_id)
+                try:
+                    turnover.assigned_inspector_id = uuid.UUID(inspector_id)
+                except Exception:
+                    pass
             
             if inspection_passed:
                 turnover.status = "ready"
@@ -310,7 +339,7 @@ class DischargeAgent(BaseAgent):
                 "turnover_id": str(turnover.id),
                 "status": turnover.status,
                 "inspection_passed": inspection_passed,
-                "cleaning_duration": (turnover.cleaning_end_time - turnover.cleaning_start_time).seconds // 60 if turnover.cleaning_start_time else None,
+                "cleaning_duration": (turnover.cleaning_end_time - turnover.cleaning_start_time).seconds // 60 if getattr(turnover, 'cleaning_start_time', None) else None,
                 "message": "Bed cleaning completed successfully" if inspection_passed else "Bed cleaning completed but failed inspection"
             }
             
@@ -867,6 +896,20 @@ class DischargeAgent(BaseAgent):
                 db.close()
                 return {"success": False, "message": f"Failed to generate discharge report: {discharge_result.get('message')}"}
             
+            # Try to extract report number for direct download hints
+            report_number = None
+            try:
+                # Common shapes
+                report_number = (
+                    discharge_result.get("report_number")
+                    or (discharge_result.get("data", {}) or {}).get("report_number")
+                    or (discharge_result.get("report", {}) or {}).get("number")
+                    or (discharge_result.get("report", {}) or {}).get("report_number")
+                )
+            except Exception:
+                report_number = None
+            download_url = f"/discharge/{report_number}.pdf" if report_number else None
+            
             # Start bed turnover process
             turnover_result = self.start_bed_turnover_process(
                 bed_id=str(bed.id),
@@ -912,6 +955,8 @@ class DischargeAgent(BaseAgent):
                 "message": f"Patient {patient.first_name} {patient.last_name} discharged successfully",
                 "patient_id": str(patient.id),
                 "bed_id": str(bed.id),
+                "report_number": report_number,
+                "report_download_url": download_url,
                 "discharge_report": discharge_result,
                 "bed_turnover": turnover_result,
                 "cleaning_timer": "30 minutes",
