@@ -385,15 +385,17 @@ class RoomBedAgent(BaseAgent):
             result = self.serialize_model(bed)
             db.close()
             
-            # Log the interaction
+            # Log the interaction (avoid accessing patient object after session close)
             self.log_interaction(
                 query=f"Assign bed {bed_id} to patient {patient_id}",
-                response=f"Bed {bed.bed_number} assigned to patient {patient.first_name} {patient.last_name}",
+                response=f"Bed {bed.bed_number} assigned to patient {patient_id}",
                 tool_used="assign_bed_to_patient"
             )
             
             return {"success": True, "message": "Bed assigned successfully", "data": result}
         except Exception as e:
+            db.rollback()
+            db.close()
             return {"success": False, "message": f"Failed to assign bed: {str(e)}"}
 
     def discharge_bed(self, bed_id: str, discharge_date: str = None) -> Dict[str, Any]:
