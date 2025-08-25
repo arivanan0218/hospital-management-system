@@ -224,12 +224,12 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
         // Use 'center' when no keyboard to center the input in view
         inputFieldRef.current.scrollIntoView({ 
           behavior: 'smooth', 
-          block: isKeyboardVisible ? 'end' : 'center' 
+          block: isKeyboardVisible ? 'nearest' : 'center' 
         });
       };
       
       // Small delay to let the keyboard appear fully
-      setTimeout(scrollToInput, 150);
+      setTimeout(scrollToInput, 100);
     }
   }, [inputMessage, isKeyboardVisible]);
   // Touch / swipe refs for mobile swipe navigation (upload/history -> chat)
@@ -556,9 +556,9 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
         const heightReduction = Math.abs(windowHeight - documentHeight);
         
         // If height is reduced significantly, keyboard is likely visible
-        if (heightReduction > 150 && isInputFocused) {
+        if (heightReduction > 100 && isInputFocused) {
           setIsKeyboardVisible(true);
-        } else if (!isInputFocused || heightReduction < 100) {
+        } else if (!isInputFocused || heightReduction < 50) {
           setIsKeyboardVisible(false);
         }
       }
@@ -3480,7 +3480,7 @@ Examples:
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden" style={{ 
           marginTop: '70px', 
           marginBottom: isMobileDevice() && isKeyboardVisible 
-            ? '60px' // Smaller margin when keyboard is visible on mobile
+            ? '45px' // Much smaller margin when keyboard is visible on mobile
             : 'calc(120px + env(safe-area-inset-bottom, 0px))', // Normal margin when keyboard is hidden
         }}>
           {/* Messages Container - ONLY THIS SCROLLS */}
@@ -3671,11 +3671,12 @@ Examples:
 
         {/* Modern Chat Input - FIXED AT BOTTOM */}
         <div 
-          className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] px-3 sm:px-4 py-2 border-t border-gray-700 z-30"
+          className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] px-2 sm:px-4 border-t border-gray-700 z-30"
           style={{ 
             paddingBottom: isMobileDevice() && isKeyboardVisible 
-              ? '2px' // Minimal padding when keyboard is visible
-              : 'calc(4px + env(safe-area-inset-bottom, 0px))' // Normal padding with safe area inset
+              ? '0px' // No padding when keyboard is visible
+              : 'calc(4px + env(safe-area-inset-bottom, 0px))', // Normal padding with safe area inset
+            paddingTop: isMobileDevice() && isKeyboardVisible ? '0px' : '2px'
           }}
         >
           <div className="max-w-4xl mx-auto">
@@ -3713,12 +3714,12 @@ Examples:
               
               <div className="relative">
                 {/* Main Input Container - Rounded Rectangle */}
-                <div className={`bg-[#2a2a2a] rounded-2xl sm:rounded-3xl border px-3 sm:px-4 py-2 sm:py-4 transition-colors duration-200 ${
+                <div className={`bg-[#2a2a2a] rounded-lg sm:rounded-2xl border px-2 sm:px-4 py-1 sm:py-3 transition-colors duration-200 ${
                   isInputFocused ? 'border-blue-500' : 'border-gray-600'
                 }`}>
                   
                   {/* First Row - Text Input (Full Width) */}
-                  <div className="mb-1 sm:mb-3">
+                  <div className={isMobileDevice() && isKeyboardVisible ? "mb-0" : "mb-1 sm:mb-3"}>
                     <textarea
                       ref={inputFieldRef}
                       value={inputMessage}
@@ -3768,15 +3769,24 @@ Examples:
                       rows={1}
                       className="w-full bg-transparent border-none outline-none resize-none text-white placeholder-gray-400 text-base"
                       style={{
-                        minHeight: '18px',
-                        maxHeight: '100px',
+                        minHeight: isMobileDevice() && isKeyboardVisible ? '16px' : '18px',
+                        maxHeight: isMobileDevice() && isKeyboardVisible ? '60px' : '100px',
+                        padding: isMobileDevice() && isKeyboardVisible ? '0' : '2px',
                         fontSize: '16px', // Prevents zoom on iOS
                         WebkitAppearance: 'none',
                         WebkitBorderRadius: 0
                       }}
                       onInput={(e) => {
-                        e.target.style.height = 'auto';
-                        e.target.style.height = e.target.scrollHeight + 'px';
+                        // For mobile with keyboard, limit height more aggressively
+                        if (isMobileDevice() && isKeyboardVisible) {
+                          e.target.style.height = 'auto';
+                          // Limit the height more strictly when keyboard is visible
+                          const newHeight = Math.min(e.target.scrollHeight, 40);
+                          e.target.style.height = newHeight + 'px';
+                        } else {
+                          e.target.style.height = 'auto';
+                          e.target.style.height = e.target.scrollHeight + 'px';
+                        }
                         
                         // Ensure input remains visible when textarea changes height on mobile
                         if (isMobileDevice() && inputFieldRef.current) {
@@ -3784,10 +3794,10 @@ Examples:
                           setIsKeyboardVisible(true);
                           
                           setTimeout(() => {
-                            // Use a lower position when keyboard is visible
+                            // Use the nearest position when keyboard is visible to avoid extra space
                             inputFieldRef.current.scrollIntoView({ 
                               behavior: 'smooth', 
-                              block: 'end'  // Always ensure input is at bottom of visible area
+                              block: 'nearest'
                             });
                           }, 10);
                         }
@@ -3796,7 +3806,7 @@ Examples:
                   </div>
                   
                   {/* Second Row - Icons */}
-                  <div className="flex items-center justify-between">
+                  <div className={`flex items-center justify-between ${isMobileDevice() && isKeyboardVisible ? 'py-0' : 'py-1'}`}>
                     {/* Left Side - Plus and Tools Icons */}
                     <div className="flex items-center space-x-2 sm:space-x-3">
                       {/* Plus Button with Dropdown */}
