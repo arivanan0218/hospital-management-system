@@ -3722,7 +3722,9 @@ Examples:
                           handleSendMessage();
                         }
                       }}
+
                       onFocus={() => setIsInputFocused(true)}
+
                       onBlur={() => setIsInputFocused(false)}
                       placeholder={isConnected ? "Ask anything (Ctrl+/ to focus)" : "Ask anything"}
                       disabled={!isConnected || isLoading}
@@ -3738,6 +3740,8 @@ Examples:
                       onInput={(e) => {
                         e.target.style.height = 'auto';
                         e.target.style.height = e.target.scrollHeight + 'px';
+
+
                       }}
                     />
                   </div>
