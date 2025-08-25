@@ -447,25 +447,6 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
         
         // Append the typed character to the input (since we're not in the field yet)
         setInputMessage(prev => prev + event.key);
-        
-        // On mobile, make sure the input is visible above the keyboard
-        if (isMobileDevice()) {
-          setTimeout(() => {
-            if (inputFieldRef.current) {
-              // Scroll the input into view
-              inputFieldRef.current.scrollIntoView({ 
-                behavior: 'smooth', 
-                block: 'center' 
-              });
-              
-              // Also scroll window to position input better
-              window.scrollTo({
-                top: window.innerHeight * 0.3,
-                behavior: 'smooth'
-              });
-            }
-          }, 300);
-        }
       }
     };
 
@@ -558,59 +539,6 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
     return () => {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('orientationchange', handleResize);
-    };
-  }, []);
-  
-  // Keyboard visibility detection for mobile
-  useEffect(() => {
-    // Store original window height to detect keyboard
-    let originalWindowHeight = window.innerHeight;
-    let isKeyboardVisible = false;
-    
-    const detectKeyboard = () => {
-      if (!isMobileDevice()) return;
-      
-      const currentWindowHeight = window.innerHeight;
-      
-      // If height significantly decreased, keyboard is likely visible
-      if (currentWindowHeight < originalWindowHeight * 0.75) {
-        // Keyboard appeared
-        if (!isKeyboardVisible) {
-          isKeyboardVisible = true;
-          
-          // Ensure input field is visible above keyboard
-          if (inputFieldRef.current && document.activeElement === inputFieldRef.current) {
-            // Add small delay to ensure keyboard is fully visible
-            setTimeout(() => {
-              inputFieldRef.current.scrollIntoView({ 
-                behavior: 'smooth',
-                block: 'center' 
-              });
-              
-              // Additional window scroll to position better
-              window.scrollTo({
-                top: window.innerHeight * 0.3,
-                behavior: 'smooth'
-              });
-            }, 300);
-          }
-        }
-      } else {
-        // Keyboard disappeared
-        isKeyboardVisible = false;
-        originalWindowHeight = Math.max(originalWindowHeight, currentWindowHeight);
-      }
-    };
-    
-    window.addEventListener('resize', detectKeyboard);
-    
-    // Initialize original height
-    setTimeout(() => {
-      originalWindowHeight = window.innerHeight;
-    }, 500); // Wait for any initial animations
-    
-    return () => {
-      window.removeEventListener('resize', detectKeyboard);
     };
   }, []);
 
@@ -1494,21 +1422,6 @@ Examples:
             // Focus the input field to show keyboard on mobile
             inputFieldRef.current.focus();
             setIsInputFocused(true);
-            
-            // On mobile, ensure the input is visible above keyboard
-            if (isMobileDevice()) {
-              // Scroll the textarea into view
-              inputFieldRef.current.scrollIntoView({ 
-                behavior: 'smooth', 
-                block: 'center'
-              });
-              
-              // Also adjust window scroll position for better visibility
-              window.scrollTo({
-                top: window.innerHeight * 0.3,
-                behavior: 'smooth'
-              });
-            }
           }
         }, 300);
       }
@@ -3766,7 +3679,7 @@ Examples:
                         setIsInputFocused(true);
                         // Ensure keyboard appears and stays open on mobile
                         if (isMobileDevice()) {
-                          // Scroll to make sure the input is visible above the keyboard
+                          // Force re-focus after a small delay to ensure keyboard appears
                           setTimeout(() => {
                             if (inputFieldRef.current) {
                               // Scroll the element into view with smooth behavior
@@ -3801,23 +3714,10 @@ Examples:
                         WebkitBorderRadius: 0
                       }}
                       onInput={(e) => {
-                        // Auto-resize the textarea based on content
                         e.target.style.height = 'auto';
                         e.target.style.height = e.target.scrollHeight + 'px';
-                        
-                        // On mobile, ensure the input remains visible while typing
-                        if (isMobileDevice()) {
-                          // Scroll the input area into view when typing
-                          setTimeout(() => {
-                            if (inputFieldRef.current && document.activeElement === inputFieldRef.current) {
-                              // Ensure text area is visible above keyboard
-                              inputFieldRef.current.scrollIntoView({ 
-                                behavior: 'smooth', 
-                                block: 'center'
-                              });
-                            }
-                          }, 100);
-                        }
+
+
                       }}
                     />
                   </div>
