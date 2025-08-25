@@ -305,7 +305,7 @@ class InventoryTransaction(Base):
     total_cost = Column(DECIMAL(10, 2))
     reference_number = Column(String(50))
     notes = Column(Text)
-    performed_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    performed_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     transaction_date = Column(DateTime, default=func.now())
 
     # Relationships

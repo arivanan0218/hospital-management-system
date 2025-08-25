@@ -178,6 +178,8 @@ def assign_staff_to_patient(patient_id: str,
         return {"success": True, "message": "Staff assigned successfully", "data": result}
         
     except Exception as e:
+        db.rollback()
+        db.close()
         return {"success": False, "message": f"Failed to assign staff: {str(e)}"}
 
 @mcp.tool()
