@@ -31,6 +31,7 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   const [expandedThinking, setExpandedThinking] = useState({}); // Track which thinking messages are expanded
   const [isInputFocused, setIsInputFocused] = useState(false); // Track input focus state
   const [showPlusMenu, setShowPlusMenu] = useState(false); // Track plus icon dropdown menu
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false); // Track keyboard visibility on mobile
   
   // Voice functionality state
   const [isListening, setIsListening] = useState(false); // Track voice recording state
@@ -219,13 +220,18 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
     // When input message changes, ensure the input is visible on mobile
     if (isMobileDevice() && inputMessage && inputFieldRef.current) {
       const scrollToInput = () => {
-        inputFieldRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Use 'end' when keyboard is visible to position input just above keyboard
+        // Use 'center' when no keyboard to center the input in view
+        inputFieldRef.current.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: isKeyboardVisible ? 'end' : 'center' 
+        });
       };
       
       // Small delay to let the keyboard appear fully
       setTimeout(scrollToInput, 150);
     }
-  }, [inputMessage]);
+  }, [inputMessage, isKeyboardVisible]);
   // Touch / swipe refs for mobile swipe navigation (upload/history -> chat)
   const touchStartXRef = useRef(null);
   const touchStartYRef = useRef(null);
@@ -542,6 +548,19 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
     const handleResize = () => {
       if (isMobileDevice()) {
         setTimeout(handleMobileViewport, 100); // Delay to account for keyboard animation
+        
+        // On mobile, window height changes when keyboard appears/disappears
+        // We can use this to more accurately detect keyboard visibility
+        const windowHeight = window.innerHeight;
+        const documentHeight = document.documentElement.clientHeight;
+        const heightReduction = Math.abs(windowHeight - documentHeight);
+        
+        // If height is reduced significantly, keyboard is likely visible
+        if (heightReduction > 150 && isInputFocused) {
+          setIsKeyboardVisible(true);
+        } else if (!isInputFocused || heightReduction < 100) {
+          setIsKeyboardVisible(false);
+        }
       }
     };
 
@@ -553,7 +572,7 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('orientationchange', handleResize);
     };
-  }, []);
+  }, [isInputFocused]); // Add isInputFocused as dependency
 
   // Mobile detection utility function
   // Smart focus function - focuses input and activates keyboard on mobile
@@ -1649,28 +1668,47 @@ Examples:
       // Prevent page scroll when focusing input on mobile
       const preventScroll = (e) => {
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+          // Set keyboard visible state immediately
+          setIsKeyboardVisible(true);
+          
           setTimeout(() => {
             // Instead of forcing scroll to top, scroll the element into view
-            e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            e.target.scrollIntoView({ behavior: 'smooth', block: 'end' });
             
             // Ensure background color is maintained during keyboard transitions
             document.body.style.backgroundColor = '#1a1a1a';
             document.documentElement.style.backgroundColor = '#1a1a1a';
             document.body.style.height = '100%';
             document.body.style.minHeight = '100vh';
+            
+            // Remove extra space when keyboard is visible
+            if (isKeyboardVisible) {
+              document.body.style.marginBottom = '0px';
+            }
           }, 100);
         }
       };
       
       // Handle keyboard hide event to prevent white flash
       const handleFocusOut = () => {
+        // Set keyboard as hidden with a short delay
         setTimeout(() => {
+          setIsKeyboardVisible(false);
+          
+          // Restore viewport settings
           setVH();
           document.body.style.backgroundColor = '#1a1a1a';
           document.documentElement.style.backgroundColor = '#1a1a1a';
           document.body.style.height = '100%';
           document.body.style.minHeight = '100vh';
-          window.scrollTo(0, 0);
+          document.body.style.marginBottom = '';  // Reset any margin modifications
+          
+          // Don't force scroll to top, it interrupts the user experience
+          // Only fix scroll if significantly off
+          const scrollPos = window.scrollY || document.documentElement.scrollTop;
+          if (scrollPos < 10) {
+            window.scrollTo(0, 0);
+          }
         }, 150);
       };
       
@@ -1698,7 +1736,7 @@ Examples:
         document.documentElement.style.height = '';
       };
     }
-  }, []);
+  }, [isKeyboardVisible]); // Add isKeyboardVisible as dependency
 
   // Force layout correction after component mount - fixes initial blank space
   useEffect(() => {
@@ -3441,7 +3479,9 @@ Examples:
       {activeTab === 'chat' && (
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden" style={{ 
           marginTop: '70px', 
-          marginBottom: 'calc(120px + env(safe-area-inset-bottom, 0px))',
+          marginBottom: isMobileDevice() && isKeyboardVisible 
+            ? '60px' // Smaller margin when keyboard is visible on mobile
+            : 'calc(120px + env(safe-area-inset-bottom, 0px))', // Normal margin when keyboard is hidden
         }}>
           {/* Messages Container - ONLY THIS SCROLLS */}
           <div 
@@ -3633,7 +3673,9 @@ Examples:
         <div 
           className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] px-3 sm:px-4 py-2 border-t border-gray-700 z-30"
           style={{ 
-            paddingBottom: 'calc(4px + env(safe-area-inset-bottom, 0px))'
+            paddingBottom: isMobileDevice() && isKeyboardVisible 
+              ? '2px' // Minimal padding when keyboard is visible
+              : 'calc(4px + env(safe-area-inset-bottom, 0px))' // Normal padding with safe area inset
           }}
         >
           <div className="max-w-4xl mx-auto">
@@ -3698,8 +3740,9 @@ Examples:
 
                       onFocus={() => {
                         setIsInputFocused(true);
-                        // Ensure keyboard appears and stays open on mobile
+                        // Set keyboard visible state on mobile
                         if (isMobileDevice()) {
+                          setIsKeyboardVisible(true);
                           // Force re-focus after a small delay to ensure keyboard appears
                           setTimeout(() => {
                             if (inputFieldRef.current) {
@@ -3711,7 +3754,15 @@ Examples:
                         }
                       }}
 
-                      onBlur={() => setIsInputFocused(false)}
+                      onBlur={() => {
+                        setIsInputFocused(false);
+                        // Small delay before setting keyboard as hidden to avoid UI jumps
+                        if (isMobileDevice()) {
+                          setTimeout(() => {
+                            setIsKeyboardVisible(false);
+                          }, 100);
+                        }
+                      }}
                       placeholder={isConnected ? "Ask anything (Ctrl+/ to focus)" : "Ask anything"}
                       disabled={!isConnected || isLoading}
                       rows={1}
@@ -3729,8 +3780,15 @@ Examples:
                         
                         // Ensure input remains visible when textarea changes height on mobile
                         if (isMobileDevice() && inputFieldRef.current) {
+                          // Mark keyboard as visible when typing
+                          setIsKeyboardVisible(true);
+                          
                           setTimeout(() => {
-                            inputFieldRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                            // Use a lower position when keyboard is visible
+                            inputFieldRef.current.scrollIntoView({ 
+                              behavior: 'smooth', 
+                              block: 'end'  // Always ensure input is at bottom of visible area
+                            });
                           }, 10);
                         }
                       }}
