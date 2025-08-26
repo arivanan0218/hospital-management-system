@@ -47,15 +47,34 @@ class PatientAgent(BaseAgent):
                       gender: str = None, phone: str = None, email: str = None,
                       address: str = None, emergency_contact_name: str = None,
                       emergency_contact_phone: str = None, blood_type: str = None,
-                      allergies: str = None, medical_history: str = None) -> Dict[str, Any]:
+                      allergies: str = None, medical_history: str = None,
+                      patient_number: str = None) -> Dict[str, Any]:
         """Create a new patient record."""
         if not DATABASE_AVAILABLE:
             return {"success": False, "message": "Database not available"}
         
         try:
-            # Generate unique patient number
+            # Use provided patient number or generate a unique one
             import random
-            patient_number = f"P{random.randint(100000, 999999)}"
+            if patient_number:
+                # Check if the provided patient number already exists
+                db = self.get_db_session()
+                existing_patient = db.query(Patient).filter(Patient.patient_number == patient_number).first()
+                if existing_patient:
+                    db.close()
+                    return {
+                        "success": False,
+                        "message": f"Patient number {patient_number} already exists. Please choose a different number."
+                    }
+                db.close()
+            else:
+                # Generate unique patient number
+                patient_number = f"P{random.randint(100000, 999999)}"
+                # Check for uniqueness
+                db = self.get_db_session()
+                while db.query(Patient).filter(Patient.patient_number == patient_number).first():
+                    patient_number = f"P{random.randint(100000, 999999)}"
+                db.close()
             
             # Parse date of birth
             dob = datetime.strptime(date_of_birth, "%Y-%m-%d").date()
