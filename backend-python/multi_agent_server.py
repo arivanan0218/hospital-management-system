@@ -605,6 +605,101 @@ def discharge_bed(bed_id: str, discharge_date: str = None) -> Dict[str, Any]:
     return {"error": "Multi-agent system required for bed discharge"}
 
 # ================================
+# PATIENT SUPPLY USAGE TOOLS
+@mcp.tool()
+def record_patient_supply_usage(patient_id: str, supply_id: str, quantity_used: int, 
+                               dosage: str = None, frequency: str = None, 
+                               prescribed_by_id: str = None, administered_by_id: str = None,
+                               bed_id: str = None, administration_route: str = "oral",
+                               indication: str = None, start_date: str = None, 
+                               end_date: str = None) -> Dict[str, Any]:
+    """Record medication or supply usage for a patient."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("record_patient_supply_usage",
+                                           patient_id=patient_id, supply_id=supply_id,
+                                           quantity_used=quantity_used, dosage=dosage,
+                                           frequency=frequency, prescribed_by_id=prescribed_by_id,
+                                           administered_by_id=administered_by_id, bed_id=bed_id,
+                                           administration_route=administration_route,
+                                           indication=indication, start_date=start_date,
+                                           end_date=end_date)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def get_patient_supply_usage(usage_id: str) -> Dict[str, Any]:
+    """Get specific supply usage record by ID."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("get_patient_supply_usage", usage_id=usage_id)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def update_supply_usage_status(usage_id: str, status: str, administration_date: str = None,
+                             effectiveness: str = None, side_effects: str = None,
+                             notes: str = None) -> Dict[str, Any]:
+    """Update status of supply usage (administered, completed, discontinued)."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("update_supply_usage_status",
+                                           usage_id=usage_id, status=status,
+                                           administration_date=administration_date,
+                                           effectiveness=effectiveness,
+                                           side_effects=side_effects, notes=notes)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def get_supply_usage_for_discharge_report(patient_id: str, admission_date: str = None,
+                                        discharge_date: str = None) -> Dict[str, Any]:
+    """Get all supply usage for a patient's discharge report."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("get_supply_usage_for_discharge_report",
+                                           patient_id=patient_id,
+                                           admission_date=admission_date,
+                                           discharge_date=discharge_date)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def list_patient_medications(patient_id: str) -> Dict[str, Any]:
+    """List all medications/supplies used by a patient."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("list_patient_medications", patient_id=patient_id)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def search_supply_usage_by_patient(patient_name: str = None, patient_number: str = None,
+                                 supply_name: str = None, status: str = None) -> Dict[str, Any]:
+    """Search supply usage records for a specific patient."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("search_supply_usage_by_patient",
+                                           patient_name=patient_name,
+                                           patient_number=patient_number,
+                                           supply_name=supply_name, status=status)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def calculate_patient_medication_costs(patient_id: str, admission_date: str = None,
+                                     discharge_date: str = None) -> Dict[str, Any]:
+    """Calculate total medication costs for a patient stay."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("calculate_patient_medication_costs",
+                                           patient_id=patient_id,
+                                           admission_date=admission_date,
+                                           discharge_date=discharge_date)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+# ================================
 # STAFF MANAGEMENT TOOLS
 @mcp.tool()
 def create_equipment(equipment_id: str, name: str, category_id: str, model: str = None,
