@@ -389,6 +389,17 @@ class DirectHttpAIMCPService {
   detectCreatePopupIntent(userMessage) {
     const message = userMessage.toLowerCase();
     
+    // FIRST: Check for USAGE patterns that should use AI processing (NOT popup forms)
+    if (message.includes('equipment') && (message.includes('usage') || message.includes('used by') || message.includes('patient id') || message.includes('assign') || message.includes('inventory') || message.includes('tracking'))) {
+      console.log('🤖 Equipment usage/inventory detected - using AI processing');
+      return null; // Use AI processing, not popup
+    }
+    
+    if (message.includes('supply') && (message.includes('usage') || message.includes('used by') || message.includes('patient id') || message.includes('assign') || message.includes('inventory') || message.includes('tracking') || message.includes('consumption'))) {
+      console.log('🤖 Supply usage/inventory detected - using AI processing');
+      return null; // Use AI processing, not popup
+    }
+    
     // CREATE operations that should trigger popup forms (11 total)
     const createIntents = {
       'create_patient': ['create patient', 'add patient', 'new patient', 'register patient', 'patient admission', 'admit patient'],
@@ -397,14 +408,14 @@ class DirectHttpAIMCPService {
       'create_department': ['create department', 'add department', 'new department'],
       'create_room': ['create room', 'add room', 'new room'],
       'create_bed': ['create bed', 'add bed', 'new bed'],
-      'create_equipment': ['create equipment', 'add equipment', 'new equipment', 'register equipment'],
-      'create_supply': ['create supply', 'add supply', 'new supply', 'register supply'],
+      'create_equipment': ['create equipment', 'register equipment'],  // Removed broad "add equipment" and "new equipment"
+      'create_supply': ['create supply', 'register supply'],  // Removed broad "add supply" and "new supply"
       'create_legacy_user': ['create legacy user', 'add legacy user', 'new legacy user', 'legacy user'],
       'create_equipment_category': ['create equipment category', 'add equipment category', 'new equipment category'],
       'create_supply_category': ['create supply category', 'add supply category', 'new supply category']
     };
 
-    // Check for CREATE intents
+    // Check for CREATE intents (only if not usage)
     for (const [intent, keywords] of Object.entries(createIntents)) {
       for (const keyword of keywords) {
         if (message.includes(keyword)) {
