@@ -127,11 +127,11 @@ class PatientAgent(BaseAgent):
         except Exception as e:
             return {"success": False, "message": f"Failed to create patient: {str(e)}"}
 
-    def list_patients(self, status: str = "all") -> Dict[str, Any]:
+    def list_patients(self, status: str = "active") -> Dict[str, Any]:
         """List patients with optional status filtering.
         
         Args:
-            status: Filter by patient status - "active", "discharged", "all" (default: all)
+            status: Filter by patient status - "active" (default), "discharged", "all"
         """
         if not DATABASE_AVAILABLE:
             return {"error": "Database not available"}
@@ -140,7 +140,7 @@ class PatientAgent(BaseAgent):
             db = self.get_db_session()
             query = db.query(Patient)
             
-            # Apply status filter
+            # Apply status filter - default to active patients only
             if status and status != "all":
                 query = query.filter(Patient.status == status)
             

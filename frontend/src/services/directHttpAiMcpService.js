@@ -238,6 +238,9 @@ class DirectHttpAIMCPService {
     this.isInitialized = true;
     console.log('✅ Direct HTTP AI-MCP Service initialized successfully (Claude Desktop Style)');
     
+    // 🔄 Setup automatic bed status updates
+    this.setupPeriodicBedStatusUpdates();
+    
     return true;
   }
 
@@ -569,6 +572,38 @@ class DirectHttpAIMCPService {
    */
   async determineRequiredToolsWithAI(userMessage, availableTools) {
     console.log('🤖 determineRequiredToolsWithAI called with:', userMessage);
+    
+    // 🛏️ CRITICAL BED STATUS FIX - Check this FIRST before AI processing!
+    const bedStatusPatterns = [
+      /check\s+bed\s+(\w+)\s+status/i,
+      /bed\s+(\w+)\s+status/i, 
+      /status\s+of\s+bed\s+(\w+)/i,
+      /is\s+bed\s+(\w+)\s+ready/i,
+      /bed\s+(\w+)\s+ready/i,
+      /check\s+bed\s+(\w+)/i
+    ];
+    
+    for (const pattern of bedStatusPatterns) {
+      const match = userMessage.match(pattern);
+      if (match) {
+        console.log(`🎯 BED STATUS OVERRIDE: "${userMessage}" -> Forcing get_bed_status_with_time_remaining for bed ${match[1]}`);
+        return [{
+          name: 'get_bed_status_with_time_remaining',
+          arguments: { bed_id: match[1] }
+        }];
+      }
+    }
+    
+    // Additional bed status keyword detection  
+    if ((userMessage.includes('bed') && userMessage.includes('status')) ||
+        (userMessage.includes('check') && userMessage.includes('bed'))) {
+      console.log('🎯 BED STATUS KEYWORD OVERRIDE: Forcing get_bed_status_with_time_remaining');
+      const bedParams = this.extractBedStatusParameters(userMessage);
+      return [{
+        name: 'get_bed_status_with_time_remaining',
+        arguments: bedParams
+      }];
+    }
     
     // Check conversation context for ongoing operations
     const contextualTools = this.analyzeConversationContext(userMessage);
@@ -1210,6 +1245,12 @@ Respond naturally, conversationally, and contextually based on the conversation 
     }
     
     // Bed operations - prioritize bed status after discharge scenarios
+    console.log('🔍 DEBUGGING BED STATUS DETECTION for message:', message);
+    console.log('🔍 message.includes("bed"):', message.includes('bed'));
+    console.log('🔍 message.includes("status"):', message.includes('status'));
+    console.log('🔍 message.includes("check"):', message.includes('check'));
+    console.log('🔍 (message.includes("check") && message.includes("bed")):', (message.includes('check') && message.includes('bed')));
+    
     if ((message.includes('bed') && (message.includes('status') || message.includes('cleaning') || 
          message.includes('turnover') || message.includes('remaining') || message.includes('time'))) ||
         (message.includes('bed') && (message.includes('ready') || message.includes('available'))) ||
@@ -1223,7 +1264,12 @@ Respond naturally, conversationally, and contextually based on the conversation 
     // Generic bed listing - avoid conflicts with specific bed queries
     else if (message.includes('list beds') || message.includes('show all beds') || message.includes('all beds') || 
              (message.includes('beds') && !message.match(/bed\s+[A-Z0-9]+/i))) {
-      console.log('🏥 GENERIC BED LISTING TRIGGERED');
+      console.log('🏥 GENERIC BED LISTING TRIGGERED for message:', message);
+      console.log('🏥 message.includes("list beds"):', message.includes('list beds'));
+      console.log('🏥 message.includes("show all beds"):', message.includes('show all beds'));
+      console.log('🏥 message.includes("all beds"):', message.includes('all beds'));
+      console.log('🏥 message.includes("beds"):', message.includes('beds'));
+      console.log('🏥 message.match(/bed\\s+[A-Z0-9]+/i):', message.match(/bed\s+[A-Z0-9]+/i));
       toolsNeeded.push({ name: 'list_beds', arguments: {} });
       console.log('⚠️ Added list_beds to toolsNeeded');
     }
@@ -4086,6 +4132,18 @@ Respond naturally and helpfully based on the user's request and the tool results
     
     // Create system prompt without complex template literals - COMPLETE VERSION WITH ALL PROMPTS
     const systemPrompt = [
+      "🛏️ **CRITICAL BED STATUS TOOL SELECTION OVERRIDE:**",
+      "For ANY bed status queries (check bed X status, bed X status, is bed X ready, etc.), ALWAYS use 'get_bed_status_with_time_remaining' - NEVER use list_beds!",
+      "This tool shows cleaning time remaining, occupancy status, and patient assignments.",
+      "Examples:",
+      "- 'check bed 302A status' → use get_bed_status_with_time_remaining with bed_id: '302A'",
+      "- 'bed 101 ready?' → use get_bed_status_with_time_remaining with bed_id: '101'", 
+      "- 'status of bed 205B' → use get_bed_status_with_time_remaining with bed_id: '205B'",
+      "",
+      "📊 **LIST vs STATUS TOOLS - CRITICAL DIFFERENCE:**",
+      "- list_beds = Shows ALL beds overview (use for 'show all beds', 'list beds', 'bed inventory')",
+      "- get_bed_status_with_time_remaining = Shows SPECIFIC bed detail with cleaning timers (use for 'check bed X', 'bed X status')",
+      "",
       "� IMPORTANT: For equipment usage, always use 'add_equipment_usage_with_codes' (prevents UUID errors)",
       "",
       "You are Hospital AI, an advanced AI assistant specialized in comprehensive hospital management.",
@@ -4505,6 +4563,7 @@ Respond naturally and helpfully based on the user's request and the tool results
   async executeFunctionCalls(gptResponse) {
     const results = [];
     const toolCalls = gptResponse.choices[0].message.tool_calls || [];
+    let bedStatusUpdateNeeded = false;
 
     for (const toolCall of toolCalls) {
       let functionName = toolCall.function.name;
@@ -4531,6 +4590,17 @@ Respond naturally and helpfully based on the user's request and the tool results
           tool_call_id: toolCall.id
         });
 
+        // 🛏️ Track if bed status update is needed
+        const bedRelatedTools = [
+          'discharge_bed', 'assign_bed_to_patient', 'update_bed_status',
+          'create_bed_turnover', 'update_bed_turnover_status', 'auto_update_expired_cleaning_beds'
+        ];
+        
+        if (bedRelatedTools.includes(functionName)) {
+          bedStatusUpdateNeeded = true;
+          console.log(`🛏️ Bed status auto-refresh triggered by: ${functionName}`);
+        }
+
       } catch (error) {
         console.error(`❌ Function ${functionName} failed:`, error);
         
@@ -4543,6 +4613,26 @@ Respond naturally and helpfully based on the user's request and the tool results
       }
     }
 
+    // 🔄 Auto-refresh bed statuses after bed operations
+    if (bedStatusUpdateNeeded) {
+      console.log('🔄 Auto-updating expired cleaning beds...');
+      try {
+        const autoUpdateResult = await this.mcpClient.callTool('auto_update_expired_cleaning_beds', {});
+        console.log('✅ Auto-update completed:', autoUpdateResult);
+        
+        // Add this as a "hidden" result for internal tracking
+        results.push({
+          function: 'auto_update_expired_cleaning_beds',
+          arguments: {},
+          result: autoUpdateResult,
+          tool_call_id: 'auto-' + Date.now(),
+          hidden: true // Mark as hidden so it doesn't show to user
+        });
+      } catch (error) {
+        console.warn('⚠️ Auto-update failed (non-critical):', error);
+      }
+    }
+
     return results;
   }
 
@@ -4552,6 +4642,78 @@ Respond naturally and helpfully based on the user's request and the tool results
   disconnect() {
     this.mcpClient.disconnect();
     this.isInitialized = false;
+    
+    // Clear any periodic updates
+    if (this.bedStatusUpdateInterval) {
+      clearInterval(this.bedStatusUpdateInterval);
+      this.bedStatusUpdateInterval = null;
+    }
+  }
+
+  /**
+   * 🔄 Setup periodic bed status updates (every 2 minutes)
+   * This ensures bed statuses stay current in real-time
+   */
+  setupPeriodicBedStatusUpdates() {
+    // Avoid multiple intervals
+    if (this.bedStatusUpdateInterval) {
+      clearInterval(this.bedStatusUpdateInterval);
+    }
+
+    console.log('⏰ Setting up periodic bed status updates (every 2 minutes)');
+    
+    this.bedStatusUpdateInterval = setInterval(async () => {
+      try {
+        console.log('🔄 Periodic bed status update...');
+        await this.mcpClient.callTool('auto_update_expired_cleaning_beds', {});
+        console.log('✅ Periodic bed status update completed');
+      } catch (error) {
+        console.warn('⚠️ Periodic bed status update failed:', error);
+      }
+    }, 2 * 60 * 1000); // 2 minutes
+
+    // Also run once immediately
+    setTimeout(async () => {
+      try {
+        console.log('🔄 Initial bed status update...');
+        await this.mcpClient.callTool('auto_update_expired_cleaning_beds', {});
+        console.log('✅ Initial bed status update completed');
+      } catch (error) {
+        console.warn('⚠️ Initial bed status update failed:', error);
+      }
+    }, 5000); // 5 seconds after setup
+  }
+
+  /**
+   * 🔄 Manual bed status refresh - call this whenever you need to update bed statuses immediately
+   * Returns updated bed information
+   */
+  async refreshBedStatuses() {
+    try {
+      console.log('🔄 Manual bed status refresh triggered...');
+      
+      // Update expired cleaning beds
+      const updateResult = await this.mcpClient.callTool('auto_update_expired_cleaning_beds', {});
+      console.log('✅ Manual bed status refresh completed:', updateResult);
+      
+      // Also get current bed list for return
+      const bedsResult = await this.mcpClient.callTool('list_beds', {});
+      
+      return {
+        success: true,
+        updateResult: updateResult,
+        currentBeds: bedsResult,
+        message: 'Bed statuses refreshed successfully'
+      };
+      
+    } catch (error) {
+      console.error('❌ Manual bed status refresh failed:', error);
+      return {
+        success: false,
+        error: error.message,
+        message: 'Failed to refresh bed statuses'
+      };
+    }
   }
 }
 

@@ -292,11 +292,57 @@ def create_patient(first_name: str, last_name: str, date_of_birth: str,
     return {"success": False, "message": "Multi-agent system required for this operation"}
 
 @mcp.tool()
-def list_patients(status: str = "all") -> Dict[str, Any]:
+def check_bed_status(bed_id: str) -> Dict[str, Any]:
+    """🎯 PRIMARY TOOL: Check specific bed status (e.g., bed 302A) - USE THIS for individual bed queries!
+    
+    ✅ Use when user asks: "check bed 302A status", "is bed cleaning done", "bed status after discharge"
+    ❌ NEVER use list_beds for individual bed queries - it returns ALL beds unnecessarily!
+    
+    This tool shows:
+    - Current bed status (cleaning, available, occupied)
+    - Time remaining for cleaning process
+    - Cleaning progress percentage
+    - Estimated completion time
+    
+    Args:
+        bed_id: Bed number (e.g., "302A") or bed UUID
+        
+    Returns:
+        Detailed bed status including cleaning time remaining and progress
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("get_bed_status_with_time_remaining", bed_id=bed_id)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def auto_update_expired_cleaning_beds() -> Dict[str, Any]:
+    """🔄 Automatically update beds that completed their 30-minute cleaning to 'available' status.
+    
+    This tool:
+    - Checks all beds in 'cleaning' status
+    - Updates beds to 'available' if cleaning time (30 min) has elapsed
+    - Fixes orphaned beds stuck in cleaning status
+    - Returns list of updated beds
+    
+    Use this to:
+    - Force update of expired cleaning beds
+    - Fix beds stuck in cleaning status
+    - Ensure beds become available after cleaning time completes
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("auto_update_expired_cleaning_beds")
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def list_patients(status: str = "active") -> Dict[str, Any]:
     """List patients with optional status filtering.
     
     Args:
-        status: Filter by patient status - "active", "discharged", "all" (default: all)
+        status: Filter by patient status - "active" (default), "discharged", "all"
     """
     if MULTI_AGENT_AVAILABLE and orchestrator:
         result = orchestrator.route_request("list_patients", status=status)
@@ -451,11 +497,58 @@ def create_bed(bed_number: str, room_id: str, bed_type: str = None, status: str 
         return {"success": False, "message": f"Failed to create bed: {str(e)}"}
 
 @mcp.tool()
-def list_beds(status: str = None, room_id: str = None) -> Dict[str, Any]:
-    """List beds with optional filtering."""
+def list_beds(status: str = None, room_id: str = None, bed_number: str = None) -> Dict[str, Any]:
+    """❌ WARNING: DO NOT USE for checking individual bed status! Returns ALL beds unnecessarily.
+    
+    ❌ WRONG: "check bed 302A status" - use get_bed_status_with_time_remaining() instead!
+    ❌ WRONG: "is bed cleaning done" - use get_bed_status_with_time_remaining() instead!
+    
+    ✅ ONLY use list_beds for:
+    - Getting overview of multiple beds
+    - Finding available beds for assignment
+    - General bed inventory management
+    
+    For individual bed queries, use get_bed_status_with_time_remaining() which shows cleaning time remaining!
+    
+    🔄 SMART REDIRECT: If bed_number is provided, automatically redirects to proper bed status check.
+    """
+    # SMART REDIRECT: If this looks like an individual bed query, use the correct tool
+    if bed_number:
+        print(f"🔄 SMART REDIRECT: list_beds called with bed_number '{bed_number}' - redirecting to get_bed_status_with_time_remaining")
+        if MULTI_AGENT_AVAILABLE and orchestrator:
+            result = orchestrator.route_request("get_bed_status_with_time_remaining", bed_id=bed_number)
+            redirect_result = result.get("result", result)
+            # Add redirect notice to the response
+            if isinstance(redirect_result, dict) and redirect_result.get("success"):
+                redirect_result["redirect_notice"] = f"✅ Auto-redirected from list_beds to get_bed_status_with_time_remaining for bed {bed_number}"
+            return redirect_result
+    
     if MULTI_AGENT_AVAILABLE and orchestrator:
         result = orchestrator.route_request("list_beds", status=status, room_id=room_id)
-        return result.get("result", result)
+        list_result = result.get("result", result)
+        
+        # SMART HELPER: Add guidance message if this looks like an individual bed search
+        if isinstance(list_result, dict) and "data" in list_result:
+            beds_data = list_result["data"]
+            # Check if we have bed 302A in the results
+            bed_302a = next((bed for bed in beds_data if bed.get("bed_number") == "302A"), None)
+            
+            if bed_302a:
+                # Add helpful guidance to the response
+                list_result["bed_302a_found"] = bed_302a
+                list_result["helpful_message"] = (
+                    f"🛏️ Found bed 302A: Status = {bed_302a.get('status', 'unknown')}. "
+                    f"For detailed bed status with cleaning time remaining, "
+                    f"use 'get_bed_status_with_time_remaining' tool instead of 'list_beds'."
+                )
+                
+                # If bed is available, add completion message
+                if bed_302a.get("status") == "available":
+                    list_result["helpful_message"] += (
+                        f" ✅ Bed 302A is ready for new patients!"
+                    )
+        
+        return list_result
     
     return {"error": "Multi-agent system required for this operation"}
 
@@ -1998,7 +2091,7 @@ async def call_tool_http(request: Request):
                        "download_discharge_report", "get_discharge_report_storage_stats", 
                        "list_available_discharge_reports", "archive_old_discharge_reports",
                        "add_equipment_usage_with_codes", "search_discharged_patients", 
-                       "get_patient_with_discharge_details"]
+                       "get_patient_with_discharge_details", "check_bed_status"]
         
         if tool_name in system_tools:
             # Handle system tools directly
@@ -2024,6 +2117,8 @@ async def call_tool_http(request: Request):
                 result = search_discharged_patients(**arguments)
             elif tool_name == "get_patient_with_discharge_details":
                 result = get_patient_with_discharge_details(**arguments)
+            elif tool_name == "check_bed_status":
+                result = check_bed_status(**arguments)
             else:
                 result = {"error": f"System tool {tool_name} not implemented"}
         else:
@@ -2079,25 +2174,61 @@ async def list_tools_http(request: Request):
         
         # Get tools from orchestrator if available
         if MULTI_AGENT_AVAILABLE and orchestrator:
-            print("🔍 DEBUG: Getting tools from orchestrator...")
-            orchestrator_tools = orchestrator.get_tools()
-            print(f"🔍 DEBUG: Got {len(orchestrator_tools) if orchestrator_tools else 0} tools from orchestrator")
+            print("🔍 DEBUG: Getting tools with descriptions from orchestrator...")
             
-            # Handle if get_tools() returns a list or dict
-            if isinstance(orchestrator_tools, list):
-                for tool_name in orchestrator_tools:
+            # Get tools with their actual descriptions from docstrings
+            if hasattr(orchestrator, 'get_tools_with_descriptions'):
+                tools_with_descriptions = orchestrator.get_tools_with_descriptions()
+                print(f"🔍 DEBUG: Got {len(tools_with_descriptions)} tools with descriptions")
+                
+                for tool_name, description in tools_with_descriptions.items():
                     tools_list.append({
                         "name": tool_name,
-                        "description": f"Multi-agent tool: {tool_name}"
+                        "description": description
                     })
-            elif isinstance(orchestrator_tools, dict):
-                for tool_name, tool_info in orchestrator_tools.items():
+            else:
+                # Fallback to old method
+                orchestrator_tools = orchestrator.get_tools()
+                print(f"🔍 DEBUG: Got {len(orchestrator_tools) if orchestrator_tools else 0} tools from orchestrator (fallback)")
+                
+                # Handle if get_tools() returns a list or dict
+                if isinstance(orchestrator_tools, list):
+                    for tool_name in orchestrator_tools:
+                        tools_list.append({
+                            "name": tool_name,
+                            "description": f"Multi-agent tool: {tool_name}"
+                        })
+                elif isinstance(orchestrator_tools, dict):
+                    for tool_name, tool_info in orchestrator_tools.items():
+                        tools_list.append({
+                            "name": tool_name,
+                            "description": tool_info.get("description", "Multi-agent tool")
+                        })
+        
+        # ALSO include MCP wrapper tools (like check_bed_status)
+        print("🔍 DEBUG: Adding MCP wrapper tools...")
+        if hasattr(mcp, '_tools'):
+            for tool in mcp._tools:
+                # Avoid duplicates - only add if not already in list
+                if not any(t["name"] == tool.name for t in tools_list):
+                    tools_list.append({
+                        "name": tool.name,
+                        "description": tool.description or "No description available"
+                    })
+                    print(f"🔍 DEBUG: Added MCP tool: {tool.name}")
+        elif hasattr(mcp, 'registry') and hasattr(mcp.registry, 'tools'):
+            for tool_name, tool in mcp.registry.tools.items():
+                # Avoid duplicates - only add if not already in list
+                if not any(t["name"] == tool_name for t in tools_list):
                     tools_list.append({
                         "name": tool_name,
-                        "description": tool_info.get("description", "Multi-agent tool")
+                        "description": getattr(tool, 'description', "No description available")
                     })
-        else:
-            # Fallback: get tools from mcp server registry
+                    print(f"🔍 DEBUG: Added MCP tool: {tool_name}")
+        
+        # If no orchestrator, fall back to MCP tools only
+        if not MULTI_AGENT_AVAILABLE or not orchestrator:
+            print("🔍 DEBUG: No orchestrator available, using MCP tools only...")
             # FastMCP stores tools in the registry
             if hasattr(mcp, '_tools'):
                 for tool in mcp._tools:
