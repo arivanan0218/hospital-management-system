@@ -383,6 +383,62 @@ class DirectHttpAIMCPService {
   }
 
   /**
+   * Detect if the message is requesting one of the 11 CREATE popup forms
+   * Returns the popup intent or null if it should use normal AI processing
+   */
+  detectCreatePopupIntent(userMessage) {
+    const message = userMessage.toLowerCase();
+    
+    // CREATE operations that should trigger popup forms (11 total)
+    const createIntents = {
+      'create_patient': ['create patient', 'add patient', 'new patient', 'register patient', 'patient admission', 'admit patient'],
+      'create_user': ['create user', 'add user', 'new user', 'register user'],
+      'create_staff': ['create staff', 'add staff', 'new staff', 'hire staff', 'staff member', 'register staff'],
+      'create_department': ['create department', 'add department', 'new department'],
+      'create_room': ['create room', 'add room', 'new room'],
+      'create_bed': ['create bed', 'add bed', 'new bed'],
+      'create_equipment': ['create equipment', 'add equipment', 'new equipment', 'register equipment'],
+      'create_supply': ['create supply', 'add supply', 'new supply', 'register supply'],
+      'create_legacy_user': ['create legacy user', 'add legacy user', 'new legacy user', 'legacy user'],
+      'create_equipment_category': ['create equipment category', 'add equipment category', 'new equipment category'],
+      'create_supply_category': ['create supply category', 'add supply category', 'new supply category']
+    };
+
+    // Check for CREATE intents
+    for (const [intent, keywords] of Object.entries(createIntents)) {
+      for (const keyword of keywords) {
+        if (message.includes(keyword)) {
+          console.log(`✅ CREATE Intent Detected: ${intent} (matched: "${keyword}")`);
+          return intent;
+        }
+      }
+    }
+
+    return null; // No CREATE intent detected, use normal AI processing
+  }
+
+  /**
+   * Get appropriate message for popup form intent
+   */
+  getPopupIntentMessage(createIntent) {
+    const messages = {
+      'create_patient': 'I detected you want to register a new patient! I\'ve opened the patient admission form for you.',
+      'create_user': 'I detected you want to create a new user! I\'ve opened the user creation form for you.',
+      'create_staff': 'I detected you want to add a new staff member! I\'ve opened the staff creation form for you.',
+      'create_department': 'I detected you want to create a new department! I\'ve opened the department creation form for you.',
+      'create_room': 'I detected you want to create a new room! I\'ve opened the room creation form for you.',
+      'create_bed': 'I detected you want to add a new bed! I\'ve opened the bed creation form for you.',
+      'create_equipment': 'I detected you want to add new equipment! I\'ve opened the equipment creation form for you.',
+      'create_supply': 'I detected you want to add new supplies! I\'ve opened the supply creation form for you.',
+      'create_legacy_user': 'I detected you want to create a legacy user! I\'ve opened the legacy user creation form for you.',
+      'create_equipment_category': 'I detected you want to create an equipment category! I\'ve opened the equipment category creation form for you.',
+      'create_supply_category': 'I detected you want to create a supply category! I\'ve opened the supply category creation form for you.'
+    };
+
+    return messages[createIntent] || 'I detected a create request! I\'ve opened the appropriate form for you.';
+  }
+
+  /**
    * Process natural language request with conversation memory (Claude Desktop Style)
    */
   async processRequest(userMessage) {
@@ -407,6 +463,28 @@ class DirectHttpAIMCPService {
 
     const agentStart = Date.now();
     console.log('🤖 [Hospital AI] Processing request:', userMessage);
+    
+    // 🎯 FIRST: Check for CREATE popup intents (11 forms)
+    const createIntent = this.detectCreatePopupIntent(userMessage);
+    if (createIntent) {
+      console.log(`🎯 CREATE POPUP INTENT DETECTED: ${createIntent}`);
+      
+      // Return special response indicating popup form should be shown
+      const popupMessage = this.getPopupIntentMessage(createIntent);
+      
+      return {
+        success: true,
+        showPopupForm: true,
+        popupIntent: createIntent,
+        message: popupMessage,
+        response: popupMessage,
+        functionCalls: [],
+        serverInfo: this.getServerInfo(),
+        rawResponse: { choices: [{ message: { content: popupMessage } }] },
+        conversationLength: this.conversationHistory.length,
+        timing: { openAI: 0, tool: 0, agent: Date.now() - agentStart }
+      };
+    }
     
     // Safe date logging
     let currentDate;

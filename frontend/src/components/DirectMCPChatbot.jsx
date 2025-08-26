@@ -1283,6 +1283,68 @@ Examples:
         // await new Promise(resolve => setTimeout(resolve, 200));
       }
       
+      // 🎯 HANDLE POPUP FORM INTENTS FROM SERVICE
+      if (response.success && response.showPopupForm && response.popupIntent) {
+        console.log('🎯 SERVICE POPUP INTENT DETECTED:', response.popupIntent);
+        
+        // Load dropdown options if needed for certain forms
+        const formsNeedingDropdowns = ['create_staff', 'create_department', 'create_room', 'create_bed', 'create_equipment', 'create_supply'];
+        if (formsNeedingDropdowns.includes(response.popupIntent)) {
+          await loadDropdownOptions();
+        }
+        
+        // Show the appropriate popup form
+        switch (response.popupIntent) {
+          case 'create_patient':
+            setShowPatientAdmissionForm(true);
+            break;
+          case 'create_user':
+            setShowUserForm(true);
+            break;
+          case 'create_staff':
+            setShowStaffForm(true);
+            break;
+          case 'create_department':
+            setShowDepartmentForm(true);
+            break;
+          case 'create_room':
+            setShowRoomForm(true);
+            break;
+          case 'create_bed':
+            setShowBedForm(true);
+            break;
+          case 'create_equipment':
+            setShowEquipmentForm(true);
+            break;
+          case 'create_supply':
+            setShowSupplyForm(true);
+            break;
+          case 'create_legacy_user':
+            setShowLegacyUserForm(true);
+            break;
+          case 'create_equipment_category':
+            setShowEquipmentCategoryForm(true);
+            break;
+          case 'create_supply_category':
+            setShowSupplyCategoryForm(true);
+            break;
+          default:
+            console.warn('Unknown popup intent:', response.popupIntent);
+        }
+        
+        // Add the service response message
+        const serviceMessage = {
+          id: Date.now() + 1,
+          text: response.message,
+          sender: 'ai',
+          timestamp: new Date().toLocaleTimeString()
+        };
+        setMessages(prev => [...prev, serviceMessage]);
+        
+        setIsLoading(false);
+        return; // Exit early for popup forms
+      }
+      
       if (response.success) {
         // Show tool execution if tools were called
         if (response.functionCalls && response.functionCalls.length > 0) {
