@@ -1,16 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { LogOut, User, Settings, Upload, FileText, History, CheckCircle, Plus, X, Mic, MicOff, VolumeX } from 'lucide-react';
 import DirectHttpAIMCPService from '../services/directHttpAiMcpService.js';
 import MedicalDocumentUpload from './MedicalDocumentUpload.jsx';
 import EnhancedMedicalDocumentUpload from './EnhancedMedicalDocumentUpload.jsx';
 import MedicalHistoryViewer from './MedicalHistoryViewer.jsx';
-
-// Helper function to detect mobile devices - defined outside component to avoid recreation
-const isMobileDevice = () => {
-  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-         (window.innerWidth <= 768) || // Also check for small screen width
-         ('ontouchstart' in window); // Check for touch capability
-};
 
 const DirectMCPChatbot = ({ user, onLogout }) => {
   // Mobile-responsive CSS classes for consistent mobile experience (reduced height)
@@ -23,9 +16,10 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [showSetup, setShowSetup] = useState(false); // Start with false since auth is handled by parent
+  const [showActionButtons, setShowActionButtons] = useState(true); // Track whether to show action buttons
   
   // Configuration state - get API key from environment variables
-  const [openaiApiKey, setOpenaiApiKey] = useState(import.meta.env.VITE_OPENAI_API_KEY || '');
+  const [openaiApiKey] = useState(import.meta.env.VITE_OPENAI_API_KEY || '');
   
   const [serverInfo, setServerInfo] = useState(null);
   const [connectionError, setConnectionError] = useState('');
@@ -219,84 +213,6 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   const [supplyCategoryOptions, setSupplyCategoryOptions] = useState([]);
   const [loadingDropdowns, setLoadingDropdowns] = useState(false);
   
-  // Setup refs
-  const aiMcpServiceRef = useRef(null);
-  const messagesEndRef = useRef(null);
-  const messagesContainerRef = useRef(null);
-  const lastMessageCountRef = useRef(0);
-  const inputFieldRef = useRef(null); // Add ref for input field
-  const plusMenuRef = useRef(null); // Add ref for plus menu dropdown
-  // Touch / swipe refs for mobile swipe navigation (upload/history -> chat)
-  const touchStartXRef = useRef(null);
-  const touchStartYRef = useRef(null);
-  const touchStartTimeRef = useRef(null);
-  const swipeTriggeredRef = useRef(false);
-  
-  /**
-   * Initialize the AI-MCP service
-   */
-  const initializeService = useCallback(async () => {
-    if (!openaiApiKey.trim()) {
-      setConnectionError('OpenAI API key not configured in environment variables. Please contact administrator.');
-      return;
-    }
-
-    setIsLoading(true);
-    setConnectionError('');
-    
-    try {
-      aiMcpServiceRef.current = new DirectHttpAIMCPService();
-      
-      console.log('🚀 Initializing Direct HTTP MCP Service...');
-      
-      const initialized = await aiMcpServiceRef.current.initialize();
-      
-      if (initialized) {
-        setIsConnected(true);
-        setShowSetup(false);
-        
-        const info = aiMcpServiceRef.current.getServerInfo();
-        setServerInfo(info);
-        
-        setMessages([{
-          id: Date.now(),
-          text: `👋 Welcome to Hospital Agent! How can I help you today? 🏥`,
-          sender: 'ai',
-          timestamp: new Date().toLocaleTimeString()
-        }]);
-        
-        // Auto-focus the input field after successful connection (smart focus)
-        setTimeout(() => {
-          if (inputFieldRef.current) {
-            // Always focus the input field, even on mobile
-            inputFieldRef.current.focus();
-            setIsInputFocused(true);
-            
-            // Keep visual focus for a bit after actual focus
-            if (isMobileDevice()) {
-              // On mobile: keep visual focus longer
-              setTimeout(() => {
-                // Check if the element is still focused before removing the visual focus
-                if (document.activeElement !== inputFieldRef.current) {
-                  setIsInputFocused(false);
-                }
-              }, 2000);
-            }
-          }
-        }, 100);
-        
-      } else {
-        throw new Error('Failed to initialize service');
-      }
-      
-    } catch (error) {
-      console.error('❌ Initialization failed:', error);
-      setConnectionError(`Connection failed: ${error.message}`);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [openaiApiKey, setConnectionError, setIsLoading, setMessages, setServerInfo, setShowSetup, setIsConnected, inputFieldRef, setIsInputFocused]);
-  
   // Auto-scroll to bottom only when new messages are added, not on timer updates
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -308,7 +224,7 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
       console.log('🔄 Auto-connecting for authenticated user...');
       initializeService();
     }
-  }, [user, isConnected, showSetup, initializeService, openaiApiKey]); // Dependencies that should trigger auto-connection
+  }, [user, isConnected, showSetup]); // Dependencies that should trigger auto-connection
 
   // Component to display thinking duration
   const ThinkingDuration = React.memo(({ startTime }) => {
@@ -327,6 +243,18 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
     
     return <span>{duration}s</span>;
   });
+  
+  const aiMcpServiceRef = useRef(null);
+  const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
+  const lastMessageCountRef = useRef(0);
+  const inputFieldRef = useRef(null); // Add ref for input field
+  const plusMenuRef = useRef(null); // Add ref for plus menu dropdown
+  // Touch / swipe refs for mobile swipe navigation (upload/history -> chat)
+  const touchStartXRef = useRef(null);
+  const touchStartYRef = useRef(null);
+  const touchStartTimeRef = useRef(null);
+  const swipeTriggeredRef = useRef(false);
 
   // Handle touch start (record position/time)
   const handleTouchStart = (e) => {
@@ -434,38 +362,6 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isConnected]);
-  
-  // Auto-focus input field when user starts typing anywhere in the chat
-  useEffect(() => {
-    const handleKeyPress = (event) => {
-      // Ignore if already focused on an input or if it's a special key (like arrows, etc)
-      if (event.target.tagName === 'INPUT' || 
-          event.target.tagName === 'TEXTAREA' || 
-          event.altKey || 
-          event.ctrlKey || 
-          event.metaKey ||
-          event.key.length > 1) {
-        return;
-      }
-      
-      // Only handle printable characters (letters, numbers, etc.)
-      if (inputFieldRef.current && 
-          isConnected && 
-          !isLoading &&
-          activeTab === 'chat' &&
-          /^[\w\s.,?!@#$%^&*()-=+;:'"[\]{}|\\/<>~`]$/.test(event.key)) {
-        
-        // Focus the input field
-        inputFieldRef.current.focus();
-        
-        // Append the typed character to the input (since we're not in the field yet)
-        setInputMessage(prev => prev + event.key);
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyPress);
-    return () => document.removeEventListener('keydown', handleKeyPress);
-  }, [isConnected, isLoading, activeTab]);
 
   // Handle outside clicks for plus menu
   useEffect(() => {
@@ -556,8 +452,28 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   }, []);
 
   // Mobile detection utility function
-  // Smart focus function - focuses input and activates keyboard on mobile
-  // smartFocusInput function has been moved into initializeService
+  const isMobileDevice = () => {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+           (window.innerWidth <= 768) || // Also check for small screen width
+           ('ontouchstart' in window); // Check for touch capability
+  };
+
+  // Smart focus function - focuses input but prevents keyboard popup on mobile
+  const smartFocusInput = (delay = 100) => {
+    setTimeout(() => {
+      if (inputFieldRef.current) {
+        if (isMobileDevice()) {
+          // On mobile: Don't focus automatically to prevent keyboard popup
+          // Just ensure input is visually focused (via state) without actual DOM focus
+          setIsInputFocused(true);
+          setTimeout(() => setIsInputFocused(false), 1000);
+        } else {
+          // On desktop: normal focus behavior
+          inputFieldRef.current.focus();
+        }
+      }
+    }, delay);
+  };
 
   // OpenAI Text-to-Speech function for voice output
   const speakTextWithOpenAI = async (text, isResponseToVoiceInput = false) => {
@@ -856,7 +772,53 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
     }
   };
 
-  // This has been moved above where it's used
+  /**
+   * Initialize the AI-MCP service
+   */
+  const initializeService = async () => {
+    if (!openaiApiKey.trim()) {
+      setConnectionError('OpenAI API key not configured in environment variables. Please contact administrator.');
+      return;
+    }
+
+    setIsLoading(true);
+    setConnectionError('');
+    
+    try {
+      aiMcpServiceRef.current = new DirectHttpAIMCPService();
+      
+      console.log('🚀 Initializing Direct HTTP MCP Service...');
+      
+      const initialized = await aiMcpServiceRef.current.initialize();
+      
+      if (initialized) {
+        setIsConnected(true);
+        setShowSetup(false);
+        
+        const info = aiMcpServiceRef.current.getServerInfo();
+        setServerInfo(info);
+        
+        setMessages([{
+          id: Date.now(),
+          text: `👋 Welcome to Hospital Agent! How can I help you today? 🏥`,
+          sender: 'ai',
+          timestamp: new Date().toLocaleTimeString()
+        }]);
+        
+        // Auto-focus the input field after successful connection (smart focus)
+        smartFocusInput(100);
+        
+      } else {
+        throw new Error('Failed to initialize service');
+      }
+      
+    } catch (error) {
+      console.error('❌ Initialization failed:', error);
+      setConnectionError(`Connection failed: ${error.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   /**
    * Load dropdown options for foreign key fields
@@ -1076,6 +1038,21 @@ Examples:
       setInputMessage('');
     }
     setIsLoading(true);
+    
+    // Hide action buttons after first query
+    if (showActionButtons) {
+      setShowActionButtons(false);
+      
+      // Correct viewport after action buttons transition on mobile
+      if (isMobileDevice()) {
+        setTimeout(() => {
+          const vh = window.innerHeight * 0.01;
+          document.documentElement.style.setProperty('--vh', `${vh}px`);
+          window.scrollTo(0, 0);
+          document.body.style.height = '100%';
+        }, 600); // Wait for transition to complete (500ms + buffer)
+      }
+    }
 
     // Add user message only if it's not from voice input (voice input already adds the message)
     if (!isFromVoiceInput) {
@@ -1440,16 +1417,8 @@ Examples:
     } finally {
       setIsLoading(false);
       
-      // Auto-focus the input field after AI response with keyboard showing on mobile
-      if (inputFieldRef.current) {
-        setTimeout(() => {
-          if (inputFieldRef.current) {
-            // Focus the input field to show keyboard on mobile
-            inputFieldRef.current.focus();
-            setIsInputFocused(true);
-          }
-        }, 300);
-      }
+      // Auto-focus the input field after AI response (smart focus prevents mobile keyboard popup)
+      smartFocusInput(100);
     }
   };
 
@@ -1738,7 +1707,21 @@ Examples:
     }
   }, [isConnected]); // Run when connection state changes
 
-  // No longer needed - action buttons have been removed
+  // Fix viewport when action buttons visibility changes
+  useEffect(() => {
+    if (!showActionButtons && isMobileDevice()) {
+      // Delay to allow transition to complete
+      const timer = setTimeout(() => {
+        const vh = window.innerHeight * 0.01;
+        document.documentElement.style.setProperty('--vh', `${vh}px`);
+        document.body.style.height = '100%';
+        document.body.style.minHeight = '100vh';
+        window.scrollTo(0, 0);
+      }, 600); // Wait for CSS transition
+      
+      return () => clearTimeout(timer);
+    }
+  }, [showActionButtons]);
 
   /**
    * Handle sending messages with Claude-style conversation flow
@@ -2035,7 +2018,7 @@ Examples:
   /**
    * Disconnect from MCP server
    */
-  const _disconnect = async () => {
+  const disconnect = async () => {
     if (aiMcpServiceRef.current) {
       await aiMcpServiceRef.current.disconnect();
     }
@@ -3624,7 +3607,7 @@ ${dischargeData.next_steps ? dischargeData.next_steps.map(step => `• ${step}`)
       {activeTab === 'chat' && (
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden" style={{ 
           marginTop: '70px', 
-          marginBottom: 'calc(120px + env(safe-area-inset-bottom, 0px))',
+          marginBottom: showActionButtons ? 'calc(150px + env(safe-area-inset-bottom, 0px))' : 'calc(80px + env(safe-area-inset-bottom, 0px))',
         }}>
           {/* Messages Container - ONLY THIS SCROLLS */}
           <div 
@@ -3638,9 +3621,13 @@ ${dischargeData.next_steps ? dischargeData.next_steps.map(step => `• ${step}`)
               // Smart focus input when clicking anywhere in the chat area, but not when selecting text
               const selection = window.getSelection();
               if (inputFieldRef.current && isConnected && selection.toString().length === 0) {
-                // Always focus the input field to show the keyboard on mobile
-                inputFieldRef.current.focus();
-                setIsInputFocused(true);
+                if (isMobileDevice()) {
+                  // On mobile: focus without keyboard popup
+                  smartFocusInput(0);
+                } else {
+                  // On desktop: normal focus
+                  inputFieldRef.current.focus();
+                }
               }
             }}
           >
@@ -3812,11 +3799,72 @@ ${dischargeData.next_steps ? dischargeData.next_steps.map(step => `• ${step}`)
             </div>
           </div>
 
+          {/* Action Buttons Above Input - FIXED ABOVE BOTTOM INPUT */}
+          <div className={`fixed left-0 right-0 bg-[#1a1a1a] px-4 z-20 border-t border-gray-700 transition-all duration-500 ease-in-out ${
+            showActionButtons ? 'py-3 opacity-100' : 'py-0 opacity-0 -bottom-full'
+          }`} style={{
+            bottom: showActionButtons ? 'calc(90px + env(safe-area-inset-bottom, 0px))' : '-100px',
+            minHeight: showActionButtons ? '120px' : '0px'
+          }}>
+            <div className="max-w-4xl mx-auto">
+            {/* Desktop: 1 row 4 columns, Mobile: 2 rows 2 columns */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {/* View All Patients */}
+              <button
+                onClick={() => {
+                  setInputMessage("List all patients");
+                  smartFocusInput(100);
+                }}
+                className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-2 py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
+                title="View all patients"
+              >
+                <span className="font-medium whitespace-nowrap">View Patients</span>
+              </button>
+
+              {/* Check Bed Status */}
+              <button
+                onClick={() => {
+                  setInputMessage("Show bed availability");
+                  smartFocusInput(100);
+                }}
+                className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-2 py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
+                title="Check bed availability"
+              >
+                <span className="font-medium whitespace-nowrap">Bed Status</span>
+              </button>
+
+              {/* Emergency Alert */}
+              <button
+                onClick={() => {
+                  setInputMessage("Show emergency status and available emergency beds");
+                  smartFocusInput(100);
+                }}
+                className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-2 py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
+                title="Emergency status"
+              >
+                <span className="font-medium whitespace-nowrap">Emergency</span>
+              </button>
+
+              {/* staff list */}
+              <button
+                onClick={() => {
+                  setInputMessage("Show staff list");
+                  smartFocusInput(100);
+                }}
+                className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-2 py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
+                title="Staff List"
+              >
+                <span className="font-medium whitespace-nowrap">Staff List</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* Modern Chat Input - FIXED AT BOTTOM */}
         <div 
           className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] px-3 sm:px-4 py-2 border-t border-gray-700 z-30"
           style={{ 
-            paddingBottom: 'calc(4px + env(safe-area-inset-bottom, 0px))'
+            paddingBottom: 'calc(8px + env(safe-area-inset-bottom, 0px))'
           }}
         >
           <div className="max-w-4xl mx-auto">
@@ -3854,12 +3902,12 @@ ${dischargeData.next_steps ? dischargeData.next_steps.map(step => `• ${step}`)
               
               <div className="relative">
                 {/* Main Input Container - Rounded Rectangle */}
-                <div className={`bg-[#2a2a2a] rounded-2xl sm:rounded-3xl border px-3 sm:px-4 py-2 sm:py-4 transition-colors duration-200 ${
+                <div className={`bg-[#2a2a2a] rounded-2xl sm:rounded-3xl border px-3 sm:px-4 py-3 sm:py-4 transition-colors duration-200 ${
                   isInputFocused ? 'border-blue-500' : 'border-gray-600'
                 }`}>
                   
                   {/* First Row - Text Input (Full Width) */}
-                  <div className="mb-1 sm:mb-3">
+                  <div className="mb-2 sm:mb-3">
                     <textarea
                       ref={inputFieldRef}
                       value={inputMessage}
@@ -3870,28 +3918,15 @@ ${dischargeData.next_steps ? dischargeData.next_steps.map(step => `• ${step}`)
                           handleSendMessage();
                         }
                       }}
-
-                      onFocus={() => {
-                        setIsInputFocused(true);
-                        // Ensure keyboard appears and stays open on mobile
-                        if (isMobileDevice()) {
-                          // Force re-focus after a small delay to ensure keyboard appears
-                          setTimeout(() => {
-                            if (inputFieldRef.current) {
-                              inputFieldRef.current.focus();
-                            }
-                          }, 50);
-                        }
-                      }}
-
+                      onFocus={() => setIsInputFocused(true)}
                       onBlur={() => setIsInputFocused(false)}
                       placeholder={isConnected ? "Ask anything (Ctrl+/ to focus)" : "Ask anything"}
                       disabled={!isConnected || isLoading}
                       rows={1}
                       className="w-full bg-transparent border-none outline-none resize-none text-white placeholder-gray-400 text-base"
                       style={{
-                        minHeight: '18px',
-                        maxHeight: '100px',
+                        minHeight: '20px',
+                        maxHeight: '120px',
                         fontSize: '16px', // Prevents zoom on iOS
                         WebkitAppearance: 'none',
                         WebkitBorderRadius: 0
@@ -3899,8 +3934,6 @@ ${dischargeData.next_steps ? dischargeData.next_steps.map(step => `• ${step}`)
                       onInput={(e) => {
                         e.target.style.height = 'auto';
                         e.target.style.height = e.target.scrollHeight + 'px';
-
-
                       }}
                     />
                   </div>
