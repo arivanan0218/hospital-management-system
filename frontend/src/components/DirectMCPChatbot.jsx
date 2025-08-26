@@ -4,6 +4,8 @@ import DirectHttpAIMCPService from '../services/directHttpAiMcpService.js';
 import MedicalDocumentUpload from './MedicalDocumentUpload.jsx';
 import EnhancedMedicalDocumentUpload from './EnhancedMedicalDocumentUpload.jsx';
 import MedicalHistoryViewer from './MedicalHistoryViewer.jsx';
+import PatientAdmissionForm from './PatientAdmissionForm.jsx';
+import UserCreationForm from './UserCreationForm.jsx';
 
 const DirectMCPChatbot = ({ user, onLogout }) => {
   // Mobile-responsive CSS classes for consistent mobile experience (reduced height)
@@ -48,21 +50,6 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   
   // Patient admission popup form
   const [showPatientAdmissionForm, setShowPatientAdmissionForm] = useState(false);
-  const [admissionFormData, setAdmissionFormData] = useState({
-    patient_number: '',
-    first_name: '',
-    last_name: '',
-    date_of_birth: '',
-    gender: '',
-    phone: '',
-    email: '',
-    address: '',
-    emergency_contact_name: '',
-    emergency_contact_phone: '',
-    blood_type: '',
-    allergies: '',
-    medical_history: ''
-  });
   const [isSubmittingAdmission, setIsSubmittingAdmission] = useState(false);
   
   // Department creation popup form
@@ -95,16 +82,6 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   
   // User creation popup form
   const [showUserForm, setShowUserForm] = useState(false);
-  const [userFormData, setUserFormData] = useState({
-    username: '',
-    email: '',
-    password_hash: '', // This should be hashed on backend
-    role: '', // admin, doctor, nurse, manager, receptionist
-    first_name: '',
-    last_name: '',
-    phone: '',
-    is_active: true
-  });
   const [isSubmittingUser, setIsSubmittingUser] = useState(false);
   
   // Room creation popup form
@@ -2126,78 +2103,19 @@ Examples:
   };
 
   /**
-   * Handle patient admission form input changes
+   * Handle successful patient admission from the component
    */
-  const handleAdmissionFormChange = (field, value) => {
-    setAdmissionFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
+  const handlePatientAdmissionSuccess = (response) => {
+    // Close the form
+    setShowPatientAdmissionForm(false);
 
-  /**
-   * Submit patient admission form
-   */
-  const submitPatientAdmission = async () => {
-    // Validate required fields
-    const requiredFields = ['first_name', 'last_name', 'date_of_birth'];
-    const missingFields = requiredFields.filter(field => !admissionFormData[field].trim());
-    
-    if (missingFields.length > 0) {
-      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
-      return;
-    }
-
-    setIsSubmittingAdmission(true);
-
-    try {
-      // Call the MCP tool directly to create the patient (bypass AI processing)
-      const response = await aiMcpServiceRef.current.callToolDirectly('create_patient', {
-        patient_number: admissionFormData.patient_number || undefined, // Only send if provided
-        first_name: admissionFormData.first_name,
-        last_name: admissionFormData.last_name,
-        date_of_birth: admissionFormData.date_of_birth,
-        gender: admissionFormData.gender,
-        phone: admissionFormData.phone,
-        email: admissionFormData.email,
-        address: admissionFormData.address,
-        emergency_contact_name: admissionFormData.emergency_contact_name,
-        emergency_contact_phone: admissionFormData.emergency_contact_phone,
-        blood_type: admissionFormData.blood_type,
-        allergies: admissionFormData.allergies,
-        medical_history: admissionFormData.medical_history
-      });
-
-      // Debug logging for deployment troubleshooting
-      console.log('Patient admission response:', JSON.stringify(response, null, 2));
-
-      // Close the form and show success message
-      setShowPatientAdmissionForm(false);
+    // Add success message to chat
+    let responseText = '';
+    if (response.success) {
+      // Success case - handle nested response structure
+      const patientData = response.result?.data || response.data || {};
+      responseText = `✅ Patient created successfully in the database!
       
-      // Reset form data
-      setAdmissionFormData({
-        patient_number: '',
-        first_name: '',
-        last_name: '',
-        date_of_birth: '',
-        gender: '',
-        phone: '',
-        email: '',
-        address: '',
-        emergency_contact_name: '',
-        emergency_contact_phone: '',
-        blood_type: '',
-        allergies: '',
-        medical_history: ''
-      });
-
-      // Add success message to chat
-      let responseText = '';
-      if (response.success) {
-        // Success case - handle nested response structure
-        const patientData = response.result?.data || response.data || {};
-        responseText = `✅ Patient created successfully in the database!
-        
 **Patient Details:**
 - Name: ${patientData.first_name || 'Unknown'} ${patientData.last_name || 'Unknown'}
 - Patient Number: ${patientData.patient_number || patientData.id || 'Not generated'}
@@ -2218,33 +2136,18 @@ You can use these commands:
 • "Assign staff [staff_name] to patient [patient_name]"
 • "Assign equipment [equipment_name] to patient [patient_name]"
 • "Assign supplies [supply_name] to patient [patient_name]"`;
-      } else {
-        // Error case
-        responseText = `❌ Failed to create patient: ${response.message || 'Unknown error'}`;
-      }
-
-      const successMsg = {
-        id: Date.now(),
-        text: `✅ Patient admission completed successfully!\n\n${responseText}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, successMsg]);
-
-    } catch (error) {
-      console.error('Error submitting patient admission:', error);
-      
-      // Add error message to chat
-      const errorMsg = {
-        id: Date.now(),
-        text: `❌ Error during patient admission: ${error.message || 'Unknown error occurred'}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, errorMsg]);
-    } finally {
-      setIsSubmittingAdmission(false);
+    } else {
+      // Error case
+      responseText = `❌ Failed to create patient: ${response.message || 'Unknown error'}`;
     }
+
+    const successMsg = {
+      id: Date.now(),
+      text: `✅ Patient admission completed successfully!\n\n${responseText}`,
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, successMsg]);
   };
 
   /**
@@ -2447,84 +2350,36 @@ You can use these commands:
   };
 
   // User Form Handlers
-  const handleUserFormChange = (field, value) => {
-    setUserFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
+  /**
+   * Handle successful user creation from the component
+   */
+  const handleUserCreationSuccess = (response) => {
+    // Close the form
+    setShowUserForm(false);
 
-  const submitUser = async () => {
-    const requiredFields = ['username', 'email', 'password_hash', 'role', 'first_name', 'last_name'];
-    const missingFields = requiredFields.filter(field => !userFormData[field] || userFormData[field].toString().trim() === '');
-    
-    if (missingFields.length > 0) {
-      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
-      return;
-    }
-
-    setIsSubmittingUser(true);
-
-    try {
-      const response = await aiMcpServiceRef.current.callToolDirectly('create_user', {
-        username: userFormData.username,
-        email: userFormData.email,
-        password_hash: userFormData.password_hash,
-        role: userFormData.role,
-        first_name: userFormData.first_name,
-        last_name: userFormData.last_name,
-        phone: userFormData.phone,
-        is_active: userFormData.is_active
-      });
-
-      setShowUserForm(false);
-      setUserFormData({
-        username: '',
-        email: '',
-        password_hash: '',
-        role: '',
-        first_name: '',
-        last_name: '',
-        phone: '',
-        is_active: true
-      });
-
-      let responseText = '';
-      if (response.success) {
-        const userData = response.result?.data || response.data || {};
-        responseText = `✅ User created successfully!
-        
+    // Add success message to chat
+    let responseText = '';
+    if (response.success) {
+      const userData = response.result?.data || response.data || {};
+      responseText = `✅ User created successfully!
+      
 **User Details:**
 - Username: ${userData.username || 'Unknown'}
 - Email: ${userData.email || 'Unknown'}
 - Role: ${userData.role || 'Unknown'}
 - Name: ${userData.first_name || 'Unknown'} ${userData.last_name || 'Unknown'}
 - Active: ${userData.is_active ? 'Yes' : 'No'}`;
-      } else {
-        responseText = `❌ Failed to create user: ${response.message || 'Unknown error'}`;
-      }
-
-      const successMsg = {
-        id: Date.now(),
-        text: `✅ User created successfully!\n\n${responseText}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, successMsg]);
-
-    } catch (error) {
-      console.error('Error creating user:', error);
-      
-      const errorMsg = {
-        id: Date.now(),
-        text: `❌ Error creating user: ${error.message || 'Unknown error occurred'}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, errorMsg]);
-    } finally {
-      setIsSubmittingUser(false);
+    } else {
+      responseText = `❌ Failed to create user: ${response.message || 'Unknown error'}`;
     }
+
+    const successMsg = {
+      id: Date.now(),
+      text: `✅ User created successfully!\n\n${responseText}`,
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, successMsg]);
   };
 
   const closeUserForm = () => {
@@ -4235,238 +4090,14 @@ ${dischargeData.next_steps ? dischargeData.next_steps.map(step => `• ${step}`)
         </div>
       )}
 
-      {/* Patient Admission Form Popup */}
-      {showPatientAdmissionForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50">
-          <div className="bg-[#1a1a1a] rounded-lg border border-gray-700 max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto mx-2 sm:mx-0">
-            {/* Header */}
-            <div className="border-b border-gray-700 px-4 sm:px-6 py-3 sm:py-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg sm:text-xl font-semibold text-white">Patient Admission Form</h2>
-                  <p className="text-xs sm:text-sm text-gray-400">Fill in the patient information to complete admission</p>
-                </div>
-                <button
-                  onClick={closePatientAdmissionForm}
-                  className="text-gray-400 hover:text-white transition-colors p-1"
-                >
-                  <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            {/* Form Content */}
-            <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-              {/* Required Fields Section */}
-              <div>
-                <h3 className="text-lg font-medium text-white mb-4">Required Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Patient Number <span className="text-gray-500">(Optional - auto-generated if blank)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={admissionFormData.patient_number}
-                      onChange={(e) => handleAdmissionFormChange('patient_number', e.target.value)}
-                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Enter patient number (e.g., P123456) or leave blank for auto-generation"
-                    />
-                  </div>
-                  <div></div> {/* Empty div for spacing */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      First Name <span className="text-red-400">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={admissionFormData.first_name}
-                      onChange={(e) => handleAdmissionFormChange('first_name', e.target.value)}
-                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Enter first name"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Last Name <span className="text-red-400">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={admissionFormData.last_name}
-                      onChange={(e) => handleAdmissionFormChange('last_name', e.target.value)}
-                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Enter last name"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Date of Birth <span className="text-red-400">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      value={admissionFormData.date_of_birth}
-                      onChange={(e) => handleAdmissionFormChange('date_of_birth', e.target.value)}
-                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Gender</label>
-                    <select
-                      value={admissionFormData.gender}
-                      onChange={(e) => handleAdmissionFormChange('gender', e.target.value)}
-                      className="w-full px-3 py-3 sm:py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base sm:text-sm"
-                    >
-                      <option value="">Select gender</option>
-                      <option value="Male">Male</option>
-                      <option value="Female">Female</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Contact Information */}
-              <div>
-                <h3 className="text-lg font-medium text-white mb-4">Contact Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Phone Number</label>
-                    <input
-                      type="tel"
-                      value={admissionFormData.phone}
-                      onChange={(e) => handleAdmissionFormChange('phone', e.target.value)}
-                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Enter phone number"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Email Address</label>
-                    <input
-                      type="email"
-                      value={admissionFormData.email}
-                      onChange={(e) => handleAdmissionFormChange('email', e.target.value)}
-                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Enter email address"
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Home Address</label>
-                    <textarea
-                      value={admissionFormData.address}
-                      onChange={(e) => handleAdmissionFormChange('address', e.target.value)}
-                      rows="3"
-                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Enter home address"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Emergency Contact */}
-              <div>
-                <h3 className="text-lg font-medium text-white mb-4">Emergency Contact</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Contact Name</label>
-                    <input
-                      type="text"
-                      value={admissionFormData.emergency_contact_name}
-                      onChange={(e) => handleAdmissionFormChange('emergency_contact_name', e.target.value)}
-                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Enter emergency contact name"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Contact Phone</label>
-                    <input
-                      type="tel"
-                      value={admissionFormData.emergency_contact_phone}
-                      onChange={(e) => handleAdmissionFormChange('emergency_contact_phone', e.target.value)}
-                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Enter emergency contact phone"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Medical Information */}
-              <div>
-                <h3 className="text-lg font-medium text-white mb-4">Medical Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Blood Type</label>
-                    <select
-                      value={admissionFormData.blood_type}
-                      onChange={(e) => handleAdmissionFormChange('blood_type', e.target.value)}
-                      className="w-full px-3 py-3 sm:py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base sm:text-sm"
-                    >
-                      <option value="">Select blood type</option>
-                      <option value="A+">A+</option>
-                      <option value="A-">A-</option>
-                      <option value="B+">B+</option>
-                      <option value="B-">B-</option>
-                      <option value="AB+">AB+</option>
-                      <option value="AB-">AB-</option>
-                      <option value="O+">O+</option>
-                      <option value="O-">O-</option>
-                    </select>
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Allergies</label>
-                    <textarea
-                      value={admissionFormData.allergies}
-                      onChange={(e) => handleAdmissionFormChange('allergies', e.target.value)}
-                      rows="3"
-                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="List any known allergies (medications, food, environmental, etc.)"
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Medical History</label>
-                    <textarea
-                      value={admissionFormData.medical_history}
-                      onChange={(e) => handleAdmissionFormChange('medical_history', e.target.value)}
-                      rows="4"
-                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Enter relevant medical history, previous conditions, surgeries, etc."
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="border-t border-gray-700 px-4 sm:px-6 py-4 flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3">
-              <button
-                onClick={closePatientAdmissionForm}
-                disabled={isSubmittingAdmission}
-                className="px-4 py-3 sm:py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50 text-base sm:text-sm"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={submitPatientAdmission}
-                disabled={isSubmittingAdmission}
-                className="px-6 py-3 sm:py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-base sm:text-sm"
-              >
-                {isSubmittingAdmission ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Admitting Patient...</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="w-4 h-4" />
-                    <span>Admit Patient</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Patient Admission Form Component */}
+      <PatientAdmissionForm 
+        isOpen={showPatientAdmissionForm}
+        onClose={closePatientAdmissionForm}
+        onSubmit={handlePatientAdmissionSuccess}
+        isSubmitting={isSubmittingAdmission}
+        aiMcpServiceRef={aiMcpServiceRef}
+      />
 
       {/* Department Creation Form Popup */}
       {showDepartmentForm && (
@@ -4620,114 +4251,14 @@ ${dischargeData.next_steps ? dischargeData.next_steps.map(step => `• ${step}`)
         </div>
       )}
 
-      {/* User Creation Form Popup */}
-      {showUserForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="border-b border-gray-700 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-white">User Creation Form</h2>
-                <button onClick={closeUserForm} className="text-gray-400 hover:text-white">
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-            <div className="px-6 py-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Username *</label>
-                <input
-                  type="text"
-                  value={userFormData.username}
-                  onChange={(e) => handleUserFormChange('username', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Enter username"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Email *</label>
-                <input
-                  type="email"
-                  value={userFormData.email}
-                  onChange={(e) => handleUserFormChange('email', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Enter email"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">First Name *</label>
-                <input
-                  type="text"
-                  value={userFormData.first_name}
-                  onChange={(e) => handleUserFormChange('first_name', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Enter first name"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Last Name *</label>
-                <input
-                  type="text"
-                  value={userFormData.last_name}
-                  onChange={(e) => handleUserFormChange('last_name', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Enter last name"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Password Hash *</label>
-                <input
-                  type="password"
-                  value={userFormData.password_hash}
-                  onChange={(e) => handleUserFormChange('password_hash', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Enter password"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Role *</label>
-                <select
-                  value={userFormData.role}
-                  onChange={(e) => handleUserFormChange('role', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                >
-                  <option value="">Select role</option>
-                  <option value="admin">Admin</option>
-                  <option value="doctor">Doctor</option>
-                  <option value="nurse">Nurse</option>
-                  <option value="staff">Staff</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Phone</label>
-                <input
-                  type="tel"
-                  value={userFormData.phone}
-                  onChange={(e) => handleUserFormChange('phone', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Enter phone number"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Active Status</label>
-                <select
-                  value={userFormData.is_active ? "true" : "false"}
-                  onChange={(e) => handleUserFormChange('is_active', e.target.value === "true")}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                >
-                  <option value="true">Active</option>
-                  <option value="false">Inactive</option>
-                </select>
-              </div>
-            </div>
-            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
-              <button onClick={closeUserForm} disabled={isSubmittingUser} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
-              <button onClick={submitUser} disabled={isSubmittingUser} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
-                {isSubmittingUser ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating User...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create User</span></>)}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* User Creation Form Component */}
+      <UserCreationForm 
+        isOpen={showUserForm}
+        onClose={closeUserForm}
+        onSubmit={handleUserCreationSuccess}
+        isSubmitting={isSubmittingUser}
+        aiMcpServiceRef={aiMcpServiceRef}
+      />
 
       {/* Staff Creation Form Popup */}
       {showStaffForm && (
