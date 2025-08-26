@@ -1,96 +1,73 @@
 #!/usr/bin/env python3
-"""
-Check what email tools are available
-"""
+"""Check available tools in the backend"""
 
-import asyncio
-import aiohttp
+import requests
 import json
 
-async def check_email_tools():
-    """Check available email tools"""
-    
-    print("🔍 CHECKING AVAILABLE EMAIL TOOLS")
-    print("=" * 50)
-    
+def check_tools():
+    """Check what tools are available"""
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get('http://localhost:8000/tools/list') as response:
-                if response.status == 200:
-                    result = await response.json()
-                    tools = result.get('tools', [])
-                    
-                    print(f"✅ Found {len(tools)} total tools")
-                    
-                    # Find email-related tools
-                    email_tools = [tool for tool in tools if 'email' in tool.get('name', '').lower()]
-                    print(f"\n📧 Email-related tools: {len(email_tools)}")
-                    for tool in email_tools:
-                        print(f"  - {tool.get('name', 'Unknown')}: {tool.get('description', 'No description')}")
-                    
-                    # Find meeting-related tools
-                    meeting_tools = [tool for tool in tools if any(keyword in tool.get('name', '').lower() 
-                                    for keyword in ['meeting', 'schedule', 'calendar'])]
-                    print(f"\n📅 Meeting-related tools: {len(meeting_tools)}")
-                    for tool in meeting_tools:
-                        print(f"  - {tool.get('name', 'Unknown')}: {tool.get('description', 'No description')}")
-                    
-                    # Find staff/user tools
-                    staff_tools = [tool for tool in tools if any(keyword in tool.get('name', '').lower() 
-                                  for keyword in ['staff', 'user', 'list'])]
-                    print(f"\n👥 Staff/User tools: {len(staff_tools)}")
-                    for tool in staff_tools:
-                        print(f"  - {tool.get('name', 'Unknown')}: {tool.get('description', 'No description')}")
-                        
-                    # Let's try the schedule_meeting tool instead since it works
-                    print(f"\n🧪 Testing schedule_meeting tool (known to work)...")
-                    
-                    meeting_call = {
-                        "method": "tools/call",
-                        "params": {
-                            "name": "schedule_meeting",
-                            "arguments": {
-                                "query": "Schedule a test meeting with Dr. John Smith and Admin User for tomorrow at 3 PM to discuss improved meeting workflow"
-                            }
-                        }
-                    }
-                    
-                    async with session.post(
-                        'http://localhost:8000/tools/call',
-                        json=meeting_call,
-                        headers={'Content-Type': 'application/json'}
-                    ) as meeting_response:
-                        if meeting_response.status == 200:
-                            meeting_result = await meeting_response.json()
-                            meeting_content = meeting_result['result']['content'][0]['text']
-                            meeting_data = json.loads(meeting_content)
-                            
-                            print(f"✅ Schedule meeting test successful!")
-                            print(f"📊 Meeting created: {meeting_data.get('success', False)}")
-                            
-                            # Extract key information
-                            if meeting_data.get('success'):
-                                result_data = meeting_data.get('data', {})
-                                print(f"📅 Meeting ID: {result_data.get('meeting_id', 'N/A')}")
-                                print(f"🔗 Google Meet: {result_data.get('google_meet_link', 'N/A')}")
-                                print(f"📧 Email status: {result_data.get('email_status', 'N/A')}")
-                                print(f"👥 Participants notified: {result_data.get('participants_notified', 'N/A')}")
-                                
-                        else:
-                            print(f"❌ Schedule meeting test failed: {meeting_response.status}")
+        response = requests.get("http://localhost:8000/tools/list")
+        if response.status_code == 200:
+            result = response.json()
+            tools = result.get("result", {}).get("tools", [])
+            
+            print(f"Found {len(tools)} tools:")
+            print("=" * 50)
+            
+            # Group tools by category
+            categories = {}
+            for tool in tools:
+                name = tool["name"]
+                desc = tool.get("description", "")
                 
+                if "create" in name:
+                    category = "CREATE"
+                elif "list" in name or "get" in name or "search" in name:
+                    category = "READ"
+                elif "update" in name or "assign" in name:
+                    category = "UPDATE"
+                elif "delete" in name or "discharge" in name:
+                    category = "DELETE"
                 else:
-                    print(f"❌ Tools list failed: {response.status}")
+                    category = "OTHER"
+                
+                if category not in categories:
+                    categories[category] = []
+                categories[category].append((name, desc))
+            
+            # Print by category
+            for category in ["CREATE", "READ", "UPDATE", "DELETE", "OTHER"]:
+                if category in categories:
+                    print(f"\n{category} TOOLS:")
+                    print("-" * 30)
+                    for name, desc in categories[category]:
+                        print(f"• {name}: {desc}")
+            
+            # Check for specific workflow tools
+            print(f"\nWORKFLOW TOOLS CHECK:")
+            print("-" * 30)
+            workflow_tools = [
+                "create_patient",
+                "assign_bed_to_patient",
+                "create_treatment_record", 
+                "discharge_patient_complete",
+                "get_patient_discharge_status",
+                "get_bed_status_with_time_remaining"
+            ]
+            
+            tool_names = [tool["name"] for tool in tools]
+            for tool in workflow_tools:
+                if tool in tool_names:
+                    print(f"✅ {tool}")
+                else:
+                    print(f"❌ {tool} - MISSING")
                     
+        else:
+            print(f"Failed to get tools: {response.status_code}")
+            
     except Exception as e:
-        print(f"❌ Check failed: {e}")
-    
-    print("\n" + "=" * 50)
-    print("🎯 EMAIL TOOLS CHECK COMPLETE")
-    print("\n💡 KEY INSIGHT:")
-    print("  - schedule_meeting tool works and sends emails")
-    print("  - We need to modify frontend to use available tools")
-    print("  - The system can create meetings with targeted participants")
+        print(f"Error: {e}")
 
 if __name__ == "__main__":
-    asyncio.run(check_email_tools())
+    check_tools()

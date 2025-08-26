@@ -880,7 +880,7 @@ def list_supplies(low_stock_only: bool = False) -> Dict[str, Any]:
 
 @mcp.tool()
 def update_supply_stock(supply_id: str, quantity_change: int, transaction_type: str,
-                       performed_by: str, unit_cost: float = None, reference_number: str = None,
+                       performed_by: str = None, unit_cost: float = None, reference_number: str = None,
                        notes: str = None) -> Dict[str, Any]:
     """Update supply stock and create inventory transaction."""
     if not DATABASE_AVAILABLE:
@@ -914,7 +914,7 @@ def update_supply_stock(supply_id: str, quantity_change: int, transaction_type: 
             total_cost=Decimal(str(unit_cost * quantity_change)) if unit_cost else None,
             reference_number=reference_number,
             notes=notes,
-            performed_by=uuid.UUID(performed_by)
+            performed_by=uuid.UUID(performed_by) if performed_by else None
         )
         
         db.add(transaction)
@@ -925,6 +925,8 @@ def update_supply_stock(supply_id: str, quantity_change: int, transaction_type: 
         
         return {"success": True, "message": "Supply stock updated successfully", "data": result}
     except Exception as e:
+        db.rollback()
+        db.close()
         return {"success": False, "message": f"Failed to update supply stock: {str(e)}"}
 
 # ================================

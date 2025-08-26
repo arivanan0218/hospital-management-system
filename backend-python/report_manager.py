@@ -193,6 +193,11 @@ class ReportManager:
             staff_assignments = report_data.get('staff_summary', [])
             medications = report_data.get('medications', [])
             procedures = report_data.get('procedures', [])
+
+            # Backward-compatible resolution of bed, room and department
+            bed_no = patient_summary.get('bed_number') or (patient_summary.get('bed_info', {}) or {}).get('bed_number') or 'N/A'
+            room_no = patient_summary.get('room_number') or (patient_summary.get('bed_info', {}) or {}).get('room') or 'N/A'
+            dept_name = patient_summary.get('department') or (patient_summary.get('bed_info', {}) or {}).get('department') or 'N/A'
             
             markdown_content = f"""# PATIENT DISCHARGE REPORT
 
@@ -212,9 +217,9 @@ class ReportManager:
 - **Admission Date:** {report_data.get('admission_date', 'N/A')}
 - **Discharge Date:** {report_data.get('discharge_date', 'N/A')}
 - **Length of Stay:** {report_data.get('length_of_stay_days', 'N/A')} days
-- **Bed:** {patient_summary.get('bed_number', 'N/A')}
-- **Room:** {patient_summary.get('room_number', 'N/A')}
-- **Department:** {patient_summary.get('department', 'N/A')}
+- **Bed:** {bed_no}
+- **Room:** {room_no}
+- **Department:** {dept_name}
 
 ## TREATMENTS ADMINISTERED
 
