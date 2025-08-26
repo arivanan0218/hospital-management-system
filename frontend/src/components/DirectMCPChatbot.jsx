@@ -12,6 +12,7 @@ import RoomCreationForm from './RoomCreationForm.jsx';
 import EquipmentCreationForm from './EquipmentCreationForm.jsx';
 import SupplyCreationForm from './SupplyCreationForm.jsx';
 import BedCreationForm from './BedCreationForm.jsx';
+import LegacyUserCreationForm from './LegacyUserCreationForm.jsx';
 
 const DirectMCPChatbot = ({ user, onLogout }) => {
   // Mobile-responsive CSS classes for consistent mobile experience (reduced height)
@@ -89,12 +90,6 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   
   // Legacy User creation popup form
   const [showLegacyUserForm, setShowLegacyUserForm] = useState(false);
-  const [legacyUserFormData, setLegacyUserFormData] = useState({
-    name: '',
-    email: '',
-    address: '',
-    phone: ''
-  });
   const [isSubmittingLegacyUser, setIsSubmittingLegacyUser] = useState(false);
   
   // Equipment Category creation popup form
@@ -2393,74 +2388,33 @@ The supply has been added to the inventory system and is ready for use.`;
   };
 
   // Legacy User Form Handlers
-  const handleLegacyUserFormChange = (field, value) => {
-    setLegacyUserFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
+  const handleLegacyUserSubmit = async (response) => {
+    setIsSubmittingLegacyUser(false);
+    setShowLegacyUserForm(false);
 
-  const submitLegacyUser = async () => {
-    const requiredFields = ['name', 'email'];
-    const missingFields = requiredFields.filter(field => !legacyUserFormData[field].trim());
-    
-    if (missingFields.length > 0) {
-      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
-      return;
-    }
-
-    setIsSubmittingLegacyUser(true);
-
-    try {
-      const response = await aiMcpServiceRef.current.callToolDirectly('create_legacy_user', {
-        name: legacyUserFormData.name,
-        email: legacyUserFormData.email,
-        address: legacyUserFormData.address,
-        phone: legacyUserFormData.phone
-      });
-
-      setShowLegacyUserForm(false);
-      setLegacyUserFormData({
-        name: '',
-        email: '',
-        role: ''
-      });
-
-      let responseText = '';
-      if (response.success) {
-        const legacyUserData = response.result?.data || response.data || {};
-        responseText = `✅ Legacy user created successfully!
-        
+    let responseText = '';
+    if (response.success) {
+      const legacyUserData = response.result?.data || response.data || {};
+      responseText = `✅ Legacy user created successfully!
+      
 **Legacy User Details:**
 - Name: ${legacyUserData.name}
 - Email: ${legacyUserData.email}
 - Phone: ${legacyUserData.phone || 'Not provided'}
-- Address: ${legacyUserData.address || 'Not provided'}`;
-      } else {
-        responseText = `❌ Failed to create legacy user: ${response.message || 'Unknown error'}`;
-      }
+- Address: ${legacyUserData.address || 'Not provided'}
 
-      const successMsg = {
-        id: Date.now(),
-        text: `✅ Legacy user created successfully!\n\n${responseText}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, successMsg]);
-
-    } catch (error) {
-      console.error('Error creating legacy user:', error);
-      
-      const errorMsg = {
-        id: Date.now(),
-        text: `❌ Error creating legacy user: ${error.message || 'Unknown error occurred'}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, errorMsg]);
-    } finally {
-      setIsSubmittingLegacyUser(false);
+The legacy user has been added to the system for reference purposes.`;
+    } else {
+      responseText = `❌ Failed to create legacy user: ${response.message || 'Unknown error'}`;
     }
+
+    const successMsg = {
+      id: Date.now(),
+      text: responseText,
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, successMsg]);
   };
 
   const closeLegacyUserForm = () => {
@@ -3801,69 +3755,14 @@ ${dischargeData.next_steps ? dischargeData.next_steps.map(step => `• ${step}`)
         loadingDropdowns={loadingDropdowns}
       />
 
-      {/* Legacy User Creation Form Popup */}
-      {showLegacyUserForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="border-b border-gray-700 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-white">Legacy User Creation Form</h2>
-                <button onClick={closeLegacyUserForm} className="text-gray-400 hover:text-white">
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-            <div className="px-6 py-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Name *</label>
-                <input
-                  type="text"
-                  value={legacyUserFormData.name}
-                  onChange={(e) => handleLegacyUserFormChange('name', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Enter full name"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Email *</label>
-                <input
-                  type="email"
-                  value={legacyUserFormData.email}
-                  onChange={(e) => handleLegacyUserFormChange('email', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Enter email address"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Address *</label>
-                <textarea
-                  value={legacyUserFormData.address}
-                  onChange={(e) => handleLegacyUserFormChange('address', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Enter full address"
-                  rows="3"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Phone *</label>
-                <input
-                  type="tel"
-                  value={legacyUserFormData.phone}
-                  onChange={(e) => handleLegacyUserFormChange('phone', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Enter phone number"
-                />
-              </div>
-            </div>
-            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
-              <button onClick={closeLegacyUserForm} disabled={isSubmittingLegacyUser} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
-              <button onClick={submitLegacyUser} disabled={isSubmittingLegacyUser} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
-                {isSubmittingLegacyUser ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating Legacy User...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create Legacy User</span></>)}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Legacy User Creation Form Component */}
+      <LegacyUserCreationForm
+        isOpen={showLegacyUserForm}
+        onClose={closeLegacyUserForm}
+        onSubmit={handleLegacyUserSubmit}
+        isSubmitting={isSubmittingLegacyUser}
+        aiMcpServiceRef={aiMcpServiceRef}
+      />
 
       {/* Equipment Category Creation Form Popup */}
       {showEquipmentCategoryForm && (
