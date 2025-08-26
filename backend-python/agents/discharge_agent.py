@@ -122,28 +122,66 @@ class DischargeAgent(BaseAgent):
             db.close()
             return {"success": False, "message": str(e)}
 
-    def add_equipment_usage_simple(self, patient_id: str, equipment_id: str, staff_id: str, purpose: str) -> Dict[str, Any]:
+    def add_equipment_usage_simple(self, patient_id: str, equipment_id: str, staff_id: str, purpose: str, start_time: str = None, end_time: str = None, notes: str = None) -> Dict[str, Any]:
         if not DISCHARGE_DEPS:
             return {"success": False, "message": "Discharge dependencies not available"}
         from database import SessionLocal, EquipmentUsage as CoreEquipmentUsage
         db = SessionLocal()
         try:
+            # Parse start_time and end_time if provided
+            start_dt = datetime.now()
+            if start_time:
+                try:
+                    # Handle both full datetime and date-only formats
+                    if len(start_time) <= 10:  # YYYY-MM-DD format
+                        start_dt = datetime.fromisoformat(start_time + " 00:00:00")
+                    else:  # Full datetime format
+                        start_dt = datetime.fromisoformat(start_time.replace(' ', 'T') if ' ' in start_time else start_time)
+                except ValueError:
+                    start_dt = datetime.now()  # Fallback to current time
+            
+            end_dt = None
+            if end_time:
+                try:
+                    if len(end_time) <= 10:  # YYYY-MM-DD format
+                        end_dt = datetime.fromisoformat(end_time + " 23:59:59")
+                    else:  # Full datetime format
+                        end_dt = datetime.fromisoformat(end_time.replace(' ', 'T') if ' ' in end_time else end_time)
+                except ValueError:
+                    end_dt = None  # Keep as None if parsing fails
+            
             eu = CoreEquipmentUsage(
                 patient_id=uuid.UUID(patient_id),
                 equipment_id=uuid.UUID(equipment_id),
                 staff_id=uuid.UUID(staff_id),
                 purpose=purpose,
-                start_time=datetime.now(),
+                start_time=start_dt,
+                end_time=end_dt,
+                notes=notes
             )
             db.add(eu)
             db.commit()
             db.refresh(eu)
             db.close()
-            return {"success": True, "data": {"id": str(eu.id)}}
+            
+            result = {
+                "success": True,
+                "data": {
+                    "id": str(eu.id),
+                    "patient_id": str(eu.patient_id),
+                    "equipment_id": str(eu.equipment_id),
+                    "staff_id": str(eu.staff_id),
+                    "purpose": eu.purpose,
+                    "start_time": eu.start_time.isoformat() if eu.start_time else None,
+                    "end_time": eu.end_time.isoformat() if eu.end_time else None,
+                    "notes": eu.notes
+                }
+            }
+            return result
         except Exception as e:
             db.rollback()
             db.close()
-            return {"success": False, "message": str(e)}
+            return {"success": False, "message": f"Failed to add equipment usage: {str(e)}"}
 
     def add_equipment_usage_by_codes(self, patient_number: str, equipment_id: str, employee_id: str, purpose: str, start_time: str = None, end_time: str = None, notes: str = None) -> Dict[str, Any]:
         """Add equipment usage using patient_number, equipment_id (code), and employee_id (staff code), not UUIDs."""
