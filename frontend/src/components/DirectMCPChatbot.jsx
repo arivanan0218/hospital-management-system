@@ -850,15 +850,25 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
         console.log('✅ Fallback detected: create_bed');
         return 'create_bed';
       }
-      if ((message.includes('create') || message.includes('add') || message.includes('new')) && (message.includes('staff') || message.includes('employee'))) {
+      if ((message.includes('create') || message.includes('add') || message.includes('new')) && (message.includes('staff') || message.includes('employee')) && !message.includes('usage') && !message.includes('assign')) {
         console.log('✅ Fallback detected: create_staff');
         return 'create_staff';
       }
-      if ((message.includes('create') || message.includes('add') || message.includes('new')) && message.includes('equipment') && !message.includes('category')) {
+      // Check for equipment usage first (before equipment creation)
+      if (message.includes('equipment') && (message.includes('usage') || message.includes('assign') || message.includes('used by') || message.includes('patient id') || message.includes('inventory') || message.includes('tracking'))) {
+        console.log('🤖 Equipment usage/inventory detected - using AI processing');
+        return 'ai_processing';
+      }
+      if ((message.includes('create') || message.includes('add') || message.includes('new')) && message.includes('equipment') && !message.includes('category') && !message.includes('usage') && !message.includes('assign')) {
         console.log('✅ Fallback detected: create_equipment');
         return 'create_equipment';
       }
-      if ((message.includes('create') || message.includes('add') || message.includes('new')) && message.includes('supply') && !message.includes('category')) {
+      // Check for supply usage first (before supply creation)
+      if (message.includes('supply') && (message.includes('usage') || message.includes('assign') || message.includes('used by') || message.includes('patient id') || message.includes('inventory') || message.includes('tracking') || message.includes('consumption'))) {
+        console.log('🤖 Supply usage/inventory detected - using AI processing');
+        return 'ai_processing';
+      }
+      if ((message.includes('create') || message.includes('add') || message.includes('new')) && message.includes('supply') && !message.includes('category') && !message.includes('usage') && !message.includes('assign')) {
         console.log('✅ Fallback detected: create_supply');
         return 'create_supply';
       }
@@ -890,7 +900,7 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
               role: 'system',
               content: `You are an intelligent intent detection system for a hospital management application with multi-agent backend tools. 
 
-POPUP FORM TRIGGERS (Only these EXACT 10 CREATE tools should show popup forms):
+POPUP FORM TRIGGERS (Only these EXACT 11 CREATE tools should show popup forms):
 1. create_user: User creation popup form
 2. create_patient: Patient admission popup form  
 3. create_legacy_user: Legacy user creation popup form
@@ -898,23 +908,27 @@ POPUP FORM TRIGGERS (Only these EXACT 10 CREATE tools should show popup forms):
 5. create_room: Room creation popup form
 6. create_bed: Bed creation popup form
 7. create_staff: Staff creation popup form
-8. create_equipment: Equipment creation popup form (ONLY this exact tool)
-9. create_supply: Supply creation popup form (ONLY this exact tool)
+8. create_equipment: Equipment creation popup form (ONLY for NEW equipment registration)
+9. create_supply: Supply creation popup form (ONLY for NEW supply registration)
+10. create_equipment_category: Equipment category creation popup form
+11. create_supply_category: Supply category creation popup form
 
-CRITICAL: These tools should use AI processing (NOT popup forms):
-- create_equipment_category (AI processing, NOT popup)
-- create_supply_category (AI processing, NOT popup)
-- All other tools like list, get, update, delete, search, etc.
+CRITICAL USAGE vs CREATION DISTINCTION:
+- "add equipment usage" or "equipment usage" → ai_processing (add_equipment_usage tool)
+- "add supply usage" or "supply usage" → ai_processing (add_supply_usage tool)
+- "equipment assignment" or "assign equipment" → ai_processing (assignment tools)
+- "supply assignment" or "assign supply" → ai_processing (assignment tools)
+- "create equipment" or "register equipment" → create_equipment popup form
+- "create supply" or "register supply" → create_supply popup form
 
-IMPORTANT DISTINCTION:
-- "create equipment" or "add equipment" → create_equipment popup form
-- "create equipment category" → ai_processing (no popup)
-- "create supply" or "add supply" → create_supply popup form  
-- "create supply category" → ai_processing (no popup)
+IMPORTANT KEYWORDS FOR AI PROCESSING (NOT popup forms):
+- Any message containing "usage", "assign", "assignment", "used by", "patient id", "inventory", "tracking", "consumption" should use ai_processing
+- Equipment/supply USAGE, INVENTORY, TRACKING = ai_processing
+- Equipment/supply CREATION = popup forms
 
 RULES:
-1. Only the exact 9 CREATE tools above trigger popup forms
-2. Equipment/Supply categories are handled by AI processing
+1. Only the exact 11 CREATE tools above trigger popup forms
+2. All USAGE, ASSIGNMENT, TRACKING, INVENTORY operations use AI processing
 3. All listing, searching, updating, deleting operations use AI processing
 4. Staff meetings = AI processing (schedule_meeting tool)
 
@@ -926,23 +940,32 @@ Return ONLY one of these values:
 - "create_room" for room creation
 - "create_bed" for bed creation
 - "create_staff" for staff hiring/registration
-- "create_equipment" for equipment registration/adding new equipment
-- "create_supply" for supply registration
+- "create_equipment" for NEW equipment registration (not usage/inventory)
+- "create_supply" for NEW supply registration (not usage/inventory)
 - "create_equipment_category" for equipment category creation
 - "create_supply_category" for supply category creation
-- "ai_processing" for everything else (including equipment usage, staff assignments, updates, searches, etc.)
+- "ai_processing" for everything else (including equipment/supply usage, inventory, assignments, updates, searches, etc.)
 
 Examples:
 - "Register a new patient" → create_patient
 - "Add new staff member" → create_staff  
 - "Create cardiology department" → create_department
-- "Add new equipment" → create_equipment
+- "Add new equipment" → create_equipment (only for NEW equipment registration)
 - "Register equipment" → create_equipment
 - "Create equipment category" → create_equipment_category
 - "Add equipment usage for patient" → ai_processing
+- "Add equipment usage Equipment ID: EQ001" → ai_processing
 - "Record equipment usage" → ai_processing
-- "Add new supply" → create_supply
+- "Equipment usage tracking" → ai_processing
+- "Equipment inventory" → ai_processing
+- "Assign equipment to patient" → ai_processing
+- "Add new supply" → create_supply (only for NEW supply registration)
 - "Create supply category" → create_supply_category
+- "Add supply usage" → ai_processing
+- "Supply usage tracking" → ai_processing
+- "Supply inventory usage" → ai_processing
+- "Supply inventory tracking" → ai_processing
+- "Supply consumption" → ai_processing
 - "Schedule staff meeting" → ai_processing
 - "List all patients" → ai_processing
 - "Update bed status" → ai_processing`
