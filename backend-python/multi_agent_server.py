@@ -276,7 +276,8 @@ def create_patient(first_name: str, last_name: str, date_of_birth: str,
                   gender: str = None, phone: str = None, email: str = None,
                   address: str = None, emergency_contact_name: str = None,
                   emergency_contact_phone: str = None, blood_type: str = None,
-                  allergies: str = None, medical_history: str = None) -> Dict[str, Any]:
+                  allergies: str = None, medical_history: str = None,
+                  patient_number: str = None) -> Dict[str, Any]:
     """Create a new patient record."""
     if MULTI_AGENT_AVAILABLE and orchestrator:
         result = orchestrator.route_request("create_patient",
@@ -284,7 +285,8 @@ def create_patient(first_name: str, last_name: str, date_of_birth: str,
                                            gender=gender, phone=phone, email=email, address=address,
                                            emergency_contact_name=emergency_contact_name,
                                            emergency_contact_phone=emergency_contact_phone,
-                                           blood_type=blood_type, allergies=allergies, medical_history=medical_history)
+                                           blood_type=blood_type, allergies=allergies, medical_history=medical_history,
+                                           patient_number=patient_number)
         return result.get("result", result)
     
     return {"success": False, "message": "Multi-agent system required for this operation"}
