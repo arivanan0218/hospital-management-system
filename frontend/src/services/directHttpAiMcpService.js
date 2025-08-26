@@ -267,6 +267,28 @@ class DirectHttpAIMCPService {
     }));
   }
 
+  /**
+   * Expose add_equipment_usage_by_codes for direct tool calls
+   */
+  async addEquipmentUsageByCodes(args) {
+    // args: { patient_number, equipment_id, employee_id, purpose, start_time, end_time, notes }
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+    return this.mcpClient.callTool('add_equipment_usage_by_codes', args);
+  }
+
+  /**
+   * Expose add_treatment_record_by_codes for direct tool calls
+   */
+  async addTreatmentRecordByCodes(args) {
+    // args: { patient_number, employee_id, treatment_type, treatment_name, start_date, end_date, notes }
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+    return this.mcpClient.callTool('add_treatment_record_by_codes', args);
+  }
+
 
 
   /**
@@ -383,12 +405,76 @@ class DirectHttpAIMCPService {
       // Add user message to conversation history
       this.addToConversationHistory('user', userMessage);
 
+      // Check if this is an assignment operation first
+      const assignmentResult = await this.handleAssignmentOperations(userMessage, []);
+      if (assignmentResult) {
+        console.log('✅ Assignment operation handled directly');
+        this.addToConversationHistory('assistant', assignmentResult);
+        return {
+          success: true,
+          message: assignmentResult,
+          response: assignmentResult,
+          functionCalls: [],
+          serverInfo: this.getServerInfo(),
+          rawResponse: { choices: [{ message: { content: assignmentResult } }] },
+          conversationLength: this.conversationHistory.length,
+          timing: { openAI: 0, tool: 0, agent: Date.now() - agentStart }
+        };
+      }
+
       // Get current status and tools
       const availableTools = this.getToolsForOpenAI();
       const serverInfo = this.getServerInfo();
       
       console.log(`📋 Available tools: ${availableTools.length}`);
       console.log(`💭 Conversation history length: ${this.conversationHistory.length}`);
+      
+      // Try manual tool selection first (for better bed status handling)
+      console.log('🔍 Attempting manual tool selection...');
+      const manualTools = await this.determineRequiredToolsWithAI(userMessage, availableTools);
+      if (manualTools && manualTools.length > 0 && !manualTools[0].needsInput) {
+        console.log('✅ Using manual tool selection:', manualTools);
+        
+        // Execute the manually selected tools
+        const toolStart = Date.now();
+        const manualResults = [];
+        for (const tool of manualTools) {
+          try {
+            console.log(`🔧 Executing manual tool: ${tool.name}`);
+            const result = await this.callTool(tool.name, tool.arguments || {});
+            manualResults.push({
+              function: tool.name,  // Use 'function' instead of 'tool' to match expected structure
+              result: result,
+              error: null
+            });
+          } catch (error) {
+            console.error(`❌ Manual tool error:`, error);
+            manualResults.push({
+              function: tool.name,  // Use 'function' instead of 'tool' to match expected structure
+              result: null,
+              error: error.message
+            });
+          }
+        }
+        
+        const toolTime = Date.now() - toolStart;
+        const formattedResponse = this.formatToolResults(userMessage, manualResults);
+        
+        this.addToConversationHistory('assistant', formattedResponse);
+        
+        return {
+          success: true,
+          message: formattedResponse,
+          response: formattedResponse,
+          functionCalls: manualResults,
+          serverInfo: serverInfo,
+          rawResponse: { choices: [{ message: { content: formattedResponse } }] },
+          conversationLength: this.conversationHistory.length,
+          timing: { openAI: 0, tool: toolTime, agent: Date.now() - agentStart }
+        };
+      }
+      
+      console.log('🤖 Manual tool selection failed or empty, falling back to OpenAI...');
       
       // Call OpenAI with function calling and conversation history (CLAUDE DESKTOP STYLE)
       let gptResponse;
@@ -467,19 +553,24 @@ class DirectHttpAIMCPService {
    * Intelligent tool determination with AI assistance - Claude Desktop style
    */
   async determineRequiredToolsWithAI(userMessage, availableTools) {
+    console.log('🤖 determineRequiredToolsWithAI called with:', userMessage);
+    
     // Check conversation context for ongoing operations
     const contextualTools = this.analyzeConversationContext(userMessage);
     if (contextualTools.length > 0) {
+      console.log('🤖 Returning contextual tools:', contextualTools);
       return contextualTools;
     }
     
     // Check for complex multi-step scenarios (EMERGENCY HANDLING)
     const emergencyScenario = this.detectEmergencyScenario(userMessage);
     if (emergencyScenario.length > 0) {
+      console.log('🤖 Returning emergency scenario tools:', emergencyScenario);
       return emergencyScenario;
     }
     
     // Fall back to existing logic
+    console.log('🤖 Falling back to main determineRequiredTools');
     return this.determineRequiredTools(userMessage, availableTools);
   }
 
@@ -490,8 +581,11 @@ class DirectHttpAIMCPService {
     const message = userMessage.toLowerCase();
     const toolsNeeded = [];
     
+    console.log('🚨 Emergency scenario detection for:', message);
+    
     // Emergency patient scenario: register + allocate bed + assign doctor
     if (message.includes('emergency') && (message.includes('patient') || message.includes('register'))) {
+      console.log('🚨 Emergency patient scenario detected');
       // Check if patient details are provided in structured format
       if (this.containsStructuredData(userMessage)) {
         const structuredTool = this.parseStructuredInput(userMessage);
@@ -500,30 +594,38 @@ class DirectHttpAIMCPService {
           toolsNeeded.push(structuredTool); // Create patient first
           toolsNeeded.push({ name: 'list_beds', arguments: { status: 'available' } }); // Check available beds
           toolsNeeded.push({ name: 'list_staff', arguments: {} }); // List available doctors
+          console.log('🚨 Emergency tools added:', toolsNeeded);
           return toolsNeeded;
         }
       }
     }
     
-    // Bed allocation with availability check
-    if (message.includes('allocate') && message.includes('bed') && message.includes('availability')) {
+    // Bed allocation with availability check - but NOT for status queries
+    if (message.includes('allocate') && message.includes('bed') && message.includes('availability') && 
+        !message.includes('status') && !message.includes('check') && !message.includes('cleaning')) {
+      console.log('🚨 Bed allocation scenario detected');
       toolsNeeded.push({ name: 'list_beds', arguments: { status: 'available' } });
+      console.log('🚨 Bed allocation tools added:', toolsNeeded);
       return toolsNeeded;
     }
     
-    // Multi-operation requests
-    if (message.includes('register') && message.includes('allocate') && message.includes('bed')) {
+    // Multi-operation requests - but NOT for status queries
+    if (message.includes('register') && message.includes('allocate') && message.includes('bed') &&
+        !message.includes('status') && !message.includes('check') && !message.includes('cleaning')) {
+      console.log('🚨 Multi-operation scenario detected');
       // User wants to register patient AND allocate bed
       if (this.containsStructuredData(userMessage)) {
         const structuredTool = this.parseStructuredInput(userMessage);
         if (structuredTool) {
           toolsNeeded.push(structuredTool);
           toolsNeeded.push({ name: 'list_beds', arguments: { status: 'available' } });
+          console.log('🚨 Multi-operation tools added:', toolsNeeded);
           return toolsNeeded;
         }
       }
     }
     
+    console.log('🚨 No emergency scenario detected');
     return [];
   }
 
@@ -553,17 +655,28 @@ class DirectHttpAIMCPService {
    */
   async handleIncompleteRequest(tool) {
     const requestType = tool.name;
-    
+
     switch (requestType) {
       case '_ask_for_department_details':
         return "I'd be happy to create a new department! What should I call this department? For example: 'Cardiology', 'Emergency', 'Pediatrics', etc.";
-        
+
       case '_ask_for_patient_details':
         return "To create a new patient, I need:\n\n" +
                "📝 **Required:** First Name, Last Name, Date of Birth (YYYY-MM-DD)\n" +
                "📋 **Optional:** Gender, Phone, Email, Address\n\n" +
                "**Example:** *Create patient John Doe born 1985-05-15*";
-               
+
+      case 'add_equipment_usage_by_codes':
+        return "To add a record of equipment usage, please provide the following details:\n\n" +
+          "1. Patient Number (e.g., 'P591793'): The unique identifier of the patient who used or for whom the equipment was used.\n" +
+          "2. Employee ID (e.g., 'EMP001'): The unique identifier of the staff member who operated or oversaw the equipment usage.\n" +
+          "3. Equipment ID (e.g., 'EQ123'): The unique identifier of the equipment used.\n" +
+          "4. Purpose: The reason or purpose for using the equipment.\n" +
+          "5. Start Time (YYYY-MM-DD or YYYY-MM-DD HH:MM): The date and time when the equipment usage started.\n" +
+          "6. End Time (YYYY-MM-DD or YYYY-MM-DD HH:MM, optional): The date and time when the equipment usage ended, if applicable.\n" +
+          "7. Notes (optional): Any additional details or context about the equipment's usage.\n\n" +
+          "Please provide these details in your response.";
+
       // Add more intelligent prompts for other incomplete requests
       default:
         return "Please provide the required information for this operation.";
@@ -770,6 +883,14 @@ Remember the recent conversation and provide contextually appropriate responses.
 
 **INCOMPLETE REQUESTS:**
 - For "create new department" → Ask: "What should I call this department?"
+- For "add equipment usage" (add_equipment_usage_by_codes) → Ask for:
+  * Patient Number (patient_number): The unique identifier for the patient who used the equipment.
+  * Equipment ID/Code (equipment_id): The code for the equipment used (e.g., "EQ001").
+  * Employee ID (employee_id): The identifier for the staff member who operated or supervised the equipment.
+  * Purpose (purpose): The reason for equipment usage (e.g., "Monitoring", "Treatment").
+  * Start Time (start_time, optional): When the equipment usage began (YYYY-MM-DD or ISO format).
+  * End Time (end_time, optional): When the equipment usage ended (YYYY-MM-DD or ISO format).
+  * Notes (notes, optional): Any relevant notes regarding the equipment usage.
 - Never create with placeholder names
 - Collect required information conversationally
 
@@ -879,11 +1000,14 @@ Respond naturally, conversationally, and contextually based on the conversation 
     const toolsNeeded = [];
     
     console.log('🔍 Analyzing message:', message);
+    console.log('🔍 Full userMessage:', userMessage);
     
     // Check for structured data input (when user provides details directly)
     if (this.containsStructuredData(userMessage)) {
+      console.log('📝 Contains structured data');
       const structuredTool = this.parseStructuredInput(userMessage);
       if (structuredTool) {
+        console.log('🎯 Returning structured tool:', structuredTool);
         return [structuredTool];
       }
     }
@@ -972,6 +1096,46 @@ Respond naturally, conversationally, and contextually based on the conversation 
       if (deptParams.name && deptParams.name.length > 3 && 
           !['new', 'department', 'create', 'add'].includes(deptParams.name.toLowerCase())) {
         toolsNeeded.push({ name: 'create_department', arguments: deptParams });
+      }
+    }
+    
+    // Discharge workflow operations
+    if (message.includes('discharge') && message.includes('patient')) {
+      const dischargeParams = this.extractDischargeParameters(userMessage);
+      toolsNeeded.push({ name: 'discharge_patient_complete', arguments: dischargeParams });
+    }
+    
+    if (message.includes('discharge') && message.includes('status')) {
+      const statusParams = this.extractDischargeStatusParameters(userMessage);
+      toolsNeeded.push({ name: 'get_patient_discharge_status', arguments: statusParams });
+    }
+    
+    // Check if this is a multi-assignment request
+    const assignmentPatterns = [
+      /assign\s+staff\s+([A-Z0-9]+)\s+to\s+patient\s+([a-zA-Z\s]+)/i,
+      /assign\s+equipment\s+([a-zA-Z\s]+)\s+to\s+patient\s+([a-zA-Z\s]+)/i,
+      /assign\s+supplies?\s+([a-zA-Z\s]+)\s+to\s+patient\s+([a-zA-Z\s]+)/i,
+      /assign\s+bed\s+([A-Z0-9]+)\s+to\s+patient\s+([a-zA-Z\s]+)/i
+    ];
+    
+    let hasAssignments = false;
+    assignmentPatterns.forEach(pattern => {
+      if (pattern.test(message)) {
+        hasAssignments = true;
+      }
+    });
+    
+    if (hasAssignments) {
+      // This will be handled by the new assignment handler
+      return [{ name: '_handle_assignments', needsInput: true }];
+    }
+    
+    // Department creation - check if we have sufficient data
+    if (message.includes('create department') || message.includes('add department') || message.includes('new department')) {
+      const deptParams = this.extractDepartmentParameters(userMessage);
+      if (deptParams.name && deptParams.name.length > 3 && 
+          !['new', 'department', 'create', 'add'].includes(deptParams.name.toLowerCase())) {
+        toolsNeeded.push({ name: 'create_department', arguments: deptParams });
       } else {
         return [{ name: '_ask_for_department_details', needsInput: true }];
       }
@@ -997,9 +1161,20 @@ Respond naturally, conversationally, and contextually based on the conversation 
       toolsNeeded.push({ name: 'update_meeting', arguments: { query: userMessage } });
     }
     
-    // Bed operations
-    if (message.includes('list beds') || message.includes('show beds') || message.includes('all beds') || message.includes('beds')) {
+    // Bed operations - specific checks first
+    if (message.includes('bed') && (message.includes('status') || message.includes('cleaning') || message.includes('turnover') || message.includes('remaining') || message.includes('time'))) {
+      console.log('🎯 BED STATUS CHECK TRIGGERED!');
+      const bedParams = this.extractBedStatusParameters(userMessage);
+      console.log('🔍 Detected bed status query, parameters:', bedParams);
+      toolsNeeded.push({ name: 'get_bed_status_with_time_remaining', arguments: bedParams });
+      console.log('✅ Added get_bed_status_with_time_remaining to toolsNeeded');
+    }
+    // Generic bed listing - avoid conflicts with specific bed queries
+    else if (message.includes('list beds') || message.includes('show all beds') || message.includes('all beds') || 
+             (message.includes('beds') && !message.match(/bed\s+[A-Z0-9]+/i))) {
+      console.log('🏥 GENERIC BED LISTING TRIGGERED');
       toolsNeeded.push({ name: 'list_beds', arguments: {} });
+      console.log('⚠️ Added list_beds to toolsNeeded');
     }
     
     // Bed search by bed number (e.g., "details of bed 201B", "show bed 201B", "get bed 201B info")
@@ -1141,8 +1316,110 @@ Respond naturally, conversationally, and contextually based on the conversation 
     // Assignment operations
     if (message.includes('assign bed') || message.includes('bed assignment')) {
       const assignParams = this.extractBedAssignmentParameters(userMessage);
+      // If we have both bed_id and patient_id, we can assign directly
       if (assignParams.bed_id && assignParams.patient_id) {
         toolsNeeded.push({ name: 'assign_bed_to_patient', arguments: assignParams });
+      }
+      // If we have bed_id and patient_name but no patient_id, we need to search for the patient first
+      else if (assignParams.bed_id && assignParams.patient_name) {
+        toolsNeeded.push({ name: 'search_patients', arguments: { name: assignParams.patient_name } });
+        // After finding the patient, we'll need to assign the bed
+        toolsNeeded.push({ name: 'assign_bed_to_patient', arguments: { 
+          bed_id: assignParams.bed_id, 
+          patient_id: '{{patient_id_from_search}}', 
+          admission_date: assignParams.admission_date 
+        }});
+      }
+      // If we have patient_name but no bed_id, we need to find an available bed
+      else if (assignParams.patient_name && !assignParams.bed_id) {
+        toolsNeeded.push({ name: 'search_patients', arguments: { name: assignParams.patient_name } });
+        toolsNeeded.push({ name: 'list_beds', arguments: { status: 'available' } });
+        toolsNeeded.push({ name: 'assign_bed_to_patient', arguments: { 
+          bed_id: '{{available_bed_id}}', 
+          patient_id: '{{patient_id_from_search}}', 
+          admission_date: assignParams.admission_date 
+        }});
+      }
+    }
+
+    // Staff assignment operations
+    if (message.includes('assign staff') || message.includes('staff assignment')) {
+      const staffAssignParams = this.extractStaffAssignmentParameters(userMessage);
+      console.log('🔧 Staff assignment params extracted:', staffAssignParams);
+      
+      // If we have both staff_id and patient_id, we can assign directly
+      if (staffAssignParams.staff_id && staffAssignParams.patient_id) {
+        toolsNeeded.push({ 
+          name: 'assign_staff_to_patient_simple', 
+          arguments: {
+            ...staffAssignParams,
+            assignment_type: 'primary_care' // Add required parameter
+          }
+        });
+      }
+      // If we have staff_id and patient_name, we need to search for patient first
+      else if (staffAssignParams.staff_id && staffAssignParams.patient_name) {
+        // First search for the patient
+        toolsNeeded.push({ name: 'search_patients', arguments: { name: staffAssignParams.patient_name } });
+        // Note: The actual assignment will need to be done after patient search results
+      }
+    }
+
+    // Equipment assignment operations
+    if (message.includes('assign equipment') || message.includes('equipment assignment')) {
+      const equipAssignParams = this.extractEquipmentAssignmentParameters(userMessage);
+      console.log('🔧 Equipment assignment params extracted:', equipAssignParams);
+      
+      // If we have both equipment_id and patient_id, we can assign directly
+      if (equipAssignParams.equipment_id && equipAssignParams.patient_id) {
+        toolsNeeded.push({ 
+          name: 'add_equipment_usage_simple', 
+          arguments: {
+            ...equipAssignParams,
+            staff_id: 'EMP002', // Add required parameter
+            purpose: 'patient_care' // Add required parameter
+          }
+        });
+      }
+      // If we have equipment_name and patient_name, we need to search for both
+      else if (equipAssignParams.equipment_name && equipAssignParams.patient_name) {
+        // First search for the patient and equipment
+        toolsNeeded.push({ name: 'search_patients', arguments: { name: equipAssignParams.patient_name } });
+        toolsNeeded.push({ name: 'list_equipment', arguments: {} });
+        // Note: The actual assignment will need to be done after search results
+      }
+    }
+
+    // Supply assignment operations
+    if (message.includes('assign supply') || message.includes('supply assignment') || message.includes('assign supplies')) {
+      const supplyAssignParams = this.extractSupplyAssignmentParameters(userMessage);
+      console.log('🔧 Supply assignment params extracted:', supplyAssignParams);
+      
+      // If we have both supply_id and patient_id, we can assign directly
+      if (supplyAssignParams.supply_id && supplyAssignParams.patient_id) {
+        toolsNeeded.push({ 
+          name: 'update_supply_stock', 
+          arguments: {
+            ...supplyAssignParams,
+            quantity_change: -1, // Reduce stock by 1
+            transaction_type: 'patient_usage',
+            performed_by: 'EMP002' // Add required parameter
+          }
+        });
+      }
+      // If we have supply_name and patient_name, search for both
+      else if (supplyAssignParams.supply_name && supplyAssignParams.patient_name) {
+        toolsNeeded.push({ name: 'search_patients', arguments: { name: supplyAssignParams.patient_name } });
+        toolsNeeded.push({ name: 'list_supplies', arguments: {} });
+        toolsNeeded.push({ 
+          name: 'update_supply_stock', 
+          arguments: { 
+            supply_id: '{{supply_id_from_search}}', 
+            quantity_change: -1,
+            transaction_type: 'patient_usage',
+            performed_by: 'EMP002'
+          }
+        });
       }
     }
     
@@ -1189,7 +1466,472 @@ Respond naturally, conversationally, and contextually based on the conversation 
     }
     
     console.log('🔧 Tools needed:', toolsNeeded);
+    console.log('🔧 Tools needed length:', toolsNeeded.length);
+    console.log('🔧 First tool (if any):', toolsNeeded[0]);
     return toolsNeeded;
+  }
+
+  /**
+   * Handle assignment operations intelligently
+   */
+  async handleAssignmentOperations(userMessage, toolResults) {
+    console.log('🔧 Handling assignment operations...');
+    
+    // Check if this is a multi-assignment request
+    const assignmentPatterns = [
+      /assign\s+staff\s+([A-Z0-9]+)\s+to\s+patient\s+([a-zA-Z\s]+)/i,
+      /assign\s+equipment\s+([a-zA-Z\s]+)\s+to\s+patient\s+([a-zA-Z\s]+)/i,
+      /assign\s+supplies?\s+([a-zA-Z\s]+)\s+to\s+patient\s+([a-zA-Z\s]+)/i,
+      /assign\s+bed\s+([A-Z0-9]+)\s+to\s+patient\s+([a-zA-Z\s]+)/i
+    ];
+    
+    let hasAssignments = false;
+    let assignments = [];
+    
+    // Extract all assignment requests
+    assignmentPatterns.forEach((pattern, index) => {
+      const match = userMessage.match(pattern);
+      if (match) {
+        hasAssignments = true;
+        const [fullMatch, resource, patientName] = match;
+        
+        switch (index) {
+          case 0: // Staff assignment
+            assignments.push({
+              type: 'staff',
+              resource: resource.trim(),
+              patientName: patientName.trim(),
+              message: fullMatch
+            });
+            break;
+          case 1: // Equipment assignment
+            assignments.push({
+              type: 'equipment',
+              resource: resource.trim(),
+              patientName: patientName.trim(),
+              message: fullMatch
+            });
+            break;
+          case 2: // Supply assignment
+            assignments.push({
+              type: 'supply',
+              resource: resource.trim(),
+              patientName: patientName.trim(),
+              message: fullMatch
+            });
+            break;
+          case 3: // Bed assignment
+            assignments.push({
+              type: 'bed',
+              resource: resource.trim(),
+              patientName: patientName.trim(),
+              message: fullMatch
+            });
+            break;
+        }
+      }
+    });
+    
+    if (!hasAssignments) {
+      return null; // Not an assignment operation
+    }
+    
+    console.log('🔧 Found assignments:', assignments);
+    
+    // Process each assignment
+    let results = [];
+    for (const assignment of assignments) {
+      try {
+        const result = await this.processAssignment(assignment);
+        results.push(result);
+      } catch (error) {
+        console.error(`❌ Error processing assignment ${assignment.type}:`, error);
+        results.push({
+          type: assignment.type,
+          success: false,
+          message: `Error: ${error.message}`
+        });
+      }
+    }
+    
+    return this.formatAssignmentResults(results);
+  }
+
+  /**
+   * Process a single assignment
+   */
+  async processAssignment(assignment) {
+    console.log(`🔧 Processing ${assignment.type} assignment...`);
+    
+    try {
+      // First, find the patient
+      const patientResponse = await this.callTool('search_patients', { name: assignment.patientName });
+      if (!patientResponse.success || !patientResponse.result?.data?.[0]) {
+        return {
+          type: assignment.type,
+          success: false,
+          message: `Patient ${assignment.patientName} not found`
+        };
+      }
+      
+      const patient = patientResponse.result.data[0];
+      const patientId = patient.id;
+      console.log(`✅ Found patient: ${patient.first_name} ${patient.last_name} (ID: ${patientId})`);
+      
+      // Process based on assignment type
+      switch (assignment.type) {
+        case 'staff':
+          return await this.assignStaffToPatient(assignment.resource, patientId);
+        case 'equipment':
+          return await this.assignEquipmentToPatient(assignment.resource, patientId);
+        case 'supply':
+          return await this.assignSupplyToPatient(assignment.resource, patientId);
+        case 'bed':
+          return await this.assignBedToPatient(assignment.resource, patientId);
+        default:
+          return {
+            type: assignment.type,
+            success: false,
+            message: `Unknown assignment type: ${assignment.type}`
+          };
+      }
+    } catch (error) {
+      console.error(`❌ Error in processAssignment:`, error);
+      return {
+        type: assignment.type,
+        success: false,
+        message: `Error: ${error.message}`
+      };
+    }
+  }
+
+  /**
+   * Assign staff to patient
+   */
+  async assignStaffToPatient(staffId, patientId) {
+    console.log(`🔧 Assigning staff ${staffId} to patient ${patientId}...`);
+    
+    try {
+      // If staffId looks like an employee ID (EMP001), find the actual staff UUID
+      let actualStaffId = staffId;
+      
+      if (staffId.startsWith('EMP')) {
+        const staffResponse = await this.callTool('list_staff', {});
+        if (staffResponse.success && staffResponse.result?.data) {
+          const staff = staffResponse.result.data.find(s => s.employee_id === staffId);
+          if (!staff) {
+            return {
+              type: 'staff',
+              success: false,
+              message: `Staff with employee ID ${staffId} not found`
+            };
+          }
+          actualStaffId = staff.id; // Use the UUID
+          console.log(`✅ Found staff: ${staff.first_name} ${staff.last_name} (UUID: ${actualStaffId})`);
+        } else {
+          return {
+            type: 'staff',
+            success: false,
+            message: 'Could not retrieve staff list'
+          };
+        }
+      }
+      
+      const response = await this.callTool('assign_staff_to_patient_simple', {
+        staff_id: actualStaffId,
+        patient_id: patientId,
+        assignment_type: 'primary_care'
+      });
+      
+      return {
+        type: 'staff',
+        success: response.success && response.result?.success,
+        message: response.result?.success ? 'Staff assigned successfully' : (response.result?.message || response.message || 'Assignment failed'),
+        details: response
+      };
+    } catch (error) {
+      return {
+        type: 'staff',
+        success: false,
+        message: `Error assigning staff: ${error.message}`
+      };
+    }
+  }
+
+  /**
+   * Assign equipment to patient
+   */
+  async assignEquipmentToPatient(equipmentName, patientId) {
+    console.log(`🔧 Assigning equipment ${equipmentName} to patient ${patientId}...`);
+    
+    try {
+      // First, find the equipment
+      const equipmentResponse = await this.callTool('list_equipment', {});
+      if (!equipmentResponse.success || !equipmentResponse.result?.data) {
+        return {
+          type: 'equipment',
+          success: false,
+          message: 'Could not retrieve equipment list'
+        };
+      }
+      
+      // Find equipment by name
+      const equipment = equipmentResponse.result.data.find(eq => 
+        eq.name.toLowerCase().includes(equipmentName.toLowerCase())
+      );
+      
+      if (!equipment) {
+        return {
+          type: 'equipment',
+          success: false,
+          message: `Equipment ${equipmentName} not found`
+        };
+      }
+      
+      if (equipment.status !== 'available') {
+        return {
+          type: 'equipment',
+          success: false,
+          message: `Equipment ${equipmentName} is not available (status: ${equipment.status})`
+        };
+      }
+      
+      // Get a staff member for the assignment
+      const staffResponse = await this.callTool('list_staff', {});
+      if (!staffResponse.success || !staffResponse.result?.data?.length) {
+        return {
+          type: 'equipment',
+          success: false,
+          message: 'No staff available for equipment assignment'
+        };
+      }
+      
+      const staff = staffResponse.result.data[0]; // Use first available staff
+      
+      // Assign the equipment using the working tool
+      const response = await this.callTool('add_equipment_usage_simple', {
+        equipment_id: equipment.id, // Use equipment UUID
+        patient_id: patientId,
+        staff_id: staff.id, // Use staff UUID
+        purpose: 'patient_care'
+      });
+      
+      return {
+        type: 'equipment',
+        success: response.success && response.result?.success,
+        message: response.result?.success ? `Equipment ${equipmentName} assigned successfully` : (response.result?.message || response.message || 'Assignment failed'),
+        details: response
+      };
+    } catch (error) {
+      return {
+        type: 'equipment',
+        success: false,
+        message: `Error assigning equipment: ${error.message}`
+      };
+    }
+  }
+
+  /**
+   * Assign supply to patient
+   */
+  async assignSupplyToPatient(supplyName, patientId) {
+    console.log(`🔧 Assigning supply ${supplyName} to patient ${patientId}...`);
+    
+    try {
+      // First, find the supply
+      const supplyResponse = await this.callTool('list_supplies', {});
+      if (!supplyResponse.success || !supplyResponse.result?.data) {
+        return {
+          type: 'supply',
+          success: false,
+          message: 'Could not retrieve supplies list'
+        };
+      }
+      
+      // Find supply by name
+      const supply = supplyResponse.result.data.find(sup => 
+        sup.name.toLowerCase().includes(supplyName.toLowerCase())
+      );
+      
+      if (!supply) {
+        return {
+          type: 'supply',
+          success: false,
+          message: `Supply ${supplyName} not found`
+        };
+      }
+      
+      if (supply.current_stock <= 0) {
+        return {
+          type: 'supply',
+          success: false,
+          message: `Supply ${supplyName} is out of stock`
+        };
+      }
+      
+      // Get a staff member to perform the transaction
+      const staffResponse = await this.callTool('list_staff', {});
+      if (!staffResponse.success || !staffResponse.result?.data?.length) {
+        return {
+          type: 'supply',
+          success: false,
+          message: 'No staff available for supply allocation'
+        };
+      }
+      
+      const staff = staffResponse.result.data[0]; // Use first available staff
+      
+      // Assign the supply using correct parameters
+      const response = await this.callTool('update_supply_stock', {
+        supply_id: supply.id,
+        quantity_change: -1, // Allocate 1 unit
+        transaction_type: 'ALLOCATION',
+        performed_by: staff.id,
+        notes: `Allocated to patient ${patientId}`
+      });
+      
+      return {
+        type: 'supply',
+        success: response.success,
+        message: response.success ? `Supply ${supplyName} allocated successfully` : (response.message || 'Allocation failed'),
+        details: response
+      };
+    } catch (error) {
+      return {
+        type: 'supply',
+        success: false,
+        message: `Error assigning supply: ${error.message}`
+      };
+    }
+  }
+
+  /**
+   * Assign bed to patient
+   */
+  async assignBedToPatient(bedNumber, patientId) {
+    console.log(`🔧 Assigning bed ${bedNumber} to patient ${patientId}...`);
+    
+    try {
+      // First, find the bed
+      const bedResponse = await this.callTool('get_bed_by_number', { bed_number: bedNumber });
+      if (!bedResponse.success || !bedResponse.result?.data) {
+        return {
+          type: 'bed',
+          success: false,
+          message: `Bed ${bedNumber} not found`
+        };
+      }
+      
+      const bed = bedResponse.result.data;
+      
+      if (bed.status !== 'available') {
+        return {
+          type: 'bed',
+          success: false,
+          message: `Bed ${bedNumber} is not available (status: ${bed.status})`
+        };
+      }
+      
+      // Assign the bed with correct date format
+      const response = await this.callTool('assign_bed_to_patient', {
+        bed_id: bed.id,
+        patient_id: patientId,
+        admission_date: new Date().toISOString().split('T')[0] // Use YYYY-MM-DD format
+      });
+      
+      return {
+        type: 'bed',
+        success: response.success && response.result?.success,
+        message: response.result?.success ? `Bed ${bedNumber} assigned successfully` : (response.result?.message || response.message || 'Assignment failed'),
+        details: response
+      };
+    } catch (error) {
+      return {
+        type: 'bed',
+        success: false,
+        message: `Error assigning bed: ${error.message}`
+      };
+    }
+  }
+
+  /**
+   * Format assignment results
+   */
+  formatAssignmentResults(results) {
+    let response = '## 🎯 **Assignment Results**\n\n';
+    
+    results.forEach(result => {
+      if (result.success) {
+        response += `✅ **${result.type.toUpperCase()} Assignment**: ${result.message}\n\n`;
+      } else {
+        response += `❌ **${result.type.toUpperCase()} Assignment**: ${result.message}\n\n`;
+      }
+    });
+    
+    return response;
+  }
+
+  /**
+   * Call a tool directly
+   */
+  async callTool(toolName, args) {
+    console.log(`🔧 CALLING TOOL: ${toolName} with args:`, args);
+    try {
+      const response = await fetch('http://localhost:8000/tools/call', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: {
+            name: toolName,
+            arguments: args
+          }
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      console.log(`🔧 TOOL RESPONSE for ${toolName}:`, result);
+      
+  if (result.result?.content?.[0]?.text) {
+        try {
+          const parsedContent = JSON.parse(result.result.content[0].text);
+          console.log(`🔧 PARSED CONTENT for ${toolName}:`, parsedContent);
+          return {
+            success: parsedContent.success || false,
+            message: parsedContent.message || '',
+            result: parsedContent.result || parsedContent
+          };
+        } catch {
+          console.log(`🔧 PARSE ERROR for ${toolName}, raw text:`, result.result.content[0].text);
+          return {
+            success: false,
+            message: 'Could not parse response',
+            result: result.result.content[0].text
+          };
+        }
+      }
+      
+      return {
+        success: false,
+        message: 'Invalid response format',
+        result: result
+      };
+  } catch (error) {
+      console.error(`❌ Error calling tool ${toolName}:`, error);
+      return {
+        success: false,
+        message: `Error: ${error.message}`,
+        result: null
+      };
+    }
   }
 
   /**
@@ -1319,8 +2061,9 @@ Respond naturally and helpfully based on the user's request and the tool results
     let response = "";
     
     toolResults.forEach(result => {
+      const toolName = result.tool || result.function; // Support both formats
       if (result.error) {
-        response += `❌ **Error with ${result.tool}**: ${result.error}\n\n`;
+        response += `❌ **Error with ${toolName}**: ${result.error}\n\n`;
       } else {
         // Handle both old format (result.result.content[0].text) and new direct format
         let data;
@@ -1339,16 +2082,16 @@ Respond naturally and helpfully based on the user's request and the tool results
         if (data) {
           try {
             if (Array.isArray(data) && data.length > 0) {
-              response += `✅ **${result.tool.replace('_', ' ').toUpperCase()}**\n\n`;
+              response += `✅ **${toolName.replace('_', ' ').toUpperCase()}**\n\n`;
               response += `Found ${data.length} record(s):\n\n`;
               
               // Check if this is a list tool and format accordingly
-              if (result.tool.startsWith('list_')) {
+              if (toolName.startsWith('list_')) {
                 data.forEach((item, index) => {
                   response += `**${index + 1}.** `;
                   
                   // Format based on tool type for brief responses
-                  switch (result.tool) {
+                  switch (toolName) {
                     case 'list_patients':
                       if (item.first_name && item.last_name) {
                         response += `${item.first_name} ${item.last_name}`;
@@ -1475,15 +2218,55 @@ Respond naturally and helpfully based on the user's request and the tool results
               }
               response += "\n";
             } else if (Array.isArray(data) && data.length === 0) {
-              response += `✅ **${result.tool.replace('_', ' ').toUpperCase()}**: No records found\n\n`;
+              response += `✅ **${toolName.replace('_', ' ').toUpperCase()}**: No records found\n\n`;
             } else {
-              response += `✅ **${result.tool.replace('_', ' ').toUpperCase()}**: ${JSON.stringify(data, null, 2)}\n\n`;
+              // Handle single object results
+              if (toolName === 'get_bed_status_with_time_remaining') {
+                // Special formatting for bed status
+                response += `🏥 **BED CLEANING STATUS**\n\n`;
+                if (data.success) {
+                  const bedData = data.result || data;
+                  response += `🛏️ **Bed:** ${bedData.bed_number || 'Unknown'}\n`;
+                  response += `📍 **Room:** ${bedData.room_number || 'Unknown'}\n`;
+                  response += `📊 **Current Status:** ${bedData.current_status || 'Unknown'}\n`;
+                  
+                  const processStatus = bedData.process_status || 'none';
+                  const timeRemaining = bedData.time_remaining_minutes || 0;
+                  const progress = bedData.progress_percentage || 0;
+                  
+                  if (processStatus === 'cleaning') {
+                    response += `🧽 **Process:** CLEANING IN PROGRESS\n`;
+                    response += `⏱️ **Time Remaining:** ${timeRemaining} minutes\n`;
+                    response += `📈 **Progress:** ${progress.toFixed(1)}%\n`;
+                    response += `\n💡 The bed is currently being cleaned and will be ready in ${timeRemaining} minutes.\n`;
+                  } else if (processStatus === 'initiated') {
+                    response += `🚀 **Process:** CLEANING INITIATED\n`;
+                    response += `⏱️ **Estimated Duration:** ${timeRemaining} minutes\n`;
+                    response += `📈 **Progress:** ${progress.toFixed(1)}%\n`;
+                    response += `\n💡 Cleaning process has been started and will begin shortly.\n`;
+                  } else if (processStatus === 'none') {
+                    response += `✅ **Process:** READY FOR USE\n`;
+                    response += `⏱️ **Wait Time:** 0 minutes\n`;
+                    response += `📈 **Status:** 100% Ready\n`;
+                    response += `\n💡 The bed is clean and available for immediate use.\n`;
+                  } else {
+                    response += `🔄 **Process:** ${processStatus.toUpperCase()}\n`;
+                    response += `⏱️ **Time Remaining:** ${timeRemaining} minutes\n`;
+                    response += `📈 **Progress:** ${progress.toFixed(1)}%\n`;
+                  }
+                } else {
+                  response += `❌ ${data.message || 'Unable to retrieve bed status'}\n`;
+                }
+                response += `\n`;
+              } else {
+                response += `✅ **${toolName.replace('_', ' ').toUpperCase()}**: ${JSON.stringify(data, null, 2)}\n\n`;
+              }
             }
           } catch {
-            response += `✅ **${result.tool.replace('_', ' ').toUpperCase()}**: ${typeof data === 'string' ? data : JSON.stringify(data)}\n\n`;
+            response += `✅ **${toolName.replace('_', ' ').toUpperCase()}**: ${typeof data === 'string' ? data : JSON.stringify(data)}\n\n`;
           }
         } else {
-          response += `✅ **${result.tool.replace('_', ' ').toUpperCase()}**: Operation completed successfully\n\n`;
+          response += `✅ **${toolName.replace('_', ' ').toUpperCase()}**: Operation completed successfully\n\n`;
         }
       }
     });
@@ -2180,13 +2963,24 @@ Respond naturally and helpfully based on the user's request and the tool results
    * Extract ID from message for various entity types
    */
   extractId(message, entityType) {
+    // Handle array input (for multiple entity types)
+    if (Array.isArray(entityType)) {
+      for (const type of entityType) {
+        const result = this.extractId(message, type);
+        if (result) return result;
+      }
+      return null;
+    }
+    
     const patterns = {
       'patient': [/patient\s+([A-Z0-9]+)/i, /pat([0-9]+)/i],
       'staff': [/staff\s+([A-Z0-9]+)/i, /emp([0-9]+)/i],
       'user': [/user\s+([A-Z0-9-]+)/i],
       'department': [/department\s+([A-Z0-9]+)/i, /dept\s+([A-Z0-9]+)/i],
       'doctor': [/doctor\s+([A-Z0-9]+)/i, /dr\s+([A-Z0-9]+)/i],
-      'equipment': [/equipment\s+([A-Z0-9]+)/i, /eq([0-9]+)/i]
+      'equipment': [/equipment\s+([A-Z0-9]+)/i, /eq([0-9]+)/i],
+      'bed': [/bed\s+([A-Z0-9]+)/i, /bed\s+([0-9]+)/i],
+      'supply': [/supply\s+([A-Z0-9]+)/i, /sup([0-9]+)/i]
     };
     
     const entityPatterns = patterns[entityType] || [];
@@ -2221,12 +3015,32 @@ Respond naturally and helpfully based on the user's request and the tool results
   }
 
   /**
+   * Validate if a string is a valid UUID
+   */
+  isValidUUID(str) {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(str);
+  }
+
+  /**
    * Extract bed assignment parameters
    */
   extractBedAssignmentParameters(message) {
     const params = {};
     params.bed_id = this.extractId(message, 'bed') || message.match(/bed\s+([A-Z0-9]+)/i)?.[1];
     params.patient_id = this.extractId(message, 'patient') || message.match(/patient\s+([A-Z0-9]+)/i)?.[1];
+    
+    // Extract patient name if no ID provided
+    if (!params.patient_id) {
+      const nameMatch = message.match(/patient\s+([a-zA-Z\s]+)/i) || 
+                       message.match(/([a-zA-Z\s]+)\s+patient/i) ||
+                       message.match(/to\s+([a-zA-Z\s]+)/i) ||
+                       message.match(/assign.*to\s+([a-zA-Z\s]+)/i);
+      if (nameMatch) {
+        params.patient_name = nameMatch[1].trim();
+      }
+    }
+    
     params.admission_date = this.extractDate(message);
     return params;
   }
@@ -2236,8 +3050,197 @@ Respond naturally and helpfully based on the user's request and the tool results
    */
   extractDischargeParameters(message) {
     const params = {};
+    
+    // Extract patient identifier (ID, name, or bed)
+    params.patient_id = this.extractId(message, 'patient');
     params.bed_id = this.extractId(message, 'bed') || message.match(/bed\s+([A-Z0-9]+)/i)?.[1];
-    params.discharge_date = this.extractDate(message);
+    
+    // Extract patient name if no ID provided
+    if (!params.patient_id && !params.bed_id) {
+      const nameMatch = message.match(/patient\s+([a-zA-Z\s]+)/i) || 
+                       message.match(/([a-zA-Z\s]+)\s+patient/i) ||
+                       message.match(/discharge\s+([a-zA-Z\s]+)/i);
+      if (nameMatch) {
+        params.patient_name = nameMatch[1].trim();
+      }
+    }
+    
+    // Extract discharge condition
+    const conditionMatch = message.match(/condition\s*:?\s*(stable|improved|critical|deceased)/i) ||
+                          message.match(/(stable|improved|critical|deceased)/i);
+    if (conditionMatch) {
+      params.discharge_condition = conditionMatch[1].toLowerCase();
+    }
+    
+    // Extract discharge destination
+    const destinationMatch = message.match(/destination\s*:?\s*(home|transfer|rehabilitation|nursing_home)/i) ||
+                            message.match(/(home|transfer|rehabilitation|nursing_home)/i);
+    if (destinationMatch) {
+      params.discharge_destination = destinationMatch[1].toLowerCase();
+    }
+    
+    return params;
+  }
+
+  /**
+   * Extract staff assignment parameters
+   */
+  extractStaffAssignmentParameters(message) {
+    const params = {};
+    
+    // Extract staff identifier - could be employee ID (EMP002) or UUID
+    const staffMatch = message.match(/staff\s+([A-Z0-9]+)/i) || message.match(/EMP([A-Z0-9]+)/i);
+    if (staffMatch) {
+      params.staff_id = staffMatch[1].toUpperCase();
+    } else {
+      params.staff_id = this.extractId(message, 'staff');
+    }
+    
+    // Extract patient identifier - could be name or UUID
+    params.patient_id = this.extractId(message, 'patient');
+    
+    // Extract patient name if no ID provided
+    if (!params.patient_id) {
+      const nameMatch = message.match(/patient\s+([a-zA-Z\s]+)/i) || 
+                       message.match(/([a-zA-Z\s]+)\s+patient/i) ||
+                       message.match(/to\s+([a-zA-Z\s]+)/i) ||
+                       message.match(/assign.*to\s+([a-zA-Z\s]+)/i);
+      if (nameMatch) {
+        params.patient_name = nameMatch[1].trim();
+      }
+    }
+    
+    return params;
+  }
+
+  /**
+   * Extract equipment assignment parameters
+   */
+  extractEquipmentAssignmentParameters(message) {
+    const params = {};
+    
+    // Extract equipment identifier - could be equipment ID (EQ001) or UUID
+    const equipMatch = message.match(/equipment\s+([A-Z0-9]+)/i) || message.match(/EQ([A-Z0-9]+)/i);
+    if (equipMatch) {
+      params.equipment_id = equipMatch[1].toUpperCase();
+    } else {
+      params.equipment_id = this.extractId(message, 'equipment');
+    }
+    
+    // Extract patient identifier - could be name or UUID
+    params.patient_id = this.extractId(message, 'patient');
+    
+    // Extract equipment name if no ID provided
+    if (!params.equipment_id) {
+      const nameMatch = message.match(/equipment\s+([a-zA-Z\s]+)/i) || 
+                       message.match(/([a-zA-Z\s]+)\s+equipment/i) ||
+                       message.match(/assign.*to\s+([a-zA-Z\s]+)/i);
+      if (nameMatch) {
+        params.equipment_name = nameMatch[1].trim();
+      }
+    }
+    
+    // Extract patient name if no ID provided
+    if (!params.patient_id) {
+      const nameMatch = message.match(/patient\s+([a-zA-Z\s]+)/i) || 
+                       message.match(/([a-zA-Z\s]+)\s+patient/i) ||
+                       message.match(/to\s+([a-zA-Z\s]+)/i) ||
+                       message.match(/assign.*to\s+([a-zA-Z\s]+)/i);
+      if (nameMatch) {
+        params.patient_name = nameMatch[1].trim();
+      }
+    }
+    
+    return params;
+  }
+
+  /**
+   * Extract supply assignment parameters
+   */
+  extractSupplyAssignmentParameters(message) {
+    const params = {};
+    
+    // Extract supply identifier - could be item code (MED001) or UUID
+    const supplyMatch = message.match(/supply\s+([A-Z0-9]+)/i) || message.match(/MED([A-Z0-9]+)/i);
+    if (supplyMatch) {
+      params.supply_id = supplyMatch[1].toUpperCase();
+    } else {
+      params.supply_id = this.extractId(message, 'supply');
+    }
+    
+    // Extract patient identifier - could be name or UUID
+    params.patient_id = this.extractId(message, 'patient');
+    
+    // Extract supply name if no ID provided
+    if (!params.supply_id) {
+      const nameMatch = message.match(/supply\s+([a-zA-Z\s]+)/i) || 
+                       message.match(/supplies\s+([a-zA-Z\s]+)/i) ||
+                       message.match(/([a-zA-Z\s]+)\s+supply/i) ||
+                       message.match(/assign.*to\s+([a-zA-Z\s]+)/i);
+      if (nameMatch) {
+        params.supply_name = nameMatch[1].trim();
+      }
+    }
+    
+    // Extract patient name if no ID provided
+    if (!params.patient_id) {
+      const nameMatch = message.match(/patient\s+([a-zA-Z\s]+)/i) || 
+                       message.match(/([a-zA-Z\s]+)\s+patient/i) ||
+                       message.match(/to\s+([a-zA-Z\s]+)/i) ||
+                       message.match(/assign.*to\s+([a-zA-Z\s]+)/i);
+      if (nameMatch) {
+        params.patient_name = nameMatch[1].trim();
+      }
+    }
+    
+    return params;
+  }
+
+  /**
+   * Extract discharge status parameters
+   */
+  extractDischargeStatusParameters(message) {
+    const params = {};
+    
+    // Extract patient identifier
+    params.patient_id = this.extractId(message, 'patient');
+    
+    // Extract patient name if no ID provided
+    if (!params.patient_id) {
+      const nameMatch = message.match(/patient\s+([a-zA-Z\s]+)/i) || 
+                       message.match(/([a-zA-Z\s]+)\s+patient/i) ||
+                       message.match(/status\s+of\s+([a-zA-Z\s]+)/i);
+      if (nameMatch) {
+        params.patient_name = nameMatch[1].trim();
+      }
+    }
+    
+    return params;
+  }
+
+  /**
+   * Extract bed status parameters
+   */
+  extractBedStatusParameters(message) {
+    const params = {};
+    
+    // Extract bed identifier (could be bed_id UUID or bed_number like "401A")
+    // First try to get from "bed" pattern
+    const bedMatch = message.match(/bed\s+([A-Z0-9-]+)/i);
+    if (bedMatch) {
+      params.bed_id = bedMatch[1];
+    } else {
+      // Try other patterns for bed identification
+      params.bed_id = this.extractId(message, 'bed');
+    }
+    
+    // Extract room number if mentioned
+    const roomMatch = message.match(/room\s+([A-Z0-9]+)/i);
+    if (roomMatch) {
+      params.room_number = roomMatch[1];
+    }
+    
+    console.log('🔍 Extracted bed status parameters:', params);
     return params;
   }
 

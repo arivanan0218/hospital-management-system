@@ -245,7 +245,7 @@ class InventoryAgent(BaseAgent):
             return {"error": f"Failed to get low stock supplies: {str(e)}"}
 
     def update_supply_stock(self, supply_id: str, quantity_change: int, transaction_type: str,
-                           performed_by: str, user_id: str = None, notes: str = None) -> Dict[str, Any]:
+                           performed_by: str = None, user_id: str = None, notes: str = None) -> Dict[str, Any]:
         """Update supply stock levels and log the transaction."""
         if not DATABASE_AVAILABLE:
             return {"success": False, "message": "Database not available"}
@@ -305,6 +305,8 @@ class InventoryAgent(BaseAgent):
                 }
             }
         except Exception as e:
+            db.rollback()
+            db.close()
             return {"success": False, "message": f"Failed to update supply stock: {str(e)}"}
 
     def update_supply(self, supply_id: str, name: str = None, unit_of_measure: str = None,
@@ -357,6 +359,8 @@ class InventoryAgent(BaseAgent):
             
             return {"success": True, "message": "Supply updated successfully", "data": result}
         except Exception as e:
+            db.rollback()
+            db.close()
             return {"success": False, "message": f"Failed to update supply: {str(e)}"}
 
     def list_inventory_transactions(self, supply_id: str = None, transaction_type: str = None,

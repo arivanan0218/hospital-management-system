@@ -13,9 +13,10 @@ const isMobileDevice = () => {
 };
 
 const DirectMCPChatbot = ({ user, onLogout }) => {
-  // Mobile-responsive CSS classes for consistent mobile experience
-  const mobileInputClass = "w-full px-3 py-3 sm:py-2 text-base sm:text-sm";
-  const mobileSelectClass = "w-full px-3 py-3 sm:py-2 text-base sm:text-sm";
+  // Mobile-responsive CSS classes for consistent mobile experience (reduced height)
+  // Reduced vertical padding and font size to make the chat input area shorter
+  const mobileInputClass = "w-full px-3 py-2 sm:py-1 text-sm sm:text-xs";
+  const mobileSelectClass = "w-full px-3 py-2 sm:py-1 text-sm sm:text-xs";
   
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
@@ -196,6 +197,17 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
     description: ''
   });
   const [isSubmittingSupplyCategory, setIsSubmittingSupplyCategory] = useState(false);
+  
+  // Discharge workflow popup form
+  const [showDischargeForm, setShowDischargeForm] = useState(false);
+  const [dischargeFormData, setDischargeFormData] = useState({
+    patient_id: '',
+    bed_id: '',
+    patient_name: '',
+    discharge_condition: 'stable',
+    discharge_destination: 'home'
+  });
+  const [isSubmittingDischarge, setIsSubmittingDischarge] = useState(false);
   
   // Dropdown options state for foreign keys
   const [departmentOptions, setDepartmentOptions] = useState([]);
@@ -1212,6 +1224,18 @@ Examples:
             setMessages(prev => [...prev, supplyCatMsg]);
             return;
             
+          case 'discharge_patient':
+            console.log('🏥 Opening Patient Discharge Workflow Form');
+            setShowDischargeForm(true);
+            const dischargeMsg = {
+              id: Date.now() + 1,
+              text: "I detected you want to discharge a patient! I've opened the comprehensive discharge workflow form for you. This will handle the complete discharge process including bed turnover and cleaning.",
+              sender: 'ai',
+              timestamp: new Date().toLocaleTimeString()
+            };
+            setMessages(prev => [...prev, dischargeMsg]);
+            return;
+            
           case 'create_legacy_user':
             console.log('👤 Opening Legacy User Creation Form');
             setShowLegacyUserForm(true);
@@ -1868,7 +1892,8 @@ Examples:
       } else {
         result += `\n💡 **Bed Actions:**\n`;
         result += `• Assign patient: "Assign bed [Number] to patient [ID]"\n`;
-        result += `• Discharge patient: "Discharge bed [Number]"\n`;
+        result += `• Discharge patient: "Discharge patient [Name/ID]" or "Discharge bed [Number]"\n`;
+        result += `• Check bed cleaning status: "Bed [Number] status" or "Is bed [Number] ready?"\n`;
         result += `• Create emergency bed: "Add emergency bed"\n`;
       }
       
@@ -2193,7 +2218,20 @@ Examples:
 - Date of Birth: ${patientData.date_of_birth || 'Not provided'}
 - Gender: ${patientData.gender || 'Not specified'}
 - Phone: ${patientData.phone || 'Not provided'}
-- Email: ${patientData.email || 'Not provided'}`;
+- Email: ${patientData.email || 'Not provided'}
+
+**Next Steps Required:**
+After admitting a patient, you need to:
+1. 🛏️ Assign a bed to the patient
+2. 👥 Assign staff (doctors/nurses) to the patient
+3. ⚙️ Assign equipment for patient care
+4. 📦 Assign supplies from inventory
+
+You can use these commands:
+• "Assign bed [bed_number] to patient [patient_name]"
+• "Assign staff [staff_name] to patient [patient_name]"
+• "Assign equipment [equipment_name] to patient [patient_name]"
+• "Assign supplies [supply_name] to patient [patient_name]"`;
       } else {
         // Error case
         responseText = `❌ Failed to create patient: ${response.message || 'Unknown error'}`;
@@ -3104,6 +3142,161 @@ Examples:
       timestamp: new Date().toLocaleTimeString()
     };
     setMessages(prev => [...prev, cancelMsg]);
+  };
+
+  // Discharge Form Handlers
+  const handleDischargeFormChange = (field, value) => {
+    setDischargeFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const submitDischarge = async () => {
+    // Validate required fields - need at least one identifier
+    const hasIdentifier = dischargeFormData.patient_id || dischargeFormData.bed_id || dischargeFormData.patient_name;
+    
+    if (!hasIdentifier) {
+      alert('Please provide at least one identifier: Patient ID, Bed ID, or Patient Name');
+      return;
+    }
+
+    setIsSubmittingDischarge(true);
+
+    try {
+      // Call the comprehensive discharge workflow
+      const response = await aiMcpServiceRef.current.callToolDirectly('discharge_patient_complete', {
+        patient_id: dischargeFormData.patient_id || undefined,
+        bed_id: dischargeFormData.bed_id || undefined,
+        patient_name: dischargeFormData.patient_name || undefined,
+        discharge_condition: dischargeFormData.discharge_condition,
+        discharge_destination: dischargeFormData.discharge_destination
+      });
+
+      // Close the form and show success message
+      setShowDischargeForm(false);
+      
+      // Reset form data
+      setDischargeFormData({
+        patient_id: '',
+        bed_id: '',
+        patient_name: '',
+        discharge_condition: 'stable',
+        discharge_destination: 'home'
+      });
+
+      // Add success message to chat
+      let responseText = '';
+      if (response.success) {
+        const dischargeData = response.result || response;
+        responseText = `✅ Patient discharged successfully!
+        
+**Discharge Summary:**
+- Patient: ${dischargeData.patient_id || 'Unknown'}
+- Bed: ${dischargeData.bed_id || 'Unknown'}
+- Status: Discharged
+- Bed Status: Cleaning (30 minutes)
+- Discharge Report: Generated and available for download
+
+**Next Steps:**
+${dischargeData.next_steps ? dischargeData.next_steps.map(step => `• ${step}`).join('\n') : '• Bed cleaning in progress\n• Report available for download'}`;
+      } else {
+        responseText = `❌ Failed to discharge patient: ${response.message || 'Unknown error'}`;
+      }
+
+      const successMsg = {
+        id: Date.now(),
+        text: responseText,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, successMsg]);
+
+    } catch (error) {
+      console.error('Error during discharge:', error);
+      
+      // Add error message to chat
+      const errorMsg = {
+        id: Date.now(),
+        text: `❌ Error during discharge: ${error.message || 'Unknown error occurred'}`,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setIsSubmittingDischarge(false);
+    }
+  };
+
+  const closeDischargeForm = () => {
+    setShowDischargeForm(false);
+    
+    // Add message indicating form was closed
+    const cancelMsg = {
+      id: Date.now(),
+      text: "Discharge form was closed. You can say 'discharge patient' anytime to open it again.",
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, cancelMsg]);
+  };
+
+  /**
+   * Check bed status with remaining cleaning time
+   */
+  const checkBedStatus = async (bedId) => {
+    try {
+      const response = await aiMcpServiceRef.current.callToolDirectly('get_bed_status_with_time_remaining', {
+        bed_id: bedId
+      });
+
+      let statusText = '';
+      if (response.success) {
+        const bedData = response.result || response;
+        if (bedData.process_status === 'cleaning') {
+          const remaining = bedData.time_remaining_minutes || 0;
+          const progress = bedData.progress_percentage || 0;
+          statusText = `🛏️ **Bed ${bedData.bed_number} Status:**
+          
+**Current Status:** ${bedData.current_status}
+**Process:** Cleaning in progress
+**Time Remaining:** ${remaining} minutes
+**Progress:** ${Math.round(progress)}%
+**Room:** ${bedData.room_number}
+**Estimated Completion:** ${bedData.estimated_completion ? new Date(bedData.estimated_completion).toLocaleTimeString() : 'Unknown'}
+
+⏰ This bed will be automatically available in ${remaining} minutes when cleaning is complete.`;
+        } else {
+          statusText = `🛏️ **Bed ${bedData.bed_number} Status:**
+          
+**Current Status:** ${bedData.current_status}
+**Room:** ${bedData.room_number}
+**Process Status:** ${bedData.process_status || 'None'}
+
+✅ This bed is ready for use.`;
+        }
+      } else {
+        statusText = `❌ Failed to get bed status: ${response.message || 'Unknown error'}`;
+      }
+
+      const statusMsg = {
+        id: Date.now(),
+        text: statusText,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, statusMsg]);
+
+    } catch (error) {
+      console.error('Error checking bed status:', error);
+      const errorMsg = {
+        id: Date.now(),
+        text: `❌ Error checking bed status: ${error.message || 'Unknown error occurred'}`,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    }
   };
 
   // Setup Panel - Dark Chatbot Style
@@ -5319,6 +5512,97 @@ Examples:
               <button onClick={closeSupplyCategoryForm} disabled={isSubmittingSupplyCategory} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
               <button onClick={submitSupplyCategory} disabled={isSubmittingSupplyCategory} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
                 {isSubmittingSupplyCategory ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating Category...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create Category</span></>)}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Discharge Workflow Form Popup */}
+      {showDischargeForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-xl max-h-[90vh] overflow-y-auto">
+            <div className="border-b border-gray-700 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-white">Patient Discharge Workflow</h2>
+                <button onClick={closeDischargeForm} className="text-gray-400 hover:text-white">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Patient ID (Optional)</label>
+                  <input
+                    type="text"
+                    value={dischargeFormData.patient_id}
+                    onChange={(e) => handleDischargeFormChange('patient_id', e.target.value)}
+                    className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                    placeholder="Patient UUID"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Bed ID (Optional)</label>
+                  <input
+                    type="text"
+                    value={dischargeFormData.bed_id}
+                    onChange={(e) => handleDischargeFormChange('bed_id', e.target.value)}
+                    className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                    placeholder="Bed UUID"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Patient Name (Optional)</label>
+                <input
+                  type="text"
+                  value={dischargeFormData.patient_name}
+                  onChange={(e) => handleDischargeFormChange('patient_name', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  placeholder="First Name or Last Name (partial match)"
+                />
+                <p className="text-xs text-gray-400 mt-1">Provide at least one identifier above</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Discharge Condition</label>
+                  <select
+                    value={dischargeFormData.discharge_condition}
+                    onChange={(e) => handleDischargeFormChange('discharge_condition', e.target.value)}
+                    className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="stable">Stable</option>
+                    <option value="improved">Improved</option>
+                    <option value="critical">Critical</option>
+                    <option value="deceased">Deceased</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Discharge Destination</label>
+                  <select
+                    value={dischargeFormData.discharge_destination}
+                    onChange={(e) => handleDischargeFormChange('discharge_destination', e.target.value)}
+                    className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="home">Home</option>
+                    <option value="transfer">Transfer to Another Facility</option>
+                    <option value="rehabilitation">Rehabilitation Center</option>
+                    <option value="nursing_home">Nursing Home</option>
+                  </select>
+                </div>
+              </div>
+              <div className="bg-blue-900/20 border border-blue-800 rounded-lg p-3">
+                <p className="text-sm text-blue-300">
+                  <strong>Workflow:</strong> This will discharge the patient, generate a comprehensive report, 
+                  start bed cleaning (30 minutes), and automatically update bed status when cleaning is complete.
+                </p>
+              </div>
+            </div>
+            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
+              <button onClick={closeDischargeForm} disabled={isSubmittingDischarge} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
+              <button onClick={submitDischarge} disabled={isSubmittingDischarge} className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
+                {isSubmittingDischarge ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Processing Discharge...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Complete Discharge</span></>)}
               </button>
             </div>
           </div>

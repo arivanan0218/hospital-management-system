@@ -9,12 +9,12 @@ and discharge recommendations.
 
 import json
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import Dict, List, Any, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from database import (
     SessionLocal, Patient, Bed, User, Staff, Equipment,
-    TreatmentRecord, EquipmentUsage, StaffAssignment, DischargeReport
+    TreatmentRecord, EquipmentUsage, StaffAssignment, DischargeReport, Room, Department
 )
 
 class PatientDischargeReportGenerator:
@@ -30,14 +30,18 @@ class PatientDischargeReportGenerator:
                                 discharge_destination: str = "home",
                                 discharge_instructions: str = "",
                                 follow_up_required: str = "",
-                                generated_by_user_id: str = None) -> Dict[str, Any]:
+                                generated_by_user_id: str = None,
+                                patient_id: str = None) -> Dict[str, Any]:
         """
         Generate a comprehensive discharge report for a patient.
         """
         
         try:
-            # Get bed information
-            bed = self.session.query(Bed).filter(Bed.id == uuid.UUID(bed_id)).first()
+            # Get bed information with eager-loaded relationships
+            bed = (self.session.query(Bed)
+                   .options(joinedload(Bed.room).joinedload(Room.department))
+                   .filter(Bed.id == uuid.UUID(bed_id))
+                   .first())
             if not bed:
                 return {"success": False, "message": "Bed not found"}
             
@@ -45,38 +49,61 @@ class PatientDischargeReportGenerator:
             patient = None
             admission_date = None
             
-            if bed.patient_id:
-                # Bed is currently occupied
-                patient = bed.patient
-                admission_date = bed.admission_date
-            else:
-                # Bed is available, check if it was recently discharged
-                # Look for the most recent patient assignment through historical data
-                patient = self._find_recent_patient_for_bed(bed_id)
+            # If a patient_id is explicitly provided, use that as authoritative
+            if patient_id:
+                try:
+                    patient = self.session.query(Patient).filter(Patient.id == uuid.UUID(patient_id)).first()
+                except Exception:
+                    patient = None
                 if patient:
                     admission_date = self._find_admission_date_for_patient_bed(patient.id, bed_id)
+            
+            if not patient:
+                if bed.patient_id:
+                    # Bed is currently occupied
+                    patient = bed.patient
+                    admission_date = bed.admission_date
+                else:
+                    # Bed is available, check if it was recently discharged
+                    patient = self._find_recent_patient_for_bed(bed_id)
+                    if patient and not admission_date:
+                        admission_date = self._find_admission_date_for_patient_bed(patient.id, bed_id)
                 
             if not patient:
                 return {"success": False, "message": "No patient found for this bed (current or recent)"}
             
-            # Use discharge date from bed if available, otherwise use current time
-            if bed.discharge_date:
-                discharge_date = bed.discharge_date
-            else:
-                discharge_date = discharge_date or datetime.now()
+            # Admission date fallback if still missing
+            if not admission_date:
+                admission_date = bed.admission_date or (datetime.now() - timedelta(days=1))
             
-            discharge_date = discharge_date or datetime.now()
-            admission_date = bed.admission_date or datetime.now() - timedelta(days=1)
-            length_of_stay = (discharge_date - admission_date).days
+            # Determine discharge date with correct precedence and type handling
+            if discharge_date is not None:
+                final_discharge_dt = discharge_date
+            elif getattr(bed, 'discharge_date', None):
+                bd = bed.discharge_date
+                # If we have a datetime at midnight (likely from a date-only set), adjust to current time
+                if isinstance(bd, datetime) and bd.time().hour == 0 and bd.time().minute == 0 and bd.time().second == 0:
+                    final_discharge_dt = datetime.combine(bd.date(), datetime.now().time())
+                elif isinstance(bd, date) and not isinstance(bd, datetime):
+                    final_discharge_dt = datetime.combine(bd, datetime.now().time())
+                else:
+                    final_discharge_dt = bd
+            else:
+                final_discharge_dt = datetime.now()
+            
+            # Normalize LOS using date-only difference to avoid 0-days due to times
+            los_days = (final_discharge_dt.date() - admission_date.date()).days
+            if los_days < 0:
+                los_days = 0
             
             # Generate report sections
             report_data = {
-                "patient_summary": self._get_patient_summary(patient, bed, admission_date, discharge_date),
-                "treatment_summary": self._get_treatment_summary(patient.id, admission_date, discharge_date),
-                "equipment_summary": self._get_equipment_summary(patient.id, admission_date, discharge_date),
-                "staff_summary": self._get_staff_summary(patient.id, admission_date, discharge_date),
-                "medications": self._get_medications_summary(patient.id, admission_date, discharge_date),
-                "procedures": self._get_procedures_summary(patient.id, admission_date, discharge_date)
+                "patient_summary": self._get_patient_summary(patient, bed, admission_date, final_discharge_dt),
+                "treatment_summary": self._get_treatment_summary(patient.id, admission_date, final_discharge_dt),
+                "equipment_summary": self._get_equipment_summary(patient.id, admission_date, final_discharge_dt),
+                "staff_summary": self._get_staff_summary(patient.id, admission_date, final_discharge_dt),
+                "medications": self._get_medications_summary(patient.id, admission_date, final_discharge_dt),
+                "procedures": self._get_procedures_summary(patient.id, admission_date, final_discharge_dt)
             }
             
             # Create discharge report record
@@ -84,10 +111,7 @@ class PatientDischargeReportGenerator:
             
             # Get or find a user for generated_by
             if not generated_by_user_id:
-                # Try to find a doctor or any user as fallback
-                default_user = self.session.query(User).filter(User.role == 'doctor').first()
-                if not default_user:
-                    default_user = self.session.query(User).first()
+                default_user = self.session.query(User).filter(User.role == 'doctor').first() or self.session.query(User).first()
                 if default_user:
                     generated_by_user_id = str(default_user.id)
             
@@ -97,8 +121,8 @@ class PatientDischargeReportGenerator:
                 generated_by=uuid.UUID(generated_by_user_id) if generated_by_user_id else None,
                 report_number=report_number,
                 admission_date=admission_date,
-                discharge_date=discharge_date,
-                length_of_stay_days=length_of_stay,
+                discharge_date=final_discharge_dt,
+                length_of_stay_days=los_days,
                 patient_summary=json.dumps(report_data["patient_summary"]),
                 treatment_summary=json.dumps(report_data["treatment_summary"]),
                 equipment_summary=json.dumps(report_data["equipment_summary"]),
@@ -131,7 +155,37 @@ class PatientDischargeReportGenerator:
             return {"success": False, "message": f"Failed to generate discharge report: {str(e)}"}
         finally:
             self.session.close()
-    
+
+    def _get_bed_context(self, bed) -> Dict[str, Any]:
+        """Safely resolve bed number, room number, department name, and bed type even if relationships aren't eager-loaded."""
+        bed_number = getattr(bed, 'bed_number', None)
+        bed_type = getattr(bed, 'bed_type', None)
+        room_number = None
+        department_name = None
+        try:
+            # Try relationship first
+            if getattr(bed, 'room', None):
+                room_number = getattr(bed.room, 'room_number', None)
+                if getattr(bed.room, 'department', None):
+                    department_name = getattr(bed.room.department, 'name', None)
+            # Fallback to explicit queries
+            if (room_number is None or department_name is None) and getattr(bed, 'room_id', None):
+                room = self.session.query(Room).filter(Room.id == bed.room_id).first()
+                if room:
+                    room_number = room_number or room.room_number
+                    if getattr(room, 'department_id', None):
+                        dept = self.session.query(Department).filter(Department.id == room.department_id).first()
+                        if dept:
+                            department_name = department_name or dept.name
+        except Exception:
+            pass
+        return {
+            "bed_number": bed_number,
+            "room": room_number,
+            "bed_type": bed_type,
+            "department": department_name
+        }
+
     def _get_patient_summary(self, patient, bed, admission_date, discharge_date) -> Dict[str, Any]:
         """Get patient demographic and admission summary."""
         # Ensure dates are datetime objects
@@ -140,10 +194,13 @@ class PatientDischargeReportGenerator:
         if isinstance(discharge_date, str):
             discharge_date = datetime.fromisoformat(discharge_date)
             
-        # Calculate length of stay safely
-        length_of_stay = (discharge_date - admission_date).days
+        # Calculate length of stay safely using date-only difference
+        length_of_stay = (discharge_date.date() - admission_date.date()).days
         if length_of_stay < 0:
             length_of_stay = 0
+        
+        # Resolve bed context robustly
+        bed_info = self._get_bed_context(bed) if bed else {"bed_number": None, "room": None, "bed_type": None, "department": None}
         
         return {
             "patient_id": str(patient.id),
@@ -157,12 +214,13 @@ class PatientDischargeReportGenerator:
                 "name": patient.emergency_contact_name,
                 "phone": patient.emergency_contact_phone
             },
-            "bed_info": {
-                "bed_number": bed.bed_number,
-                "room": bed.room.room_number if bed.room else None,
-                "bed_type": bed.bed_type,
-                "department": bed.room.department.name if bed.room and bed.room.department else None
-            },
+            # Top-level fields for markdown generator compatibility
+            "bed_number": bed_info.get("bed_number"),
+            "room_number": bed_info.get("room"),
+            "department": bed_info.get("department"),
+            "bed_type": bed_info.get("bed_type"),
+            # Preserve nested bed_info as well
+            "bed_info": bed_info,
             "admission_date": admission_date.isoformat(),
             "discharge_date": discharge_date.isoformat(),
             "length_of_stay_days": length_of_stay
@@ -410,6 +468,23 @@ class PatientDischargeReportGenerator:
     def _find_recent_patient_for_bed(self, bed_id: str) -> Optional[Patient]:
         """Find the most recent patient who was assigned to this bed."""
         try:
+            # Primary fallback: check bed turnover logs for the most recent previous patient
+            try:
+                from database import BedTurnover  # local import to avoid circular refs at module load
+                recent_turnover = (self.session.query(BedTurnover)
+                                   .filter(BedTurnover.bed_id == uuid.UUID(bed_id))
+                                   .order_by(BedTurnover.discharge_time.desc())
+                                   .first())
+                if recent_turnover and recent_turnover.previous_patient_id:
+                    patient = self.session.query(Patient).filter(
+                        Patient.id == recent_turnover.previous_patient_id
+                    ).first()
+                    if patient:
+                        return patient
+            except Exception as e:
+                # Continue with legacy fallbacks
+                print(f"Turnover fallback lookup failed: {e}")
+
             # Look through treatment records for recent activity on this bed
             recent_treatment = (self.session.query(TreatmentRecord)
                               .filter(TreatmentRecord.bed_id == uuid.UUID(bed_id))
@@ -448,7 +523,7 @@ class PatientDischargeReportGenerator:
         except Exception as e:
             print(f"Error finding recent patient: {e}")
             return None
-    
+
     def _find_admission_date_for_patient_bed(self, patient_id: uuid.UUID, bed_id: str) -> Optional[datetime]:
         """Find the admission date for a patient on a specific bed."""
         try:
@@ -492,12 +567,13 @@ class PatientDischargeReportGenerator:
             if earliest_assignment:
                 return earliest_assignment.created_at
             
-            # Default to a reasonable estimate (1 day before discharge)
+            # Default to a reasonable estimate (1 day before now)
             return datetime.now() - timedelta(days=1)
             
         except Exception as e:
             print(f"Error finding admission date: {e}")
-            return datetime.now() - timedelta(days=1).strip()
+            # Default fallback without invalid .strip()
+            return datetime.now() - timedelta(days=1)
 
 # Convenience function for easy import
 def generate_patient_discharge_report(**kwargs):
