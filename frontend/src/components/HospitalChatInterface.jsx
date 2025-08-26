@@ -458,7 +458,7 @@ const HospitalChatInterface = ({
                   handleSendMessage();
                 }
               }}
-              placeholder={isConnected ? "Ask about patients, beds, staff, equipment...\n\nShift+Enter for new line\nEnter to send" : "Connecting..."}
+              placeholder={isConnected ? "Ask about patients, beds, staff, equipment..." : "Connecting..."}
               disabled={!isConnected || isLoading}
               className="flex-1 bg-transparent text-white placeholder-gray-400 focus:outline-none text-sm resize-none overflow-y-auto"
               style={{
