@@ -49,6 +49,7 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   // Patient admission popup form
   const [showPatientAdmissionForm, setShowPatientAdmissionForm] = useState(false);
   const [admissionFormData, setAdmissionFormData] = useState({
+    patient_number: '',
     first_name: '',
     last_name: '',
     date_of_birth: '',
@@ -2152,6 +2153,7 @@ Examples:
     try {
       // Call the MCP tool directly to create the patient (bypass AI processing)
       const response = await aiMcpServiceRef.current.callToolDirectly('create_patient', {
+        patient_number: admissionFormData.patient_number || undefined, // Only send if provided
         first_name: admissionFormData.first_name,
         last_name: admissionFormData.last_name,
         date_of_birth: admissionFormData.date_of_birth,
@@ -2174,6 +2176,7 @@ Examples:
       
       // Reset form data
       setAdmissionFormData({
+        patient_number: '',
         first_name: '',
         last_name: '',
         date_of_birth: '',
@@ -4260,6 +4263,19 @@ ${dischargeData.next_steps ? dischargeData.next_steps.map(step => `• ${step}`)
               <div>
                 <h3 className="text-lg font-medium text-white mb-4">Required Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Patient Number <span className="text-gray-500">(Optional - auto-generated if blank)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={admissionFormData.patient_number}
+                      onChange={(e) => handleAdmissionFormChange('patient_number', e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter patient number (e.g., P123456) or leave blank for auto-generation"
+                    />
+                  </div>
+                  <div></div> {/* Empty div for spacing */}
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">
                       First Name <span className="text-red-400">*</span>
