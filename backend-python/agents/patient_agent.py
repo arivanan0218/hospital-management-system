@@ -127,14 +127,24 @@ class PatientAgent(BaseAgent):
         except Exception as e:
             return {"success": False, "message": f"Failed to create patient: {str(e)}"}
 
-    def list_patients(self) -> Dict[str, Any]:
-        """List all patients with brief information only."""
+    def list_patients(self, status: str = "all") -> Dict[str, Any]:
+        """List patients with optional status filtering.
+        
+        Args:
+            status: Filter by patient status - "active", "discharged", "all" (default: all)
+        """
         if not DATABASE_AVAILABLE:
             return {"error": "Database not available"}
         
         try:
             db = self.get_db_session()
-            patients = db.query(Patient).all()
+            query = db.query(Patient)
+            
+            # Apply status filter
+            if status and status != "all":
+                query = query.filter(Patient.status == status)
+            
+            patients = query.order_by(Patient.created_at.desc()).all()
             
             # Return only essential information for list views
             result = []
@@ -145,7 +155,9 @@ class PatientAgent(BaseAgent):
                     "last_name": patient.last_name,
                     "patient_number": patient.patient_number,
                     "phone": patient.phone,  # Keep for contact purposes
-                    "date_of_birth": patient.date_of_birth.isoformat() if patient.date_of_birth else None
+                    "date_of_birth": patient.date_of_birth.isoformat() if patient.date_of_birth else None,
+                    "status": patient.status,
+                    "last_updated": patient.updated_at.isoformat() if patient.updated_at else None
                 }
                 result.append(brief_info)
             
@@ -153,12 +165,12 @@ class PatientAgent(BaseAgent):
             
             # Log the interaction
             self.log_interaction(
-                query="List all patients",
+                query=f"List patients with status filter: {status}",
                 response=f"Found {len(result)} patients",
                 tool_used="list_patients"
             )
             
-            return {"data": result}
+            return {"data": result, "status_filter": status, "total_count": len(result)}
         except Exception as e:
             return {"error": f"Failed to list patients: {str(e)}"}
 
