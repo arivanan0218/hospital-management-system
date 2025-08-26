@@ -708,6 +708,23 @@ class DirectHttpAIMCPService {
           "7. Notes (optional): Any additional details or context about the equipment's usage.\n\n" +
           "Please provide these details in your response.";
 
+      case '_ask_for_equipment_usage_details':
+        return "To add a record of equipment usage, please provide the following details:\n\n" +
+          "1. Patient Number (e.g., 'P002'): The unique identifier of the patient.\n" +
+          "2. Employee ID (e.g., 'EMP001'): The unique identifier of the staff member.\n" +
+          "3. Equipment ID (e.g., 'EQ001'): The unique identifier of the equipment.\n" +
+          "4. Purpose: The reason for using the equipment (e.g., 'ECG monitoring during cardiac evaluation').\n" +
+          "5. Start Time (YYYY-MM-DD HH:MM): When the equipment usage started.\n" +
+          "6. End Time (YYYY-MM-DD HH:MM, optional): When the equipment usage ended.\n" +
+          "7. Notes (optional): Any additional details.\n\n" +
+          "**Example format:**\n" +
+          "Equipment ID: EQ001\n" +
+          "Employee ID: EMP001\n" +
+          "Patient Number: P002\n" +
+          "Purpose: ECG monitoring during cardiac evaluation\n" +
+          "Usage Start Date and Time: 2025-08-25 09:15\n" +
+          "Usage End Date and Time: 2025-08-25 10:00";
+
       // Add more intelligent prompts for other incomplete requests
       default:
         return "Please provide the required information for this operation.";
@@ -1243,6 +1260,21 @@ Respond naturally, conversationally, and contextually based on the conversation 
         return [{ name: '_ask_for_equipment_details', needsInput: true }];
       }
     }
+
+    // Equipment usage tracking operations - detect "add equipment usage"
+    if (message.includes('add equipment usage') || message.includes('equipment usage') || 
+        message.includes('record equipment') || message.includes('track equipment')) {
+      if (this.containsStructuredData(userMessage)) {
+        const structuredTool = this.parseStructuredInput(userMessage);
+        if (structuredTool && structuredTool.name === 'add_equipment_usage_by_codes') {
+          toolsNeeded.push(structuredTool);
+        } else {
+          return [{ name: '_ask_for_equipment_usage_details', needsInput: true }];
+        }
+      } else {
+        return [{ name: '_ask_for_equipment_usage_details', needsInput: true }];
+      }
+    }
     
     // Supply operations
     if (message.includes('list supplies') || message.includes('show supplies') || message.includes('all supplies') || message.includes('supplies')) {
@@ -1407,10 +1439,10 @@ Respond naturally, conversationally, and contextually based on the conversation 
       // If we have both equipment_id and patient_id, we can assign directly
       if (equipAssignParams.equipment_id && equipAssignParams.patient_id) {
         toolsNeeded.push({ 
-          name: 'add_equipment_usage_simple', 
+          name: 'add_equipment_usage_by_codes', 
           arguments: {
             ...equipAssignParams,
-            staff_id: 'EMP002', // Add required parameter
+            employee_id: 'EMP002', // Add required parameter
             purpose: 'patient_care' // Add required parameter
           }
         });
@@ -1743,10 +1775,10 @@ Respond naturally, conversationally, and contextually based on the conversation 
       const staff = staffResponse.result.data[0]; // Use first available staff
       
       // Assign the equipment using the working tool
-      const response = await this.callTool('add_equipment_usage_simple', {
-        equipment_id: equipment.id, // Use equipment UUID
-        patient_id: patientId,
-        staff_id: staff.id, // Use staff UUID
+      const response = await this.callTool('add_equipment_usage_by_codes', {
+        patient_number: patient.patient_number, // Use patient number
+        equipment_id: equipment.equipment_id, // Use equipment code  
+        employee_id: staff.employee_id, // Use staff employee code
         purpose: 'patient_care'
       });
       
@@ -4054,6 +4086,8 @@ Respond naturally and helpfully based on the user's request and the tool results
     
     // Create system prompt without complex template literals - COMPLETE VERSION WITH ALL PROMPTS
     const systemPrompt = [
+      "� IMPORTANT: For equipment usage, always use 'add_equipment_usage_with_codes' (prevents UUID errors)",
+      "",
       "You are Hospital AI, an advanced AI assistant specialized in comprehensive hospital management.",
       "You're connected to a real hospital management system through MCP (Model Context Protocol).",
       "",
@@ -4345,6 +4379,21 @@ Respond naturally and helpfully based on the user's request and the tool results
       "User: 'List all patients' → Call list_patients tool directly and display results",
       "User: 'Assign bed 101 to patient John Doe' → First search for patient, then call assign_bed_to_patient tool",
       "",
+      "**Equipment Usage Tool Selection:**",
+      "✅ ALWAYS use 'add_equipment_usage_with_codes' for equipment usage operations",
+      "- This tool automatically converts codes like P002, EQ001, EMP001 to internal UUIDs",
+      "- It prevents UUID formatting errors and works with both codes and UUIDs",
+      "- This is the preferred method for all equipment usage recording",
+      "",
+      "**Equipment Usage Examples:**",
+      "✅ User: 'Record equipment usage: EQ001 used by EMP001 for patient P002'",
+      "   → Use add_equipment_usage_with_codes with patient_id='P002', equipment_id='EQ001', staff_id='EMP001'",
+      "",
+      "✅ For ANY equipment usage request, use add_equipment_usage_with_codes",
+      "   → This tool handles code-to-UUID conversion automatically",
+      "",
+      "� Note: The system will automatically redirect to the correct tool if needed",
+      "",
       "Use the available functions to help users with hospital management tasks."
     ].join('\n');
 
@@ -4458,8 +4507,14 @@ Respond naturally and helpfully based on the user's request and the tool results
     const toolCalls = gptResponse.choices[0].message.tool_calls || [];
 
     for (const toolCall of toolCalls) {
-      const functionName = toolCall.function.name;
+      let functionName = toolCall.function.name;
       const functionArgs = JSON.parse(toolCall.function.arguments);
+
+      // 🚨 CRITICAL REDIRECT: Prevent UUID errors by redirecting problematic tool
+      if (functionName === 'add_equipment_usage_simple') {
+        console.warn('🚨 REDIRECTING: add_equipment_usage_simple → add_equipment_usage_with_codes (prevents UUID errors)');
+        functionName = 'add_equipment_usage_with_codes';
+      }
 
       console.log(`🔧 Executing function: ${functionName}`, functionArgs);
 
@@ -4470,7 +4525,7 @@ Respond naturally and helpfully based on the user's request and the tool results
         console.log(`✅ Function ${functionName} completed:`, result);
 
         results.push({
-          function: functionName,
+          function: functionName, // Use the (possibly redirected) function name
           arguments: functionArgs,
           result: result,
           tool_call_id: toolCall.id
