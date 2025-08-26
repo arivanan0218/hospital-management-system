@@ -9,6 +9,7 @@ import UserCreationForm from './UserCreationForm.jsx';
 import StaffCreationForm from './StaffCreationForm.jsx';
 import DepartmentCreationForm from './DepartmentCreationForm.jsx';
 import RoomCreationForm from './RoomCreationForm.jsx';
+import EquipmentCreationForm from './EquipmentCreationForm.jsx';
 
 const DirectMCPChatbot = ({ user, onLogout }) => {
   // Mobile-responsive CSS classes for consistent mobile experience (reduced height)
@@ -84,23 +85,6 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   
   // Equipment creation popup form
   const [showEquipmentForm, setShowEquipmentForm] = useState(false);
-  const [equipmentFormData, setEquipmentFormData] = useState({
-    equipment_id: '', // Unique equipment ID
-    name: '',
-    category_id: '', // Foreign key to equipment_categories table
-    model: '',
-    manufacturer: '',
-    serial_number: '',
-    purchase_date: '',
-    warranty_expiry: '',
-    location: '',
-    department_id: '', // Foreign key to departments table
-    status: 'available', // available, in_use, maintenance, out_of_order
-    last_maintenance: '',
-    next_maintenance: '',
-    cost: '',
-    notes: ''
-  });
   const [isSubmittingEquipment, setIsSubmittingEquipment] = useState(false);
   
   // Supply creation popup form
@@ -2387,96 +2371,31 @@ You can use these commands:
   };
 
   // Equipment Form Handlers
-  const handleEquipmentFormChange = (field, value) => {
-    setEquipmentFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  const submitEquipment = async () => {
-    const requiredFields = ['equipment_id', 'name', 'category_id'];
-    const missingFields = requiredFields.filter(field => !equipmentFormData[field].trim());
+  const handleEquipmentSubmit = (response) => {
+    setShowEquipmentForm(false);
     
-    if (missingFields.length > 0) {
-      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
-      return;
-    }
-
-    setIsSubmittingEquipment(true);
-
-    try {
-      const response = await aiMcpServiceRef.current.callToolDirectly('create_equipment', {
-        equipment_id: equipmentFormData.equipment_id,
-        name: equipmentFormData.name,
-        category_id: equipmentFormData.category_id,
-        model: equipmentFormData.model,
-        manufacturer: equipmentFormData.manufacturer,
-        serial_number: equipmentFormData.serial_number,
-        purchase_date: equipmentFormData.purchase_date,
-        warranty_expiry: equipmentFormData.warranty_expiry,
-        location: equipmentFormData.location,
-        department_id: equipmentFormData.department_id,
-        status: equipmentFormData.status,
-        last_maintenance: equipmentFormData.last_maintenance,
-        next_maintenance: equipmentFormData.next_maintenance,
-        cost: equipmentFormData.cost ? parseFloat(equipmentFormData.cost) : undefined,
-        notes: equipmentFormData.notes
-      });
-
-      setShowEquipmentForm(false);
-      setEquipmentFormData({
-        equipment_id: '',
-        name: '',
-        category_id: '',
-        model: '',
-        manufacturer: '',
-        serial_number: '',
-        purchase_date: '',
-        warranty_expiry: '',
-        location: '',
-        department_id: '',
-        status: 'available',
-        cost: '',
-        notes: ''
-      });
-
-      let responseText = '';
-      if (response.success) {
-        const equipmentData = response.result?.data || response.data || {};
-        responseText = `✅ Equipment created successfully!
-        
+    let responseText = '';
+    if (response.success) {
+      const equipmentData = response.result?.data || response.data || {};
+      responseText = `✅ Equipment created successfully!
+      
 **Equipment Details:**
-- Equipment ID: ${equipmentData.equipment_id}
-- Name: ${equipmentData.name}
+- Equipment ID: ${equipmentData.equipment_id || 'Unknown'}
+- Name: ${equipmentData.name || 'Unknown'}
 - Model: ${equipmentData.model || 'Not specified'}
 - Location: ${equipmentData.location || 'Not specified'}
-- Status: ${equipmentData.status}`;
-      } else {
-        responseText = `❌ Failed to create equipment: ${response.message || 'Unknown error'}`;
-      }
-
-      const successMsg = {
-        id: Date.now(),
-        text: `✅ Equipment created successfully!\n\n${responseText}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, successMsg]);
-
-    } catch (error) {
-      console.error('Error creating equipment:', error);
-      
-      const errorMsg = {
-        id: Date.now(),
-        text: `❌ Error creating equipment: ${error.message || 'Unknown error occurred'}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, errorMsg]);
-    } finally {
-      setIsSubmittingEquipment(false);
+- Status: ${equipmentData.status || 'Operational'}`;
+    } else {
+      responseText = `❌ Failed to create equipment: ${response.message || 'Unknown error'}`;
     }
+
+    const successMsg = {
+      id: Date.now(),
+      text: responseText,
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, successMsg]);
   };
 
   const closeEquipmentForm = () => {
@@ -4044,200 +3963,17 @@ ${dischargeData.next_steps ? dischargeData.next_steps.map(step => `• ${step}`)
         </div>
       )}
 
-      {/* Equipment Creation Form Popup */}
-      {showEquipmentForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-            <div className="border-b border-gray-700 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-white">Equipment Creation Form</h2>
-                <button onClick={closeEquipmentForm} className="text-gray-400 hover:text-white">
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-            <div className="px-6 py-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Equipment ID * 
-                      <span className="text-xs text-gray-400">(e.g., EQ001, EQ002)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={equipmentFormData.equipment_id}
-                      onChange={(e) => handleEquipmentFormChange('equipment_id', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="EQ001"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Equipment Name *</label>
-                    <input
-                      type="text"
-                      value={equipmentFormData.name}
-                      onChange={(e) => handleEquipmentFormChange('name', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="e.g., X-Ray Machine"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Select Equipment Category *</label>
-                    <select
-                      value={equipmentFormData.category_id}
-                      onChange={(e) => handleEquipmentFormChange('category_id', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="">Select a category</option>
-                      {Array.isArray(equipmentCategoryOptions) ? equipmentCategoryOptions.map(category => (
-                        <option key={category.id} value={category.id}>
-                          {category.name}
-                        </option>
-                      )) : []}
-                    </select>
-                    <p className="text-xs text-gray-400 mt-1">Choose the equipment category</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Serial Number</label>
-                    <input
-                      type="text"
-                      value={equipmentFormData.serial_number}
-                      onChange={(e) => handleEquipmentFormChange('serial_number', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Equipment serial number"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Model</label>
-                    <input
-                      type="text"
-                      value={equipmentFormData.model}
-                      onChange={(e) => handleEquipmentFormChange('model', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Equipment model"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Purchase Date</label>
-                    <input
-                      type="date"
-                      value={equipmentFormData.purchase_date}
-                      onChange={(e) => handleEquipmentFormChange('purchase_date', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Location</label>
-                    <input
-                      type="text"
-                      value={equipmentFormData.location}
-                      onChange={(e) => handleEquipmentFormChange('location', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Equipment location"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Manufacturer</label>
-                    <input
-                      type="text"
-                      value={equipmentFormData.manufacturer}
-                      onChange={(e) => handleEquipmentFormChange('manufacturer', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Manufacturer name"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Warranty Expiry</label>
-                    <input
-                      type="date"
-                      value={equipmentFormData.warranty_expiry}
-                      onChange={(e) => handleEquipmentFormChange('warranty_expiry', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Status</label>
-                    <select
-                      value={equipmentFormData.status}
-                      onChange={(e) => handleEquipmentFormChange('status', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="">Select status</option>
-                      <option value="operational">Operational</option>
-                      <option value="maintenance">Maintenance</option>
-                      <option value="out_of_order">Out of Order</option>
-                      <option value="retired">Retired</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Price</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={equipmentFormData.price}
-                      onChange={(e) => handleEquipmentFormChange('price', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Purchase price"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Select Department</label>
-                    <select
-                      value={equipmentFormData.department_id}
-                      onChange={(e) => handleEquipmentFormChange('department_id', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="">Select a department (optional)</option>
-                      {Array.isArray(departmentOptions) ? departmentOptions.map(dept => (
-                        <option key={dept.id} value={dept.id}>
-                          {dept.name} (Floor {dept.floor_number || 'N/A'})
-                        </option>
-                      )) : []}
-                    </select>
-                    <p className="text-xs text-gray-400 mt-1">Choose which department will use this equipment</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Last Maintenance</label>
-                    <input
-                      type="date"
-                      value={equipmentFormData.last_maintenance}
-                      onChange={(e) => handleEquipmentFormChange('last_maintenance', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Next Maintenance</label>
-                    <input
-                      type="date"
-                      value={equipmentFormData.next_maintenance}
-                      onChange={(e) => handleEquipmentFormChange('next_maintenance', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Notes</label>
-                    <textarea
-                      value={equipmentFormData.notes}
-                      onChange={(e) => handleEquipmentFormChange('notes', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      rows="3"
-                      placeholder="Additional notes"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
-              <button onClick={closeEquipmentForm} disabled={isSubmittingEquipment} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
-              <button onClick={submitEquipment} disabled={isSubmittingEquipment} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
-                {isSubmittingEquipment ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating Equipment...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create Equipment</span></>)}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Equipment Creation Form Component */}
+      <EquipmentCreationForm
+        isOpen={showEquipmentForm}
+        onClose={closeEquipmentForm}
+        onSubmit={handleEquipmentSubmit}
+        isSubmitting={isSubmittingEquipment}
+        aiMcpServiceRef={aiMcpServiceRef}
+        departmentOptions={departmentOptions}
+        equipmentCategoryOptions={equipmentCategoryOptions}
+        loadingDropdowns={loadingDropdowns}
+      />
 
       {/* Supply Creation Form Popup */}
       {showSupplyForm && (
