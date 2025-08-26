@@ -70,6 +70,25 @@ const HospitalChatInterface = ({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Auto-resize textarea based on content
+  useEffect(() => {
+    if (inputRef.current) {
+      const textarea = inputRef.current;
+      // Reset height to auto to get the correct scrollHeight
+      textarea.style.height = 'auto';
+      // Set height based on scrollHeight, with min and max constraints
+      const newHeight = Math.min(Math.max(textarea.scrollHeight, 40), 120);
+      textarea.style.height = newHeight + 'px';
+    }
+  }, [inputMessage]);
+
+  // Reset textarea height when input is cleared (after sending message)
+  useEffect(() => {
+    if (inputRef.current && inputMessage === '') {
+      inputRef.current.style.height = '40px';
+    }
+  }, [inputMessage]);
+
   return (
     <div className="bg-[#1a1a1a] flex flex-col text-white overflow-hidden relative" style={{ height: 'calc(var(--vh, 1vh) * 100)' }}>
       {/* Claude-style Header - FIXED AT TOP */}
@@ -428,10 +447,9 @@ const HospitalChatInterface = ({
               </div>
             </div>
             
-            {/* Middle - Text Input */}
-            <input
+            {/* Middle - Multi-line Text Input */}
+            <textarea
               ref={inputRef}
-              type="text"
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
               onKeyDown={(e) => {
@@ -440,13 +458,16 @@ const HospitalChatInterface = ({
                   handleSendMessage();
                 }
               }}
-              placeholder={isConnected ? "Ask about patients, beds, staff, equipment..." : "Connecting..."}
+              placeholder={isConnected ? "Ask about patients, beds, staff, equipment...\n\nShift+Enter for new line\nEnter to send" : "Connecting..."}
               disabled={!isConnected || isLoading}
-              className="flex-1 bg-transparent text-white placeholder-gray-400 focus:outline-none text-sm"
+              className="flex-1 bg-transparent text-white placeholder-gray-400 focus:outline-none text-sm resize-none overflow-y-auto"
               style={{
                 WebkitAppearance: 'none',
-                fontSize: isIOSDevice ? '16px' : '14px'
+                fontSize: isIOSDevice ? '16px' : '14px',
+                maxHeight: '120px',
+                height: '40px' // Initial height
               }}
+              rows={1}
             />
             
             {/* Right Side - Send Button */}
