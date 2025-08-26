@@ -8,6 +8,7 @@ import PatientAdmissionForm from './PatientAdmissionForm.jsx';
 import UserCreationForm from './UserCreationForm.jsx';
 import StaffCreationForm from './StaffCreationForm.jsx';
 import DepartmentCreationForm from './DepartmentCreationForm.jsx';
+import RoomCreationForm from './RoomCreationForm.jsx';
 
 const DirectMCPChatbot = ({ user, onLogout }) => {
   // Mobile-responsive CSS classes for consistent mobile experience (reduced height)
@@ -67,14 +68,8 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   const [isSubmittingUser, setIsSubmittingUser] = useState(false);
   
   // Room creation popup form
+  // Room creation popup form
   const [showRoomForm, setShowRoomForm] = useState(false);
-  const [roomFormData, setRoomFormData] = useState({
-    room_number: '',
-    room_type: '', // varchar(20)
-    capacity: '',
-    floor_number: '', // Integer field in database
-    department_id: '' // Foreign key to departments table
-  });
   const [isSubmittingRoom, setIsSubmittingRoom] = useState(false);
   
   // Bed creation popup form
@@ -2270,79 +2265,31 @@ You can use these commands:
   };
 
   // Room Form Handlers
-  const handleRoomFormChange = (field, value) => {
-    setRoomFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  const submitRoom = async () => {
-    const requiredFields = ['room_number', 'department_id'];
-    const missingFields = requiredFields.filter(field => !roomFormData[field].trim());
+  const handleRoomSubmit = (response) => {
+    setShowRoomForm(false);
     
-    if (missingFields.length > 0) {
-      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
-      return;
-    }
-
-    setIsSubmittingRoom(true);
-
-    try {
-      const response = await aiMcpServiceRef.current.callToolDirectly('create_room', {
-        room_number: roomFormData.room_number,
-        department_id: roomFormData.department_id,
-        room_type: roomFormData.room_type,
-        floor_number: roomFormData.floor_number ? parseInt(roomFormData.floor_number) : undefined,
-        capacity: roomFormData.capacity ? parseInt(roomFormData.capacity) : undefined
-      });
-
-      setShowRoomForm(false);
-      setRoomFormData({
-        room_number: '',
-        room_type: '',
-        capacity: '',
-        floor_number: '',
-        department_id: '',
-        status: 'available'
-      });
-
-      let responseText = '';
-      if (response.success) {
-        const roomData = response.result?.data || response.data || {};
-        responseText = `✅ Room created successfully!
-        
+    let responseText = '';
+    if (response.success) {
+      const roomData = response.result?.data || response.data || {};
+      responseText = `✅ Room created successfully!
+      
 **Room Details:**
 - Room Number: ${roomData.room_number || 'Unknown'}
 - Type: ${roomData.room_type || 'Standard'}
 - Floor: ${roomData.floor_number || 'Not specified'}
 - Capacity: ${roomData.capacity || 'Not specified'}
 - Department ID: ${roomData.department_id || 'Not specified'}`;
-      } else {
-        responseText = `❌ Failed to create room: ${response.message || 'Unknown error'}`;
-      }
-
-      const successMsg = {
-        id: Date.now(),
-        text: `✅ Room created successfully!\n\n${responseText}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, successMsg]);
-
-    } catch (error) {
-      console.error('Error creating room:', error);
-      
-      const errorMsg = {
-        id: Date.now(),
-        text: `❌ Error creating room: ${error.message || 'Unknown error occurred'}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, errorMsg]);
-    } finally {
-      setIsSubmittingRoom(false);
+    } else {
+      responseText = `❌ Failed to create room: ${response.message || 'Unknown error'}`;
     }
+
+    const successMsg = {
+      id: Date.now(),
+      text: responseText,
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, successMsg]);
   };
 
   const closeRoomForm = () => {
@@ -4007,89 +3954,16 @@ ${dischargeData.next_steps ? dischargeData.next_steps.map(step => `• ${step}`)
         loadingDropdowns={loadingDropdowns}
       />
 
-      {/* Room Creation Form Popup */}
-      {showRoomForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="border-b border-gray-700 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-white">Room Creation Form</h2>
-                <button onClick={closeRoomForm} className="text-gray-400 hover:text-white">
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-            <div className="px-6 py-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Room Number *</label>
-                <input
-                  type="text"
-                  value={roomFormData.room_number}
-                  onChange={(e) => handleRoomFormChange('room_number', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="e.g., R101"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Room Type *</label>
-                <select
-                  value={roomFormData.room_type}
-                  onChange={(e) => handleRoomFormChange('room_type', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                >
-                  <option value="">Select room type</option>
-                  <option value="patient">Patient Room</option>
-                  <option value="icu">ICU</option>
-                  <option value="operation">Operation Theater</option>
-                  <option value="emergency">Emergency Room</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Capacity</label>
-                <input
-                  type="number"
-                  value={roomFormData.capacity}
-                  onChange={(e) => handleRoomFormChange('capacity', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Number of beds"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Select Department *</label>
-                <select
-                  value={roomFormData.department_id}
-                  onChange={(e) => handleRoomFormChange('department_id', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                >
-                  <option value="">Select a department</option>
-                  {Array.isArray(departmentOptions) ? departmentOptions.map(dept => (
-                    <option key={dept.id} value={dept.id}>
-                      {dept.name} (Floor {dept.floor_number || 'N/A'})
-                    </option>
-                  )) : []}
-                </select>
-                <p className="text-xs text-gray-400 mt-1">Choose which department this room belongs to</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Floor Number</label>
-                <input
-                  type="number"
-                  value={roomFormData.floor_number}
-                  onChange={(e) => handleRoomFormChange('floor_number', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Floor number"
-                />
-              </div>
-            </div>
-            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
-              <button onClick={closeRoomForm} disabled={isSubmittingRoom} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
-              <button onClick={submitRoom} disabled={isSubmittingRoom} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
-                {isSubmittingRoom ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating Room...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create Room</span></>)}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Room Creation Form Component */}
+      <RoomCreationForm
+        isOpen={showRoomForm}
+        onClose={closeRoomForm}
+        onSubmit={handleRoomSubmit}
+        isSubmitting={isSubmittingRoom}
+        aiMcpServiceRef={aiMcpServiceRef}
+        departmentOptions={departmentOptions}
+        loadingDropdowns={loadingDropdowns}
+      />
 
       {/* Bed Creation Form Popup */}
       {showBedForm && (
