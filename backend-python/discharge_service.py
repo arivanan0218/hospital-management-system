@@ -228,11 +228,23 @@ class PatientDischargeReportGenerator:
     
     def _get_treatment_summary(self, patient_id, admission_date, discharge_date) -> List[Dict[str, Any]]:
         """Get all treatments during the stay."""
+        # Make date filtering more inclusive - look for treatments within a reasonable window
+        # Extend the window to catch treatments that might be slightly outside the exact dates
+        extended_start = admission_date - timedelta(days=1) if admission_date else datetime.now() - timedelta(days=30)
+        extended_end = discharge_date + timedelta(days=1) if discharge_date else datetime.now()
+        
+        # Primary query: treatments within the stay period
         treatments = self.session.query(TreatmentRecord).filter(
             TreatmentRecord.patient_id == patient_id,
-            TreatmentRecord.start_date >= admission_date,
-            TreatmentRecord.start_date <= discharge_date
+            TreatmentRecord.start_date >= extended_start,
+            TreatmentRecord.start_date <= extended_end
         ).all()
+        
+        # Fallback: if no treatments found with date filtering, get recent treatments for this patient
+        if not treatments:
+            treatments = self.session.query(TreatmentRecord).filter(
+                TreatmentRecord.patient_id == patient_id
+            ).order_by(TreatmentRecord.start_date.desc()).limit(10).all()
         
         return [{
             "treatment_type": t.treatment_type,
@@ -248,11 +260,22 @@ class PatientDischargeReportGenerator:
     
     def _get_equipment_summary(self, patient_id, admission_date, discharge_date) -> List[Dict[str, Any]]:
         """Get all equipment used during the stay."""
+        # Make date filtering more inclusive - look for equipment usage within a reasonable window
+        extended_start = admission_date - timedelta(days=1) if admission_date else datetime.now() - timedelta(days=30)
+        extended_end = discharge_date + timedelta(days=1) if discharge_date else datetime.now()
+        
+        # Primary query: equipment usage within the stay period
         equipment_usage = self.session.query(EquipmentUsage).filter(
             EquipmentUsage.patient_id == patient_id,
-            EquipmentUsage.start_time >= admission_date,
-            EquipmentUsage.start_time <= discharge_date
+            EquipmentUsage.start_time >= extended_start,
+            EquipmentUsage.start_time <= extended_end
         ).all()
+        
+        # Fallback: if no equipment usage found with date filtering, get recent usage for this patient
+        if not equipment_usage:
+            equipment_usage = self.session.query(EquipmentUsage).filter(
+                EquipmentUsage.patient_id == patient_id
+            ).order_by(EquipmentUsage.start_time.desc()).limit(10).all()
         
         return [{
             "equipment_name": eu.equipment.name if eu.equipment else "Unknown",
@@ -288,12 +311,24 @@ class PatientDischargeReportGenerator:
     
     def _get_medications_summary(self, patient_id, admission_date, discharge_date) -> List[Dict[str, Any]]:
         """Get medication treatments."""
+        # Extended date filtering for more inclusive medication search
+        extended_start = admission_date - timedelta(days=1) if admission_date else datetime.now() - timedelta(days=30)
+        extended_end = discharge_date + timedelta(days=1) if discharge_date else datetime.now()
+        
+        # Primary query: medications within the stay period
         medications = self.session.query(TreatmentRecord).filter(
             TreatmentRecord.patient_id == patient_id,
             TreatmentRecord.treatment_type == "medication",
-            TreatmentRecord.start_date >= admission_date,
-            TreatmentRecord.start_date <= discharge_date
+            TreatmentRecord.start_date >= extended_start,
+            TreatmentRecord.start_date <= extended_end
         ).all()
+        
+        # Fallback: if no medications found with date filtering, get recent medications for this patient
+        if not medications:
+            medications = self.session.query(TreatmentRecord).filter(
+                TreatmentRecord.patient_id == patient_id,
+                TreatmentRecord.treatment_type == "medication"
+            ).order_by(TreatmentRecord.start_date.desc()).limit(10).all()
         
         return [{
             "medication_name": m.treatment_name,
@@ -310,12 +345,24 @@ class PatientDischargeReportGenerator:
     
     def _get_procedures_summary(self, patient_id, admission_date, discharge_date) -> List[Dict[str, Any]]:
         """Get procedure treatments."""
+        # Extended date filtering for more inclusive procedure search
+        extended_start = admission_date - timedelta(days=1) if admission_date else datetime.now() - timedelta(days=30)
+        extended_end = discharge_date + timedelta(days=1) if discharge_date else datetime.now()
+        
+        # Primary query: procedures within the stay period
         procedures = self.session.query(TreatmentRecord).filter(
             TreatmentRecord.patient_id == patient_id,
             TreatmentRecord.treatment_type.in_(["procedure", "surgery", "therapy"]),
-            TreatmentRecord.start_date >= admission_date,
-            TreatmentRecord.start_date <= discharge_date
+            TreatmentRecord.start_date >= extended_start,
+            TreatmentRecord.start_date <= extended_end
         ).all()
+        
+        # Fallback: if no procedures found with date filtering, get recent procedures for this patient
+        if not procedures:
+            procedures = self.session.query(TreatmentRecord).filter(
+                TreatmentRecord.patient_id == patient_id,
+                TreatmentRecord.treatment_type.in_(["procedure", "surgery", "therapy"])
+            ).order_by(TreatmentRecord.start_date.desc()).limit(10).all()
         
         return [{
             "procedure_name": p.treatment_name,
