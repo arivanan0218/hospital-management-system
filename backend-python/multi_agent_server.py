@@ -1179,12 +1179,16 @@ def add_treatment_record_simple(
 
 @mcp.tool()
 def add_equipment_usage_with_codes(
-    patient_id: str,
-    equipment_id: str,
-    staff_id: str,
-    purpose: str,
+    patient_id: str = None,
+    equipment_id: str = None,
+    staff_id: str = None,
+    used_by: str = None,  # Alternative name for staff_id
+    purpose: str = None,
+    purpose_of_use: str = None,  # Alternative parameter name for frontend compatibility
     start_time: str = None,
+    start_date_time: str = None,  # Alternative name for start_time
     end_time: str = None,
+    end_date_time: str = None,  # Alternative name for end_time
     notes: str = None
 ) -> Dict[str, Any]:
     """Add equipment usage with automatic code-to-UUID conversion (RECOMMENDED FOR CODES).
@@ -1208,17 +1212,37 @@ def add_equipment_usage_with_codes(
     if not MULTI_AGENT_AVAILABLE or not orchestrator:
         return {"success": False, "message": "Multi-agent system required for equipment usage"}
     
+    # Validate required parameters
+    if not patient_id:
+        return {"success": False, "message": "patient_id is required (e.g., 'P002', 'P001', or UUID)"}
+    if not equipment_id:
+        return {"success": False, "message": "equipment_id is required (e.g., 'EQ001', 'EQ002', or UUID)"}
+    
+    # Handle alternative staff_id parameter names
+    actual_staff_id = staff_id or used_by
+    if not actual_staff_id:
+        return {"success": False, "message": "staff_id or used_by is required (e.g., 'EMP001', 'EMP002', or UUID)"}
+    
+    # Handle both 'purpose' and 'purpose_of_use' parameter names for frontend compatibility
+    actual_purpose = purpose or purpose_of_use
+    if not actual_purpose:
+        return {"success": False, "message": "Purpose is required (use 'purpose' or 'purpose_of_use' parameter)"}
+    
+    # Handle alternative time parameter names
+    actual_start_time = start_time or start_date_time
+    actual_end_time = end_time or end_date_time
+    
     # Check if inputs are user-friendly codes (short strings without hyphens)
     is_patient_code = patient_id and len(patient_id) < 20 and '-' not in patient_id
     is_equipment_code = equipment_id and len(equipment_id) < 20 and '-' not in equipment_id  
-    is_staff_code = staff_id and len(staff_id) < 20 and '-' not in staff_id
+    is_staff_code = actual_staff_id and len(actual_staff_id) < 20 and '-' not in actual_staff_id
     
     if is_patient_code or is_equipment_code or is_staff_code:
         # Perform code-to-UUID conversion locally
         try:
             resolved_patient_id = patient_id
             resolved_equipment_id = equipment_id
-            resolved_staff_id = staff_id
+            resolved_staff_id = actual_staff_id
             
             # Resolve patient code to UUID
             if is_patient_code:
@@ -1249,20 +1273,20 @@ def add_equipment_usage_with_codes(
                 resolved_staff_id = None
                 if staff_result.get("data"):
                     for staff in staff_result["data"]:
-                        if staff.get("employee_id") == staff_id:
+                        if staff.get("employee_id") == actual_staff_id:
                             resolved_staff_id = staff["id"]
                             break
                 if not resolved_staff_id:
-                    return {"success": False, "message": f"Staff member '{staff_id}' not found in database"}
+                    return {"success": False, "message": f"Staff member '{actual_staff_id}' not found in database"}
             
             # Success: call with resolved UUIDs - use a different tool name to avoid routing conflicts
             result = orchestrator.route_request("add_equipment_usage_simple",
                                                patient_id=resolved_patient_id,
                                                equipment_id=resolved_equipment_id,
                                                staff_id=resolved_staff_id,
-                                               purpose=purpose,
-                                               start_time=start_time,
-                                               end_time=end_time,
+                                               purpose=actual_purpose,
+                                               start_time=actual_start_time,
+                                               end_time=actual_end_time,
                                                notes=notes)
             
             # Add success metadata showing what was resolved
@@ -1271,7 +1295,7 @@ def add_equipment_usage_with_codes(
                 response["codes_resolved"] = {
                     "original_patient": patient_id,
                     "original_equipment": equipment_id,
-                    "original_staff": staff_id,
+                    "original_staff": actual_staff_id,
                     "resolved_patient": resolved_patient_id,
                     "resolved_equipment": resolved_equipment_id,
                     "resolved_staff": resolved_staff_id
@@ -2023,12 +2047,24 @@ async def call_tool_http(request: Request):
         })
         
     except Exception as e:
+        # Detailed error logging for debugging
+        error_details = {
+            "error_type": type(e).__name__,
+            "error_message": str(e),
+            "tool_name": data.get("params", {}).get("name", "unknown"),
+            "arguments": data.get("params", {}).get("arguments", {}),
+            "traceback": traceback.format_exc()
+        }
+        
+        print(f"❌ HTTP TOOL CALL ERROR: {error_details}")
+        
         return JSONResponse({
             "jsonrpc": "2.0",
             "id": data.get("id", 1),
             "error": {
                 "code": -32603,
-                "message": f"Internal error: {str(e)}"
+                "message": f"Internal error: {str(e)}",
+                "details": error_details
             }
         }, status_code=500)
 
