@@ -11,6 +11,7 @@ import DepartmentCreationForm from './DepartmentCreationForm.jsx';
 import RoomCreationForm from './RoomCreationForm.jsx';
 import EquipmentCreationForm from './EquipmentCreationForm.jsx';
 import SupplyCreationForm from './SupplyCreationForm.jsx';
+import BedCreationForm from './BedCreationForm.jsx';
 
 const DirectMCPChatbot = ({ user, onLogout }) => {
   // Mobile-responsive CSS classes for consistent mobile experience (reduced height)
@@ -76,12 +77,6 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   
   // Bed creation popup form
   const [showBedForm, setShowBedForm] = useState(false);
-  const [bedFormData, setBedFormData] = useState({
-    bed_number: '',
-    room_id: '',
-    bed_type: '',
-    status: 'available'
-  });
   const [isSubmittingBed, setIsSubmittingBed] = useState(false);
   
   // Equipment creation popup form
@@ -2275,75 +2270,33 @@ You can use these commands:
   };
 
   // Bed Form Handlers
-  const handleBedFormChange = (field, value) => {
-    setBedFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
+  const handleBedSubmit = async (response) => {
+    setIsSubmittingBed(false);
+    setShowBedForm(false);
 
-  const submitBed = async () => {
-    const requiredFields = ['bed_number'];
-    const missingFields = requiredFields.filter(field => !bedFormData[field].trim());
-    
-    if (missingFields.length > 0) {
-      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
-      return;
-    }
-
-    setIsSubmittingBed(true);
-
-    try {
-      const response = await aiMcpServiceRef.current.callToolDirectly('create_bed', {
-        bed_number: bedFormData.bed_number,
-        room_id: bedFormData.room_id,
-        bed_type: bedFormData.bed_type,
-        status: bedFormData.status
-      });
-
-      setShowBedForm(false);
-      setBedFormData({
-        bed_number: '',
-        room_id: '',
-        bed_type: '',
-        status: 'available'
-      });
-
-      let responseText = '';
-      if (response.success) {
-        const bedData = response.result?.data || response.data || {};
-        responseText = `✅ Bed created successfully!
-        
+    let responseText = '';
+    if (response.success) {
+      const bedData = response.result?.data || response.data || {};
+      responseText = `✅ Bed created successfully!
+      
 **Bed Details:**
 - Bed Number: ${bedData.bed_number || 'Unknown'}
 - Room ID: ${bedData.room_id || 'Unknown'}
 - Type: ${bedData.bed_type || 'Standard'}
-- Status: ${bedData.status || 'Available'}`;
-      } else {
-        responseText = `❌ Failed to create bed: ${response.message || 'Unknown error'}`;
-      }
+- Status: ${bedData.status || 'Available'}
 
-      const successMsg = {
-        id: Date.now(),
-        text: `✅ Bed created successfully!\n\n${responseText}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, successMsg]);
-
-    } catch (error) {
-      console.error('Error creating bed:', error);
-      
-      const errorMsg = {
-        id: Date.now(),
-        text: `❌ Error creating bed: ${error.message || 'Unknown error occurred'}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, errorMsg]);
-    } finally {
-      setIsSubmittingBed(false);
+The bed has been added to the hospital system and is ready for assignment.`;
+    } else {
+      responseText = `❌ Failed to create bed: ${response.message || 'Unknown error'}`;
     }
+
+    const successMsg = {
+      id: Date.now(),
+      text: responseText,
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, successMsg]);
   };
 
   const closeBedForm = () => {
@@ -3814,84 +3767,16 @@ ${dischargeData.next_steps ? dischargeData.next_steps.map(step => `• ${step}`)
         loadingDropdowns={loadingDropdowns}
       />
 
-      {/* Bed Creation Form Popup */}
-      {showBedForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="border-b border-gray-700 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-white">Bed Creation Form</h2>
-                <button onClick={closeBedForm} className="text-gray-400 hover:text-white">
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-            <div className="px-6 py-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Bed Number *</label>
-                <input
-                  type="text"
-                  value={bedFormData.bed_number}
-                  onChange={(e) => handleBedFormChange('bed_number', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="e.g., B101"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Select Room *</label>
-                <select
-                  value={bedFormData.room_id}
-                  onChange={(e) => handleBedFormChange('room_id', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                  onFocus={() => console.log('🚪 Room dropdown focused. Available rooms:', roomOptions)}
-                >
-                  <option value="">Select a room ({roomOptions?.length || 0} available)</option>
-                  {Array.isArray(roomOptions) ? roomOptions.map(room => (
-                    <option key={room.id} value={room.id}>
-                      Room {room.room_number} ({room.room_type}) - Floor {room.floor_number || 'N/A'}
-                    </option>
-                  )) : []}
-                </select>
-                <p className="text-xs text-gray-400 mt-1">Choose which room this bed will be placed in</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Bed Type</label>
-                <select
-                  value={bedFormData.bed_type}
-                  onChange={(e) => handleBedFormChange('bed_type', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                >
-                  <option value="">Select bed type</option>
-                  <option value="standard">Standard</option>
-                  <option value="icu">ICU</option>
-                  <option value="pediatric">Pediatric</option>
-                  <option value="maternity">Maternity</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Status</label>
-                <select
-                  value={bedFormData.status}
-                  onChange={(e) => handleBedFormChange('status', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                >
-                  <option value="">Select status</option>
-                  <option value="available">Available</option>
-                  <option value="occupied">Occupied</option>
-                  <option value="maintenance">Maintenance</option>
-                  <option value="reserved">Reserved</option>
-                </select>
-              </div>
-            </div>
-            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
-              <button onClick={closeBedForm} disabled={isSubmittingBed} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
-              <button onClick={submitBed} disabled={isSubmittingBed} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
-                {isSubmittingBed ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating Bed...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create Bed</span></>)}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Bed Creation Form Component */}
+      <BedCreationForm
+        isOpen={showBedForm}
+        onClose={closeBedForm}
+        onSubmit={handleBedSubmit}
+        isSubmitting={isSubmittingBed}
+        aiMcpServiceRef={aiMcpServiceRef}
+        roomOptions={roomOptions}
+        loadingDropdowns={loadingDropdowns}
+      />
 
       {/* Equipment Creation Form Component */}
       <EquipmentCreationForm
