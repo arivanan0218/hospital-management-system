@@ -6,6 +6,7 @@ import EnhancedMedicalDocumentUpload from './EnhancedMedicalDocumentUpload.jsx';
 import MedicalHistoryViewer from './MedicalHistoryViewer.jsx';
 import PatientAdmissionForm from './PatientAdmissionForm.jsx';
 import UserCreationForm from './UserCreationForm.jsx';
+import StaffCreationForm from './StaffCreationForm.jsx';
 
 const DirectMCPChatbot = ({ user, onLogout }) => {
   // Mobile-responsive CSS classes for consistent mobile experience (reduced height)
@@ -66,18 +67,6 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   
   // Staff creation popup form
   const [showStaffForm, setShowStaffForm] = useState(false);
-  const [staffFormData, setStaffFormData] = useState({
-    user_id: '', // Foreign key to users table
-    employee_id: '',
-    department_id: '', // Foreign key to departments table
-    position: '',
-    specialization: '',
-    license_number: '',
-    hire_date: '',
-    salary: '',
-    shift_pattern: '', // day, night, rotating
-    status: 'active' // active, inactive, on_leave
-  });
   const [isSubmittingStaff, setIsSubmittingStaff] = useState(false);
   
   // User creation popup form
@@ -2255,87 +2244,30 @@ You can use these commands:
   };
 
   // Staff Form Handlers
-  const handleStaffFormChange = (field, value) => {
-    setStaffFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  const submitStaff = async () => {
-    const requiredFields = ['user_id', 'employee_id', 'position', 'department_id'];
-    const missingFields = requiredFields.filter(field => !staffFormData[field].trim());
+  const handleStaffSubmit = (response) => {
+    setShowStaffForm(false);
     
-    if (missingFields.length > 0) {
-      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
-      return;
-    }
-
-    setIsSubmittingStaff(true);
-
-    try {
-      const response = await aiMcpServiceRef.current.callToolDirectly('create_staff', {
-        user_id: staffFormData.user_id,
-        employee_id: staffFormData.employee_id,
-        department_id: staffFormData.department_id,
-        position: staffFormData.position,
-        specialization: staffFormData.specialization,
-        license_number: staffFormData.license_number,
-        hire_date: staffFormData.hire_date,
-        salary: staffFormData.salary ? parseFloat(staffFormData.salary) : undefined,
-        shift_pattern: staffFormData.shift_pattern,
-        status: staffFormData.status
-      });
-
-      setShowStaffForm(false);
-      setStaffFormData({
-        user_id: '',
-        employee_id: '',
-        department_id: '',
-        position: '',
-        specialization: '',
-        license_number: '',
-        hire_date: '',
-        salary: '',
-        shift_pattern: '',
-        status: 'active'
-      });
-
-      let responseText = '';
-      if (response.success) {
-        const staffData = response.result?.data || response.data || {};
-        responseText = `✅ Staff member created successfully!
-        
+    let responseText = '';
+    if (response.success) {
+      const staffData = response.result?.data || response.data || {};
+      responseText = `✅ Staff member created successfully!
+      
 **Staff Details:**
 - Employee ID: ${staffData.employee_id || 'Not provided'}
 - Position: ${staffData.position || 'Not provided'}
 - Department ID: ${staffData.department_id || 'Not provided'}
 - Status: ${staffData.status || 'Active'}`;
-      } else {
-        responseText = `❌ Failed to create staff member: ${response.message || 'Unknown error'}`;
-      }
-
-      const successMsg = {
-        id: Date.now(),
-        text: `✅ Staff member created successfully!\n\n${responseText}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, successMsg]);
-
-    } catch (error) {
-      console.error('Error creating staff:', error);
-      
-      const errorMsg = {
-        id: Date.now(),
-        text: `❌ Error creating staff: ${error.message || 'Unknown error occurred'}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, errorMsg]);
-    } finally {
-      setIsSubmittingStaff(false);
+    } else {
+      responseText = `❌ Failed to create staff member: ${response.message || 'Unknown error'}`;
     }
+
+    const successMsg = {
+      id: Date.now(),
+      text: responseText,
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, successMsg]);
   };
 
   const closeStaffForm = () => {
@@ -4260,175 +4192,17 @@ ${dischargeData.next_steps ? dischargeData.next_steps.map(step => `• ${step}`)
         aiMcpServiceRef={aiMcpServiceRef}
       />
 
-      {/* Staff Creation Form Popup */}
-      {showStaffForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
-          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-3xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto mx-2 sm:mx-0">
-            <div className="border-b border-gray-700 px-4 sm:px-6 py-3 sm:py-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg sm:text-xl font-semibold text-white">Staff Creation Form</h2>
-                <button onClick={closeStaffForm} className="text-gray-400 hover:text-white p-1">
-                  <X className="w-5 h-5 sm:w-6 sm:h-6" />
-                </button>
-              </div>
-            </div>
-            <div className="px-4 sm:px-6 py-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Select User *</label>
-                    <select
-                      value={staffFormData.user_id}
-                      onChange={(e) => handleStaffFormChange('user_id', e.target.value)}
-                      className="w-full px-3 py-3 sm:py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500 text-base sm:text-sm"
-                      disabled={loadingDropdowns}
-                    >
-                      <option value="">
-                        {loadingDropdowns ? 'Loading users...' : 'Select a user'}
-                      </option>
-                      {Array.isArray(userOptions) ? userOptions.map(user => (
-                        <option key={user.id} value={user.id}>
-                          {user.first_name} {user.last_name} ({user.username}) - {user.role}
-                        </option>
-                      )) : []}
-                    </select>
-                    <p className="text-xs text-gray-400 mt-1">Choose which user this staff record belongs to</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Employee ID *</label>
-                    <input
-                      type="text"
-                      value={staffFormData.employee_id}
-                      onChange={(e) => handleStaffFormChange('employee_id', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Employee ID (e.g., EMP001)"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Select Department *</label>
-                    <select
-                      value={staffFormData.department_id}
-                      onChange={(e) => handleStaffFormChange('department_id', e.target.value)}
-                      className="w-full px-3 py-3 sm:py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500 text-base sm:text-sm"
-                    >
-                      <option value="">Select a department</option>
-                      {Array.isArray(departmentOptions) ? departmentOptions.map(dept => (
-                        <option key={dept.id} value={dept.id}>
-                          {dept.name} (Floor {dept.floor_number || 'N/A'})
-                        </option>
-                      )) : []}
-                    </select>
-                    <p className="text-xs text-gray-400 mt-1">Choose which department this staff member works in</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Position *</label>
-                    <select
-                      value={staffFormData.position}
-                      onChange={(e) => handleStaffFormChange('position', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="">Select position</option>
-                      <option value="Doctor">Doctor</option>
-                      <option value="Nurse">Nurse</option>
-                      <option value="Physician Assistant">Physician Assistant</option>
-                      <option value="Medical Technician">Medical Technician</option>
-                      <option value="Radiologist">Radiologist</option>
-                      <option value="Pharmacist">Pharmacist</option>
-                      <option value="Lab Technician">Lab Technician</option>
-                      <option value="Receptionist">Receptionist</option>
-                      <option value="Administrator">Administrator</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Specialization</label>
-                    <input
-                      type="text"
-                      value={staffFormData.specialization}
-                      onChange={(e) => handleStaffFormChange('specialization', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Medical specialization"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">License Number</label>
-                    <input
-                      type="text"
-                      value={staffFormData.license_number}
-                      onChange={(e) => handleStaffFormChange('license_number', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Professional license number"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Hire Date *</label>
-                    <input
-                      type="date"
-                      value={staffFormData.hire_date}
-                      onChange={(e) => handleStaffFormChange('hire_date', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Salary</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={staffFormData.salary}
-                      onChange={(e) => handleStaffFormChange('salary', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Annual salary"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Shift Pattern</label>
-                    <select
-                      value={staffFormData.shift_pattern}
-                      onChange={(e) => handleStaffFormChange('shift_pattern', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="">Select shift pattern</option>
-                      <option value="day">Day</option>
-                      <option value="night">Night</option>
-                      <option value="rotating">Rotating</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Status</label>
-                    <select
-                      value={staffFormData.status}
-                      onChange={(e) => handleStaffFormChange('status', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="active">Active</option>
-                      <option value="inactive">Inactive</option>
-                      <option value="on_leave">On Leave</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="border-t border-gray-700 px-4 sm:px-6 py-4 flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3">
-              <button 
-                onClick={closeStaffForm} 
-                disabled={isSubmittingStaff} 
-                className="px-4 py-3 sm:py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50 text-base sm:text-sm"
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={submitStaff} 
-                disabled={isSubmittingStaff} 
-                className="px-6 py-3 sm:py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-base sm:text-sm"
-              >
-                {isSubmittingStaff ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating Staff...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create Staff</span></>)}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Staff Creation Form Component */}
+      <StaffCreationForm
+        isOpen={showStaffForm}
+        onClose={closeStaffForm}
+        onSubmit={handleStaffSubmit}
+        isSubmitting={isSubmittingStaff}
+        aiMcpServiceRef={aiMcpServiceRef}
+        userOptions={userOptions}
+        departmentOptions={departmentOptions}
+        loadingDropdowns={loadingDropdowns}
+      />
 
       {/* Room Creation Form Popup */}
       {showRoomForm && (
