@@ -14,6 +14,7 @@ import SupplyCreationForm from './SupplyCreationForm.jsx';
 import BedCreationForm from './BedCreationForm.jsx';
 import LegacyUserCreationForm from './LegacyUserCreationForm.jsx';
 import EquipmentCategoryCreationForm from './EquipmentCategoryCreationForm.jsx';
+import SupplyCategoryCreationForm from './SupplyCategoryCreationForm.jsx';
 
 const DirectMCPChatbot = ({ user, onLogout }) => {
   // Mobile-responsive CSS classes for consistent mobile experience (reduced height)
@@ -99,10 +100,6 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   
   // Supply Category creation popup form
   const [showSupplyCategoryForm, setShowSupplyCategoryForm] = useState(false);
-  const [supplyCategoryFormData, setSupplyCategoryFormData] = useState({
-    name: '',
-    description: ''
-  });
   const [isSubmittingSupplyCategory, setIsSubmittingSupplyCategory] = useState(false);
   
   // Discharge workflow popup form
@@ -2462,60 +2459,18 @@ The new equipment category has been added to the system and is now available for
   };
 
   // Supply Category Form Handlers
-  const handleSupplyCategoryFormChange = (field, value) => {
-    setSupplyCategoryFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  const submitSupplyCategory = async () => {
-    const requiredFields = ['name'];
-    const missingFields = requiredFields.filter(field => !supplyCategoryFormData[field].trim());
+  const handleSupplyCategorySubmit = async (categoryName) => {
+    const responseText = `✅ Supply category "${categoryName}" created successfully!`;
+    await loadDropdownOptions(); // Reload supply categories for dropdowns
     
-    if (missingFields.length > 0) {
-      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
-      return;
-    }
-
-    setIsSubmittingSupplyCategory(true);
-
-    try {
-      const response = await aiMcpServiceRef.current.callToolDirectly(
-        'create_supply_category',
-        supplyCategoryFormData
-      );
-
-      let responseText = '';
-      if (response && response.success) {
-        responseText = `✅ Supply category "${supplyCategoryFormData.name}" created successfully!`;
-        setSupplyCategoryFormData({ name: '', description: '' });
-        setShowSupplyCategoryForm(false);
-        // Reload supply categories for dropdowns
-        await loadDropdownOptions();
-      } else {
-        responseText = `❌ Failed to create supply category: ${response.message || 'Unknown error'}`;
-      }
-
-      const responseMsg = {
-        id: Date.now(),
-        text: responseText,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, responseMsg]);
-
-    } catch (error) {
-      const errorMsg = {
-        id: Date.now(),
-        text: `❌ Error creating supply category: ${error.message}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, errorMsg]);
-    } finally {
-      setIsSubmittingSupplyCategory(false);
-    }
+    const responseMsg = {
+      id: Date.now(),
+      text: responseText,
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, responseMsg]);
+    setShowSupplyCategoryForm(false);
   };
 
   const closeSupplyCategoryForm = () => {
@@ -3740,48 +3695,12 @@ ${dischargeData.next_steps ? dischargeData.next_steps.map(step => `• ${step}`)
       />
 
       {/* Supply Category Creation Form Popup */}
-      {showSupplyCategoryForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-xl max-h-[90vh] overflow-y-auto">
-            <div className="border-b border-gray-700 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-white">Supply Category Creation</h2>
-                <button onClick={closeSupplyCategoryForm} className="text-gray-400 hover:text-white">
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-            <div className="px-6 py-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Category Name *</label>
-                <input
-                  type="text"
-                  value={supplyCategoryFormData.name}
-                  onChange={(e) => handleSupplyCategoryFormChange('name', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="e.g., Medications, Surgical Supplies"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Description (Optional)</label>
-                <textarea
-                  value={supplyCategoryFormData.description}
-                  onChange={(e) => handleSupplyCategoryFormChange('description', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Brief description of this category"
-                  rows="3"
-                />
-              </div>
-            </div>
-            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
-              <button onClick={closeSupplyCategoryForm} disabled={isSubmittingSupplyCategory} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
-              <button onClick={submitSupplyCategory} disabled={isSubmittingSupplyCategory} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
-                {isSubmittingSupplyCategory ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating Category...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create Category</span></>)}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <SupplyCategoryCreationForm
+        isOpen={showSupplyCategoryForm}
+        onClose={closeSupplyCategoryForm}
+        onCategoryCreated={handleSupplyCategorySubmit}
+        aiMcpServiceRef={aiMcpServiceRef}
+      />
 
       {/* Discharge Workflow Form Popup */}
       {showDischargeForm && (
