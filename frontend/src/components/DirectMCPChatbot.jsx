@@ -13,6 +13,7 @@ import EquipmentCreationForm from './EquipmentCreationForm.jsx';
 import SupplyCreationForm from './SupplyCreationForm.jsx';
 import BedCreationForm from './BedCreationForm.jsx';
 import LegacyUserCreationForm from './LegacyUserCreationForm.jsx';
+import EquipmentCategoryCreationForm from './EquipmentCategoryCreationForm.jsx';
 
 const DirectMCPChatbot = ({ user, onLogout }) => {
   // Mobile-responsive CSS classes for consistent mobile experience (reduced height)
@@ -94,10 +95,6 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   
   // Equipment Category creation popup form
   const [showEquipmentCategoryForm, setShowEquipmentCategoryForm] = useState(false);
-  const [equipmentCategoryFormData, setEquipmentCategoryFormData] = useState({
-    name: '',
-    description: ''
-  });
   const [isSubmittingEquipmentCategory, setIsSubmittingEquipmentCategory] = useState(false);
   
   // Supply Category creation popup form
@@ -2429,60 +2426,28 @@ The legacy user has been added to the system for reference purposes.`;
   };
 
   // Equipment Category Form Handlers
-  const handleEquipmentCategoryFormChange = (field, value) => {
-    setEquipmentCategoryFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
+  const handleEquipmentCategorySubmit = async (response) => {
+    setIsSubmittingEquipmentCategory(false);
+    setShowEquipmentCategoryForm(false);
 
-  const submitEquipmentCategory = async () => {
-    const requiredFields = ['name'];
-    const missingFields = requiredFields.filter(field => !equipmentCategoryFormData[field].trim());
-    
-    if (missingFields.length > 0) {
-      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
-      return;
+    let responseText = '';
+    if (response && response.success) {
+      responseText = `✅ Equipment category created successfully!
+      
+The new equipment category has been added to the system and is now available for equipment assignment.`;
+      // Reload equipment categories for dropdowns
+      await loadDropdownOptions();
+    } else {
+      responseText = `❌ Failed to create equipment category: ${response.message || 'Unknown error'}`;
     }
 
-    setIsSubmittingEquipmentCategory(true);
-
-    try {
-      const response = await aiMcpServiceRef.current.callToolDirectly(
-        'create_equipment_category',
-        equipmentCategoryFormData
-      );
-
-      let responseText = '';
-      if (response && response.success) {
-        responseText = `✅ Equipment category "${equipmentCategoryFormData.name}" created successfully!`;
-        setEquipmentCategoryFormData({ name: '', description: '' });
-        setShowEquipmentCategoryForm(false);
-        // Reload equipment categories for dropdowns
-        await loadDropdownOptions();
-      } else {
-        responseText = `❌ Failed to create equipment category: ${response.message || 'Unknown error'}`;
-      }
-
-      const responseMsg = {
-        id: Date.now(),
-        text: responseText,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, responseMsg]);
-
-    } catch (error) {
-      const errorMsg = {
-        id: Date.now(),
-        text: `❌ Error creating equipment category: ${error.message}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, errorMsg]);
-    } finally {
-      setIsSubmittingEquipmentCategory(false);
-    }
+    const responseMsg = {
+      id: Date.now(),
+      text: responseText,
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, responseMsg]);
   };
 
   const closeEquipmentCategoryForm = () => {
@@ -3764,49 +3729,15 @@ ${dischargeData.next_steps ? dischargeData.next_steps.map(step => `• ${step}`)
         aiMcpServiceRef={aiMcpServiceRef}
       />
 
-      {/* Equipment Category Creation Form Popup */}
-      {showEquipmentCategoryForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-xl max-h-[90vh] overflow-y-auto">
-            <div className="border-b border-gray-700 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-white">Equipment Category Creation</h2>
-                <button onClick={closeEquipmentCategoryForm} className="text-gray-400 hover:text-white">
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-            <div className="px-6 py-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Category Name *</label>
-                <input
-                  type="text"
-                  value={equipmentCategoryFormData.name}
-                  onChange={(e) => handleEquipmentCategoryFormChange('name', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="e.g., Diagnostic Equipment, Surgical Instruments"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Description (Optional)</label>
-                <textarea
-                  value={equipmentCategoryFormData.description}
-                  onChange={(e) => handleEquipmentCategoryFormChange('description', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Brief description of this category"
-                  rows="3"
-                />
-              </div>
-            </div>
-            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
-              <button onClick={closeEquipmentCategoryForm} disabled={isSubmittingEquipmentCategory} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
-              <button onClick={submitEquipmentCategory} disabled={isSubmittingEquipmentCategory} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
-                {isSubmittingEquipmentCategory ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating Category...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create Category</span></>)}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Equipment Category Creation Form Component */}
+      <EquipmentCategoryCreationForm
+        isOpen={showEquipmentCategoryForm}
+        onClose={closeEquipmentCategoryForm}
+        onSubmit={handleEquipmentCategorySubmit}
+        isSubmitting={isSubmittingEquipmentCategory}
+        aiMcpServiceRef={aiMcpServiceRef}
+        onCategoryCreated={loadDropdownOptions}
+      />
 
       {/* Supply Category Creation Form Popup */}
       {showSupplyCategoryForm && (
