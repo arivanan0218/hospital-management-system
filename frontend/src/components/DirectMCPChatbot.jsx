@@ -827,7 +827,7 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-3.5-turbo',
+          model: 'gpt-4-turbo-preview',
           messages: [
             {
               role: 'system',
