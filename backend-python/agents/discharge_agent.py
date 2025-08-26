@@ -80,7 +80,8 @@ class DischargeAgent(BaseAgent):
             "get_bed_turnover_details",
             "mark_equipment_for_cleaning",
             "complete_equipment_cleaning",
-            "get_equipment_turnover_status"
+            "get_equipment_turnover_status",
+            "auto_update_expired_cleaning_beds"
         ]
 
     def get_capabilities(self) -> List[str]:
@@ -426,10 +427,23 @@ class DischargeAgent(BaseAgent):
             return {"success": False, "message": str(e)}
 
     def get_bed_status_with_time_remaining(self, bed_id: str) -> Dict[str, Any]:
-        """Get bed status with estimated time remaining for current process.
+        """🛏️ Check specific bed status after discharge - shows cleaning time remaining.
+        
+        ⭐ PRIMARY TOOL for checking individual bed status ⭐
+        
+        Use this when user asks:
+        - "check bed 302A status"
+        - "check bed status after discharge" 
+        - "how long until bed ready"
+        - "is bed cleaning done"
+        
+        Returns detailed status with cleaning countdown timer.
         
         Args:
-            bed_id: Can be either a bed UUID or bed number (e.g., "401A")
+            bed_id: Bed number (e.g., "302A") or bed UUID
+            
+        Returns:
+            Detailed bed status including cleaning time remaining and progress.
         """
         if not DISCHARGE_DEPS:
             return {"success": False, "message": "Discharge dependencies not available"}
@@ -473,12 +487,31 @@ class DischargeAgent(BaseAgent):
                 if turnover.status == "cleaning" and turnover.cleaning_start_time:
                     elapsed = (now - turnover.cleaning_start_time).seconds // 60
                     remaining = max(0, turnover.estimated_cleaning_duration - elapsed)
-                    result.update({
-                        "process_status": "cleaning",
-                        "time_remaining_minutes": remaining,
-                        "estimated_completion": (turnover.cleaning_start_time + timedelta(minutes=turnover.estimated_cleaning_duration)).isoformat(),
-                        "progress_percentage": min(100, (elapsed / turnover.estimated_cleaning_duration) * 100)
-                    })
+                    
+                    # AUTO-UPDATE: If cleaning time is complete, mark bed as available
+                    if remaining == 0 and bed.status == "cleaning":
+                        print(f"🔄 Auto-updating bed {bed.bed_number} from cleaning to available (cleaning time complete)")
+                        bed.status = "available"
+                        turnover.status = "completed"
+                        turnover.cleaning_completion_time = now
+                        db.commit()
+                        
+                        result.update({
+                            "current_status": "available",  # Updated status
+                            "process_status": "completed",
+                            "time_remaining_minutes": 0,
+                            "estimated_completion": (turnover.cleaning_start_time + timedelta(minutes=turnover.estimated_cleaning_duration)).isoformat(),
+                            "progress_percentage": 100,
+                            "auto_updated": True,
+                            "message": f"Bed {bed.bed_number} automatically marked as available - cleaning complete!"
+                        })
+                    else:
+                        result.update({
+                            "process_status": "cleaning",
+                            "time_remaining_minutes": remaining,
+                            "estimated_completion": (turnover.cleaning_start_time + timedelta(minutes=turnover.estimated_cleaning_duration)).isoformat(),
+                            "progress_percentage": min(100, (elapsed / turnover.estimated_cleaning_duration) * 100)
+                        })
                 else:
                     result.update({
                         "process_status": "initiated",
@@ -486,11 +519,25 @@ class DischargeAgent(BaseAgent):
                         "progress_percentage": 0
                     })
             else:
-                result.update({
-                    "process_status": "none",
-                    "time_remaining_minutes": 0,
-                    "progress_percentage": 100
-                })
+                # Check if bed is in cleaning status but no active turnover - auto-fix
+                if bed.status == "cleaning":
+                    print(f"🔄 Auto-fixing bed {bed.bed_number} - no active turnover but status is cleaning")
+                    bed.status = "available"
+                    db.commit()
+                    result.update({
+                        "current_status": "available",  # Updated status
+                        "process_status": "completed",
+                        "time_remaining_minutes": 0,
+                        "progress_percentage": 100,
+                        "auto_updated": True,
+                        "message": f"Bed {bed.bed_number} automatically marked as available - no active cleaning process"
+                    })
+                else:
+                    result.update({
+                        "process_status": "none",
+                        "time_remaining_minutes": 0,
+                        "progress_percentage": 100
+                    })
             
             db.close()
             return result
@@ -1281,6 +1328,96 @@ class DischargeAgent(BaseAgent):
             result = {"id": str(tr.id), "patient_id": str(patient_uuid), "doctor_user_id": str(doctor_user_id)}
             db.close()
             return {"success": True, "data": result}
+        except Exception as e:
+            db.rollback()
+            db.close()
+            return {"success": False, "message": str(e)}
+
+    def auto_update_expired_cleaning_beds(self) -> Dict[str, Any]:
+        """Automatically update beds that have completed their cleaning time to 'available' status.
+        
+        This method checks all beds in 'cleaning' status and updates them to 'available' 
+        if their estimated cleaning duration has elapsed.
+        """
+        if not DISCHARGE_DEPS:
+            return {"success": False, "message": "Discharge dependencies not available"}
+        
+        from database import SessionLocal, BedTurnover, Bed
+        db = SessionLocal()
+        try:
+            updated_beds = []
+            now = datetime.now()
+            
+            # Find all active cleaning processes
+            active_turnovers = db.query(BedTurnover).filter(
+                BedTurnover.status == "cleaning",
+                BedTurnover.cleaning_start_time.isnot(None)
+            ).all()
+            
+            for turnover in active_turnovers:
+                elapsed_minutes = (now - turnover.cleaning_start_time).seconds // 60
+                
+                # If cleaning time has elapsed
+                if elapsed_minutes >= turnover.estimated_cleaning_duration:
+                    bed = db.query(Bed).filter(Bed.id == turnover.bed_id).first()
+                    if bed and bed.status == "cleaning":
+                        # Update bed to available
+                        bed.status = "available"
+                        bed.updated_at = now
+                        
+                        # Mark turnover as completed
+                        turnover.status = "completed"
+                        turnover.cleaning_completion_time = now
+                        
+                        updated_beds.append({
+                            "bed_id": str(bed.id),
+                            "bed_number": bed.bed_number,
+                            "room_number": bed.room.room_number if bed.room else "Unknown",
+                            "elapsed_minutes": elapsed_minutes,
+                            "estimated_duration": turnover.estimated_cleaning_duration
+                        })
+                        
+                        print(f"🔄 Auto-updated bed {bed.bed_number} from cleaning to available after {elapsed_minutes} minutes")
+            
+            # Also check for beds stuck in cleaning status without active turnover
+            orphaned_cleaning_beds = db.query(Bed).filter(
+                Bed.status == "cleaning"
+            ).all()
+            
+            for bed in orphaned_cleaning_beds:
+                # Check if there's an active turnover for this bed
+                active_turnover = db.query(BedTurnover).filter(
+                    BedTurnover.bed_id == bed.id,
+                    BedTurnover.status.in_(["cleaning", "initiated"])
+                ).first()
+                
+                if not active_turnover:
+                    # No active turnover, but bed is in cleaning status - fix it
+                    bed.status = "available"
+                    bed.updated_at = now
+                    
+                    updated_beds.append({
+                        "bed_id": str(bed.id),
+                        "bed_number": bed.bed_number,
+                        "room_number": bed.room.room_number if bed.room else "Unknown",
+                        "reason": "orphaned_cleaning_status"
+                    })
+                    
+                    print(f"🔧 Fixed orphaned bed {bed.bed_number} - removed cleaning status without active turnover")
+            
+            db.commit()
+            
+            result = {
+                "success": True,
+                "updated_count": len(updated_beds),
+                "updated_beds": updated_beds,
+                "timestamp": now.isoformat(),
+                "message": f"Auto-updated {len(updated_beds)} beds from cleaning to available status"
+            }
+            
+            db.close()
+            return result
+            
         except Exception as e:
             db.rollback()
             db.close()

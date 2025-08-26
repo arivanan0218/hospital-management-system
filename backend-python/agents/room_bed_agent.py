@@ -257,7 +257,18 @@ class RoomBedAgent(BaseAgent):
             return {"success": False, "message": f"Failed to create bed: {str(e)}"}
 
     def list_beds(self, status: str = None, room_id: str = None) -> Dict[str, Any]:
-        """List beds with optional filtering."""
+        """❌ DO NOT USE for checking individual bed status! Returns ALL beds.
+        
+        ⚠️ For checking ONE specific bed (e.g. "check bed 302A"), 
+        use 'get_bed_status_with_time_remaining' instead!
+        
+        This tool is only for:
+        - Getting overview of MULTIPLE beds
+        - Finding beds by status (available, occupied, cleaning)
+        - Listing beds in a specific room
+        
+        Returns basic info without cleaning time details.
+        """
         if not DATABASE_AVAILABLE:
             return {"error": "Database not available"}
         
