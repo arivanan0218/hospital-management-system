@@ -1173,26 +1173,254 @@ def add_treatment_record_simple(
     
     return {"error": "Multi-agent system required for adding treatment records"}
 
-def add_equipment_usage_simple(
+@mcp.tool()
+def add_equipment_usage_with_codes(
     patient_id: str,
     equipment_id: str,
     staff_id: str,
-    purpose: str
+    purpose: str,
+    start_time: str = None,
+    end_time: str = None,
+    notes: str = None
 ) -> Dict[str, Any]:
-    """Add equipment usage record for discharge reporting.
+    """Add equipment usage with automatic code-to-UUID conversion (RECOMMENDED FOR CODES).
+    
+    This tool intelligently converts user-friendly codes like P002, EQ001, EMP001 to internal UUIDs
+    before recording equipment usage. Use this when you have patient numbers, equipment codes, and employee IDs.
     
     Args:
-        patient_id: The ID of the patient
-        equipment_id: The ID of the equipment used
-        staff_id: The ID of the staff member who used the equipment
-        purpose: Purpose of equipment usage
+        patient_id: Patient identifier (e.g., 'P002', 'P123456', or internal UUID)
+        equipment_id: Equipment identifier (e.g., 'EQ001', 'EQ123', or internal UUID) 
+        staff_id: Staff identifier (e.g., 'EMP001', 'EMP123', or internal UUID)
+        purpose: Purpose of equipment usage (e.g., 'ECG monitoring during cardiac evaluation')
+        start_time: Start time (ISO string like '2025-08-25 09:15', optional)
+        end_time: End time (ISO string like '2025-08-25 10:00', optional)
+        notes: Additional notes (optional)
+    
+    Examples:
+        patient_id: P002, EQ001, EMP001 (user-friendly codes) - PREFERRED
+        patient_id: 123e4567-e89b-12d3-a456-426614174000 (internal UUIDs)
     """
-    if MULTI_AGENT_AVAILABLE and orchestrator:
+    if not MULTI_AGENT_AVAILABLE or not orchestrator:
+        return {"success": False, "message": "Multi-agent system required for equipment usage"}
+    
+    # Check if inputs are user-friendly codes (short strings without hyphens)
+    is_patient_code = patient_id and len(patient_id) < 20 and '-' not in patient_id
+    is_equipment_code = equipment_id and len(equipment_id) < 20 and '-' not in equipment_id  
+    is_staff_code = staff_id and len(staff_id) < 20 and '-' not in staff_id
+    
+    if is_patient_code or is_equipment_code or is_staff_code:
+        # Perform code-to-UUID conversion locally
+        try:
+            resolved_patient_id = patient_id
+            resolved_equipment_id = equipment_id
+            resolved_staff_id = staff_id
+            
+            # Resolve patient code to UUID
+            if is_patient_code:
+                patient_lookup = orchestrator.route_request("search_patients", patient_number=patient_id)
+                patient_result = patient_lookup.get("result", {})
+                if patient_result.get("data"):
+                    resolved_patient_id = patient_result["data"][0]["id"]
+                else:
+                    return {"success": False, "message": f"Patient '{patient_id}' not found in database"}
+            
+            # Resolve equipment code to UUID
+            if is_equipment_code:
+                equipment_lookup = orchestrator.route_request("list_equipment")
+                equipment_result = equipment_lookup.get("result", {})
+                resolved_equipment_id = None
+                if equipment_result.get("data"):
+                    for eq in equipment_result["data"]:
+                        if eq.get("equipment_id") == equipment_id:
+                            resolved_equipment_id = eq["id"]
+                            break
+                if not resolved_equipment_id:
+                    return {"success": False, "message": f"Equipment '{equipment_id}' not found in database"}
+            
+            # Resolve staff code to UUID  
+            if is_staff_code:
+                staff_lookup = orchestrator.route_request("list_staff")
+                staff_result = staff_lookup.get("result", {})
+                resolved_staff_id = None
+                if staff_result.get("data"):
+                    for staff in staff_result["data"]:
+                        if staff.get("employee_id") == staff_id:
+                            resolved_staff_id = staff["id"]
+                            break
+                if not resolved_staff_id:
+                    return {"success": False, "message": f"Staff member '{staff_id}' not found in database"}
+            
+            # Success: call with resolved UUIDs - use a different tool name to avoid routing conflicts
+            result = orchestrator.route_request("add_equipment_usage_simple",
+                                               patient_id=resolved_patient_id,
+                                               equipment_id=resolved_equipment_id,
+                                               staff_id=resolved_staff_id,
+                                               purpose=purpose,
+                                               start_time=start_time,
+                                               end_time=end_time,
+                                               notes=notes)
+            
+            # Add success metadata showing what was resolved
+            response = result.get("result", result)
+            if isinstance(response, dict) and response.get("success"):
+                response["codes_resolved"] = {
+                    "original_patient": patient_id,
+                    "original_equipment": equipment_id,
+                    "original_staff": staff_id,
+                    "resolved_patient": resolved_patient_id,
+                    "resolved_equipment": resolved_equipment_id,
+                    "resolved_staff": resolved_staff_id
+                }
+                response["message"] = "Equipment usage recorded successfully with automatic code resolution"
+            return response
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"Code resolution failed: {str(e)}",
+                "codes_provided": {
+                    "patient": patient_id,
+                    "equipment": equipment_id,
+                    "staff": staff_id
+                },
+                "suggestion": "Verify that all codes exist in the database"
+            }
+    else:
+        # Use UUIDs directly
         result = orchestrator.route_request("add_equipment_usage_simple",
                                            patient_id=patient_id,
                                            equipment_id=equipment_id,
                                            staff_id=staff_id,
-                                           purpose=purpose)
+                                           purpose=purpose,
+                                           start_time=start_time,
+                                           end_time=end_time,
+                                           notes=notes)
+        return result.get("result", result)
+
+
+@mcp.tool()
+def add_equipment_usage_simple(
+    patient_id: str,
+    equipment_id: str,
+    staff_id: str,
+    purpose: str,
+    start_time: str = None,
+    end_time: str = None,
+    notes: str = None
+) -> Dict[str, Any]:
+    """Add equipment usage using patient codes, equipment codes, and staff codes (PREFERRED METHOD).
+    
+    This tool intelligently handles both internal UUIDs and user-friendly codes like P002, EQ001, EMP001.
+    Use this tool for all equipment usage operations.
+    
+    Args:
+        patient_id: Patient identifier (e.g., 'P002', 'P123456', or internal UUID)
+        equipment_id: Equipment identifier (e.g., 'EQ001', 'EQ123', or internal UUID) 
+        staff_id: Staff identifier (e.g., 'EMP001', 'EMP123', or internal UUID)
+        purpose: Purpose of equipment usage (e.g., 'ECG monitoring during cardiac evaluation')
+        start_time: Start time (ISO string like '2025-08-25 09:15', optional)
+        end_time: End time (ISO string like '2025-08-25 10:00', optional)
+        notes: Additional notes (optional)
+    
+    Examples:
+        patient_id: P002, EQ001, EMP001 (user-friendly codes)
+        patient_id: 123e4567-e89b-12d3-a456-426614174000 (internal UUIDs)
+    """
+    if not MULTI_AGENT_AVAILABLE or not orchestrator:
+        return {"success": False, "message": "Multi-agent system required for equipment usage"}
+    
+    # Check if inputs are user-friendly codes (short strings)
+    is_patient_code = patient_id and len(patient_id) < 20 and not '-' in patient_id
+    is_equipment_code = equipment_id and len(equipment_id) < 20 and not '-' in equipment_id  
+    is_staff_code = staff_id and len(staff_id) < 20 and not '-' in staff_id
+    
+    if is_patient_code or is_equipment_code or is_staff_code:
+        # Perform code-to-UUID conversion locally
+        try:
+            resolved_patient_id = patient_id
+            resolved_equipment_id = equipment_id
+            resolved_staff_id = staff_id
+            
+            # Resolve patient code to UUID
+            if is_patient_code:
+                patient_lookup = orchestrator.route_request("search_patients", patient_number=patient_id)
+                patient_result = patient_lookup.get("result", {})
+                if patient_result.get("data"):
+                    resolved_patient_id = patient_result["data"][0]["id"]
+                else:
+                    return {"success": False, "message": f"Patient '{patient_id}' not found in database"}
+            
+            # Resolve equipment code to UUID
+            if is_equipment_code:
+                equipment_lookup = orchestrator.route_request("list_equipment")
+                equipment_result = equipment_lookup.get("result", {})
+                resolved_equipment_id = None
+                if equipment_result.get("data"):
+                    for eq in equipment_result["data"]:
+                        if eq.get("equipment_id") == equipment_id:
+                            resolved_equipment_id = eq["id"]
+                            break
+                if not resolved_equipment_id:
+                    return {"success": False, "message": f"Equipment '{equipment_id}' not found in database"}
+            
+            # Resolve staff code to UUID  
+            if is_staff_code:
+                staff_lookup = orchestrator.route_request("list_staff")
+                staff_result = staff_lookup.get("result", {})
+                resolved_staff_id = None
+                if staff_result.get("data"):
+                    for staff in staff_result["data"]:
+                        if staff.get("employee_id") == staff_id:
+                            resolved_staff_id = staff["id"]
+                            break
+                if not resolved_staff_id:
+                    return {"success": False, "message": f"Staff member '{staff_id}' not found in database"}
+            
+            # Success: call with resolved UUIDs
+            result = orchestrator.route_request("add_equipment_usage_simple",
+                                               patient_id=resolved_patient_id,
+                                               equipment_id=resolved_equipment_id,
+                                               staff_id=resolved_staff_id,
+                                               purpose=purpose,
+                                               start_time=start_time,
+                                               end_time=end_time,
+                                               notes=notes)
+            
+            # Add success metadata
+            response = result.get("result", result)
+            if isinstance(response, dict) and response.get("success"):
+                response["codes_resolved"] = {
+                    "original_patient": patient_id,
+                    "original_equipment": equipment_id,
+                    "original_staff": staff_id,
+                    "resolved_patient": resolved_patient_id,
+                    "resolved_equipment": resolved_equipment_id,
+                    "resolved_staff": resolved_staff_id
+                }
+            return response
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"Code resolution failed: {str(e)}",
+                "codes_provided": {
+                    "patient": patient_id,
+                    "equipment": equipment_id,
+                    "staff": staff_id
+                },
+                "suggestion": "Verify that all codes exist in the database"
+            }
+    else:
+        # Use UUIDs directly
+        result = orchestrator.route_request("add_equipment_usage_simple",
+                                           patient_id=patient_id,
+                                           equipment_id=equipment_id,
+                                           staff_id=staff_id,
+                                           purpose=purpose,
+                                           start_time=start_time,
+                                           end_time=end_time,
+                                           notes=notes)
         return result.get("result", result)
     
     return {"error": "Multi-agent system required for adding equipment usage records"}
@@ -1207,15 +1435,27 @@ def add_equipment_usage_by_codes(
     end_time: str = None,
     notes: str = None
 ) -> Dict[str, Any]:
-    """Add equipment usage using patient_number, equipment_id (code), and employee_id (staff code), not UUIDs.
+    """Add equipment usage using human-readable codes (PREFERRED METHOD).
+    
+    Use this tool when you have patient numbers, equipment codes, and employee IDs.
+    This is the recommended way to add equipment usage records.
+    
     Args:
-        patient_number: The patient number (business code)
-        equipment_id: The equipment code (business code)
-        employee_id: The staff employee code (business code)
-        purpose: Purpose of equipment usage
-        start_time: Start time (ISO string, optional)
-        end_time: End time (ISO string, optional)
+        patient_number: The patient number (e.g., 'P002', 'P123456')
+        equipment_id: The equipment code (e.g., 'EQ001', 'EQ123')
+        employee_id: The staff employee code (e.g., 'EMP001', 'EMP123')
+        purpose: Purpose of equipment usage (e.g., 'ECG monitoring during cardiac evaluation')
+        start_time: Start time (ISO string like '2025-08-25 09:15', optional)
+        end_time: End time (ISO string like '2025-08-25 10:00', optional)
         notes: Additional notes (optional)
+    
+    Example:
+        patient_number: P002
+        equipment_id: EQ001
+        employee_id: EMP001
+        purpose: ECG monitoring during cardiac evaluation
+        start_time: 2025-08-25 09:15
+        end_time: 2025-08-25 10:00
     """
     if MULTI_AGENT_AVAILABLE and orchestrator:
         result = orchestrator.route_request("add_equipment_usage_by_codes",
@@ -1543,7 +1783,8 @@ async def call_tool_http(request: Request):
         # System-level tools that should not be routed through orchestrator
         system_tools = ["get_system_status", "get_agent_info", "list_agents", "execute_workflow", 
                        "download_discharge_report", "get_discharge_report_storage_stats", 
-                       "list_available_discharge_reports", "archive_old_discharge_reports"]
+                       "list_available_discharge_reports", "archive_old_discharge_reports",
+                       "add_equipment_usage_with_codes"]
         
         if tool_name in system_tools:
             # Handle system tools directly
@@ -1557,6 +1798,8 @@ async def call_tool_http(request: Request):
                 result = execute_workflow(**arguments)
             elif tool_name == "download_discharge_report":
                 result = download_discharge_report(**arguments)
+            elif tool_name == "add_equipment_usage_with_codes":
+                result = add_equipment_usage_with_codes(**arguments)
             elif tool_name == "get_discharge_report_storage_stats":
                 result = get_discharge_report_storage_stats(**arguments)
             elif tool_name == "list_available_discharge_reports":
