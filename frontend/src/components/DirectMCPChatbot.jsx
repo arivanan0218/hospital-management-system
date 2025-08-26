@@ -7,6 +7,7 @@ import MedicalHistoryViewer from './MedicalHistoryViewer.jsx';
 import PatientAdmissionForm from './PatientAdmissionForm.jsx';
 import UserCreationForm from './UserCreationForm.jsx';
 import StaffCreationForm from './StaffCreationForm.jsx';
+import DepartmentCreationForm from './DepartmentCreationForm.jsx';
 
 const DirectMCPChatbot = ({ user, onLogout }) => {
   // Mobile-responsive CSS classes for consistent mobile experience (reduced height)
@@ -55,14 +56,6 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   
   // Department creation popup form
   const [showDepartmentForm, setShowDepartmentForm] = useState(false);
-  const [departmentFormData, setDepartmentFormData] = useState({
-    name: '',
-    description: '',
-    head_doctor_id: '', // Foreign key to users table
-    floor_number: '',
-    phone: '',
-    email: ''
-  });
   const [isSubmittingDepartment, setIsSubmittingDepartment] = useState(false);
   
   // Staff creation popup form
@@ -2156,80 +2149,31 @@ You can use these commands:
   };
 
   // Department Form Handlers
-  const handleDepartmentFormChange = (field, value) => {
-    setDepartmentFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  const submitDepartment = async () => {
-    const requiredFields = ['name'];
-    const missingFields = requiredFields.filter(field => !departmentFormData[field].trim());
+  const handleDepartmentSubmit = (response) => {
+    setShowDepartmentForm(false);
     
-    if (missingFields.length > 0) {
-      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
-      return;
-    }
-
-    setIsSubmittingDepartment(true);
-
-    try {
-      const response = await aiMcpServiceRef.current.callToolDirectly('create_department', {
-        name: departmentFormData.name,
-        description: departmentFormData.description,
-        head_doctor_id: departmentFormData.head_doctor_id,
-        floor_number: departmentFormData.floor_number ? parseInt(departmentFormData.floor_number) : undefined,
-        phone: departmentFormData.phone,
-        email: departmentFormData.email
-      });
-
-      setShowDepartmentForm(false);
-      setDepartmentFormData({
-        name: '',
-        description: '',
-        head_doctor_id: '',
-        floor_number: '',
-        phone: '',
-        email: ''
-      });
-
-      let responseText = '';
-      if (response.success) {
-        const deptData = response.result?.data || response.data || {};
-        responseText = `✅ Department created successfully!
-        
+    let responseText = '';
+    if (response.success) {
+      const deptData = response.result?.data || response.data || {};
+      responseText = `✅ Department created successfully!
+      
 **Department Details:**
 - Name: ${deptData.name || 'Unknown'}
 - Description: ${deptData.description || 'Not provided'}
 - Floor: ${deptData.floor_number || 'Not specified'}
 - Phone: ${deptData.phone || 'Not provided'}
 - Email: ${deptData.email || 'Not provided'}`;
-      } else {
-        responseText = `❌ Failed to create department: ${response.message || 'Unknown error'}`;
-      }
-
-      const successMsg = {
-        id: Date.now(),
-        text: `✅ Department created successfully!\n\n${responseText}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, successMsg]);
-
-    } catch (error) {
-      console.error('Error creating department:', error);
-      
-      const errorMsg = {
-        id: Date.now(),
-        text: `❌ Error creating department: ${error.message || 'Unknown error occurred'}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, errorMsg]);
-    } finally {
-      setIsSubmittingDepartment(false);
+    } else {
+      responseText = `❌ Failed to create department: ${response.message || 'Unknown error'}`;
     }
+
+    const successMsg = {
+      id: Date.now(),
+      text: responseText,
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, successMsg]);
   };
 
   const closeDepartmentForm = () => {
@@ -4031,157 +3975,16 @@ ${dischargeData.next_steps ? dischargeData.next_steps.map(step => `• ${step}`)
         aiMcpServiceRef={aiMcpServiceRef}
       />
 
-      {/* Department Creation Form Popup */}
-      {showDepartmentForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            {/* Header */}
-            <div className="border-b border-gray-700 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-white">Department Creation Form</h2>
-                <button
-                  onClick={closeDepartmentForm}
-                  className="text-gray-400 hover:text-white"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-
-            {/* Form Content */}
-            <div className="px-6 py-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Basic Information */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-medium text-white border-b border-gray-700 pb-2">
-                    Department Information
-                  </h3>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Department Name *
-                    </label>
-                    <input
-                      type="text"
-                      value={departmentFormData.name}
-                      onChange={(e) => handleDepartmentFormChange('name', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="e.g., Cardiology"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Description
-                    </label>
-                    <textarea
-                      value={departmentFormData.description}
-                      onChange={(e) => handleDepartmentFormChange('description', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      rows="3"
-                      placeholder="Department description and services"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Head Doctor
-                    </label>
-                    <select
-                      value={departmentFormData.head_doctor_id}
-                      onChange={(e) => handleDepartmentFormChange('head_doctor_id', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="">Select head doctor (optional)</option>
-                      {Array.isArray(userOptions) ? userOptions
-                        .filter(user => user.role === 'doctor' || user.role === 'admin')
-                        .map(user => (
-                          <option key={user.id} value={user.id}>
-                            {user.first_name} {user.last_name} ({user.username})
-                          </option>
-                        )) : []}
-                    </select>
-                    <p className="text-xs text-gray-400 mt-1">Choose who will head this department</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Floor Number
-                    </label>
-                    <input
-                      type="number"
-                      value={departmentFormData.floor_number}
-                      onChange={(e) => handleDepartmentFormChange('floor_number', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="e.g., 3"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <h3 className="text-lg font-medium text-white border-b border-gray-700 pb-2">
-                    Contact & Management
-                  </h3>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Phone
-                    </label>
-                    <input
-                      type="tel"
-                      value={departmentFormData.phone}
-                      onChange={(e) => handleDepartmentFormChange('phone', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Department phone number"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      value={departmentFormData.email}
-                      onChange={(e) => handleDepartmentFormChange('email', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="department@hospital.com"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
-              <button
-                onClick={closeDepartmentForm}
-                disabled={isSubmittingDepartment}
-                className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={submitDepartment}
-                disabled={isSubmittingDepartment}
-                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-              >
-                {isSubmittingDepartment ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Creating Department...</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="w-4 h-4" />
-                    <span>Create Department</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Department Creation Form Component */}
+      <DepartmentCreationForm
+        isOpen={showDepartmentForm}
+        onClose={closeDepartmentForm}
+        onSubmit={handleDepartmentSubmit}
+        isSubmitting={isSubmittingDepartment}
+        aiMcpServiceRef={aiMcpServiceRef}
+        userOptions={userOptions}
+        loadingDropdowns={loadingDropdowns}
+      />
 
       {/* User Creation Form Component */}
       <UserCreationForm 
