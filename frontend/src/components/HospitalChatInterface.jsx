@@ -160,8 +160,7 @@ const HospitalChatInterface = ({
 
       {/* Chat Output Area - SCROLLABLE MIDDLE SECTION */}
       <div 
-        className="flex-1 overflow-y-auto pt-16 pb-48 bg-[#1a1a1a]"
-        style={{ paddingBottom: showActionButtons ? '200px' : '90px' }}
+        className="flex-1 overflow-y-auto pt-16 pb-24 bg-[#1a1a1a]"
       >
         <div className="max-w-4xl mx-auto">
           {/* Welcome Message */}
@@ -332,70 +331,64 @@ const HospitalChatInterface = ({
         </div>
       </div>
 
-      {/* Action Buttons Above Input - FIXED ABOVE BOTTOM INPUT */}
-      <div className={`fixed left-0 right-0 bg-[#1a1a1a] px-4 z-20 border-t border-gray-700 transition-all duration-500 ease-in-out ${
-        showActionButtons ? 'py-3 opacity-100' : 'py-0 opacity-0 -bottom-full'
-      }`} style={{
-        bottom: showActionButtons ? 'calc(90px + env(safe-area-inset-bottom, 0px))' : '-100px',
-        minHeight: showActionButtons ? '10px' : '0px'
-      }}>
-        <div className="max-w-4xl mx-auto">
-          {/* Desktop: 1 row 4 columns, Mobile: 2 rows 2 columns */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {/* View All Patients */}
-            <button
-              onClick={() => {
-                setInputMessage("List all patients");
-                smartFocusInput(100);
-              }}
-              className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-2 py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
-              title="View all patients"
-            >
-              <span className="font-medium whitespace-nowrap">View Patients</span>
-            </button>
-
-            {/* Check Bed Status */}
-            <button
-              onClick={() => {
-                setInputMessage("Show bed availability");
-                smartFocusInput(100);
-              }}
-              className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-2 py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
-              title="Check bed availability"
-            >
-              <span className="font-medium whitespace-nowrap">Bed Status</span>
-            </button>
-
-            {/* Emergency Alert */}
-            <button
-              onClick={() => {
-                setInputMessage("Show emergency status and available emergency beds");
-                smartFocusInput(100);
-              }}
-              className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-2 py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
-              title="Emergency status"
-            >
-              <span className="font-medium whitespace-nowrap">Emergency</span>
-            </button>
-
-            {/* Quick Stats */}
-            <button
-              onClick={() => {
-                setInputMessage("Show hospital overview with current stats");
-                smartFocusInput(100);
-              }}
-              className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-2 py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
-              title="Hospital overview"
-            >
-              <span className="font-medium whitespace-nowrap">Overview</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
       {/* Chat Input Area - FIXED AT BOTTOM */}
       <div className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-gray-700 px-4 py-3 z-30" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom, 0px))' }}>
         <div className="max-w-4xl mx-auto">
+          {/* Action Buttons - Inside Input Container */}
+          {showActionButtons && (
+            <div className="mb-3 transition-all duration-300 ease-in-out">
+              {/* Desktop: 1 row 4 columns, Mobile: 2 rows 2 columns */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {/* View All Patients */}
+                <button
+                  onClick={() => {
+                    setInputMessage("List all patients");
+                    smartFocusInput(100);
+                  }}
+                  className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-2 py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
+                  title="View all patients"
+                >
+                  <span className="font-medium whitespace-nowrap">View Patients</span>
+                </button>
+
+                {/* Check Bed Status */}
+                <button
+                  onClick={() => {
+                    setInputMessage("Show bed availability");
+                    smartFocusInput(100);
+                  }}
+                  className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-2 py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
+                  title="Check bed availability"
+                >
+                  <span className="font-medium whitespace-nowrap">Bed Status</span>
+                </button>
+
+                {/* Emergency Alert */}
+                <button
+                  onClick={() => {
+                    setInputMessage("Show emergency status and available emergency beds");
+                    smartFocusInput(100);
+                  }}
+                  className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-2 py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
+                  title="Emergency status"
+                >
+                  <span className="font-medium whitespace-nowrap">Emergency</span>
+                </button>
+
+                {/* Quick Stats */}
+                <button
+                  onClick={() => {
+                    setInputMessage("Show hospital overview with current stats");
+                    smartFocusInput(100);
+                  }}
+                  className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-2 py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
+                  title="Hospital overview"
+                >
+                  <span className="font-medium whitespace-nowrap">Overview</span>
+                </button>
+              </div>
+            </div>
+          )}
           <div className="flex items-center space-x-2 bg-[#2a2a2a] rounded-lg px-3 py-2 border border-gray-600 focus-within:border-blue-500">
             {/* Left Side - Plus Menu */}
             <div className="flex items-center">
