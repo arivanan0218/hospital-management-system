@@ -428,24 +428,25 @@ class RoomBedAgent(BaseAgent):
             # Preserve previous patient before clearing
             previous_patient_id = bed.patient_id
             
-            # Discharge patient from bed (simple flow)
+            # Discharge patient from bed and start cleaning process
             bed.patient_id = None
-            bed.status = "available"
+            bed.status = "cleaning"  # Set to cleaning, not available
             if discharge_date:
                 bed.discharge_date = datetime.strptime(discharge_date, "%Y-%m-%d").date()
             else:
                 bed.discharge_date = date.today()
             
-            # Create a BedTurnover record to retain history for report generation fallbacks
+            # Create a BedTurnover record and start cleaning immediately
             try:
                 from database import BedTurnover
                 from datetime import datetime as dt
                 turnover = BedTurnover(
                     bed_id=bed.id,
                     previous_patient_id=previous_patient_id,
-                    status="initiated",
+                    status="cleaning",  # Start cleaning immediately
                     turnover_type="standard",
                     discharge_time=dt.now(),
+                    cleaning_start_time=dt.now(),  # Start cleaning now
                     estimated_cleaning_duration=30,
                     priority_level="normal"
                 )
@@ -453,6 +454,8 @@ class RoomBedAgent(BaseAgent):
             except Exception as e:
                 # If turnover creation fails, continue with basic discharge
                 print(f"⚠️ Failed to create BedTurnover during discharge: {e}")
+                # Still set bed to cleaning status even if turnover fails
+                bed.status = "cleaning"
             
             db.commit()
             db.refresh(bed)
