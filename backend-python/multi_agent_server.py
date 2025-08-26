@@ -25,7 +25,7 @@ try:
     from database import (
         User, Department, Patient, Room, Bed, Staff, Equipment, EquipmentCategory,
         Supply, SupplyCategory, InventoryTransaction, AgentInteraction,
-        LegacyUser, SessionLocal
+        LegacyUser, DischargeReport, SessionLocal
     )
     DATABASE_AVAILABLE = True
 except ImportError:
@@ -292,10 +292,14 @@ def create_patient(first_name: str, last_name: str, date_of_birth: str,
     return {"success": False, "message": "Multi-agent system required for this operation"}
 
 @mcp.tool()
-def list_patients() -> Dict[str, Any]:
-    """List all patients."""
+def list_patients(status: str = "all") -> Dict[str, Any]:
+    """List patients with optional status filtering.
+    
+    Args:
+        status: Filter by patient status - "active", "discharged", "all" (default: all)
+    """
     if MULTI_AGENT_AVAILABLE and orchestrator:
-        result = orchestrator.route_request("list_patients")
+        result = orchestrator.route_request("list_patients", status=status)
         return result.get("result", result)
     
     return {"error": "Multi-agent system required for this operation"}
@@ -1555,10 +1559,10 @@ def complete_bed_cleaning(bed_id: str, cleaned_by: str = None, cleaning_notes: s
 
 @mcp.tool()
 def get_bed_status_with_time_remaining(bed_id: str) -> Dict[str, Any]:
-    """Get bed status with time remaining for current process.
+    """Get bed status with time remaining for current process (supports bed UUID or bed number).
     
     Args:
-        bed_id: The ID of the bed to check
+        bed_id: The ID of the bed to check (can be bed UUID like 'bed123' or bed number like '401A')
     """
     if MULTI_AGENT_AVAILABLE and orchestrator:
         result = orchestrator.route_request("get_bed_status_with_time_remaining", bed_id=bed_id)
@@ -1686,6 +1690,191 @@ def get_equipment_turnover_status(equipment_id: str) -> Dict[str, Any]:
     return {"error": "Multi-agent system required for equipment status"}
 
 @mcp.tool()
+def search_discharged_patients(patient_name: str = None, patient_number: str = None, 
+                             discharge_date_from: str = None, discharge_date_to: str = None) -> Dict[str, Any]:
+    """Search for discharged patients and get their discharge details.
+    
+    Args:
+        patient_name: Partial name match (optional)
+        patient_number: Exact patient number match (optional)
+        discharge_date_from: Start date filter YYYY-MM-DD (optional)
+        discharge_date_to: End date filter YYYY-MM-DD (optional)
+    """
+    if not DATABASE_AVAILABLE:
+        return {"success": False, "message": "Database not available"}
+    
+    db = get_db_session()
+    try:
+        query = db.query(Patient).filter(Patient.status == "discharged")
+        
+        if patient_name:
+            query = query.filter(
+                (Patient.first_name.ilike(f"%{patient_name}%")) |
+                (Patient.last_name.ilike(f"%{patient_name}%"))
+            )
+        
+        if patient_number:
+            query = query.filter(Patient.patient_number == patient_number)
+        
+        if discharge_date_from:
+            try:
+                from_date = datetime.fromisoformat(discharge_date_from)
+                query = query.filter(Patient.updated_at >= from_date)
+            except:
+                pass
+        
+        if discharge_date_to:
+            try:
+                to_date = datetime.fromisoformat(discharge_date_to)
+                query = query.filter(Patient.updated_at <= to_date)
+            except:
+                pass
+        
+        patients = query.order_by(Patient.updated_at.desc()).limit(50).all()
+        
+        result_data = []
+        for patient in patients:
+            # Get discharge reports for this patient
+            discharge_reports = db.query(DischargeReport).filter(
+                DischargeReport.patient_id == patient.id
+            ).order_by(DischargeReport.created_at.desc()).all()
+            
+            patient_data = {
+                "patient_id": str(patient.id),
+                "patient_number": patient.patient_number,
+                "name": f"{patient.first_name} {patient.last_name}",
+                "status": patient.status,
+                "discharge_date": patient.updated_at.isoformat() if patient.updated_at else None,
+                "phone": patient.phone,
+                "emergency_contact": patient.emergency_contact_name,
+                "discharge_reports": [
+                    {
+                        "report_id": str(report.id),
+                        "report_number": report.report_number,
+                        "discharge_date": report.discharge_date.isoformat() if report.discharge_date else None,
+                        "discharge_condition": report.discharge_condition,
+                        "discharge_destination": report.discharge_destination,
+                        "length_of_stay_days": report.length_of_stay_days,
+                        "download_url": f"/discharge/{report.report_number}.pdf"
+                    } for report in discharge_reports
+                ]
+            }
+            result_data.append(patient_data)
+        
+        db.close()
+        return {
+            "success": True,
+            "patients": result_data,
+            "total_found": len(result_data),
+            "message": f"Found {len(result_data)} discharged patients"
+        }
+        
+    except Exception as e:
+        db.close()
+        return {"success": False, "message": f"Error searching discharged patients: {str(e)}"}
+
+@mcp.tool()
+def get_patient_with_discharge_details(patient_identifier: str) -> Dict[str, Any]:
+    """Get complete patient information including discharge details by name, patient number, or ID.
+    
+    Args:
+        patient_identifier: Patient name, patient number, or UUID
+    """
+    if not DATABASE_AVAILABLE:
+        return {"success": False, "message": "Database not available"}
+    
+    db = get_db_session()
+    try:
+        patient = None
+        
+        # Try to find patient by UUID first
+        try:
+            patient = db.query(Patient).filter(Patient.id == uuid.UUID(patient_identifier)).first()
+        except:
+            pass
+        
+        # Try by patient number
+        if not patient:
+            patient = db.query(Patient).filter(Patient.patient_number == patient_identifier).first()
+        
+        # Try by name (partial match)
+        if not patient:
+            patient = db.query(Patient).filter(
+                (Patient.first_name.ilike(f"%{patient_identifier}%")) |
+                (Patient.last_name.ilike(f"%{patient_identifier}%"))
+            ).first()
+        
+        if not patient:
+            db.close()
+            return {"success": False, "message": f"Patient not found: {patient_identifier}"}
+        
+        # Get discharge reports
+        discharge_reports = db.query(DischargeReport).filter(
+            DischargeReport.patient_id == patient.id
+        ).order_by(DischargeReport.created_at.desc()).all()
+        
+        # Get current or last bed assignment
+        bed_assignment = db.query(Bed).filter(
+            (Bed.patient_id == patient.id) | 
+            (Bed.discharge_date.isnot(None))
+        ).order_by(Bed.updated_at.desc()).first()
+        
+        result = {
+            "success": True,
+            "patient": {
+                "id": str(patient.id),
+                "patient_number": patient.patient_number,
+                "name": f"{patient.first_name} {patient.last_name}",
+                "first_name": patient.first_name,
+                "last_name": patient.last_name,
+                "status": patient.status,
+                "date_of_birth": patient.date_of_birth.isoformat() if patient.date_of_birth else None,
+                "gender": patient.gender,
+                "phone": patient.phone,
+                "email": patient.email,
+                "address": patient.address,
+                "blood_type": patient.blood_type,
+                "allergies": patient.allergies,
+                "emergency_contact_name": patient.emergency_contact_name,
+                "emergency_contact_phone": patient.emergency_contact_phone,
+                "last_updated": patient.updated_at.isoformat() if patient.updated_at else None
+            },
+            "bed_assignment": {
+                "bed_id": str(bed_assignment.id) if bed_assignment else None,
+                "bed_number": bed_assignment.bed_number if bed_assignment else None,
+                "room_number": bed_assignment.room.room_number if bed_assignment and bed_assignment.room else None,
+                "status": bed_assignment.status if bed_assignment else None,
+                "admission_date": bed_assignment.admission_date.isoformat() if bed_assignment and bed_assignment.admission_date else None,
+                "discharge_date": bed_assignment.discharge_date.isoformat() if bed_assignment and bed_assignment.discharge_date else None
+            } if bed_assignment else None,
+            "discharge_reports": [
+                {
+                    "report_id": str(report.id),
+                    "report_number": report.report_number,
+                    "discharge_date": report.discharge_date.isoformat() if report.discharge_date else None,
+                    "admission_date": report.admission_date.isoformat() if report.admission_date else None,
+                    "length_of_stay_days": report.length_of_stay_days,
+                    "discharge_condition": report.discharge_condition,
+                    "discharge_destination": report.discharge_destination,
+                    "discharge_instructions": report.discharge_instructions,
+                    "follow_up_required": report.follow_up_required,
+                    "created_at": report.created_at.isoformat() if report.created_at else None,
+                    "download_url": f"/discharge/{report.report_number}.pdf",
+                    "bed_number": db.query(Bed).filter(Bed.id == report.bed_id).first().bed_number if report.bed_id else None
+                } for report in discharge_reports
+            ],
+            "total_discharge_reports": len(discharge_reports),
+            "is_discharged": patient.status == "discharged"
+        }
+        
+        db.close()
+        return result
+        
+    except Exception as e:
+        db.close()
+        return {"success": False, "message": f"Error getting patient details: {str(e)}"}
+
+@mcp.tool()
 def download_discharge_report(report_number: str, download_format: str = "pdf") -> Dict[str, Any]:
     """Download a discharge report in the specified format.
     
@@ -1784,7 +1973,8 @@ async def call_tool_http(request: Request):
         system_tools = ["get_system_status", "get_agent_info", "list_agents", "execute_workflow", 
                        "download_discharge_report", "get_discharge_report_storage_stats", 
                        "list_available_discharge_reports", "archive_old_discharge_reports",
-                       "add_equipment_usage_with_codes"]
+                       "add_equipment_usage_with_codes", "search_discharged_patients", 
+                       "get_patient_with_discharge_details"]
         
         if tool_name in system_tools:
             # Handle system tools directly
@@ -1806,6 +1996,10 @@ async def call_tool_http(request: Request):
                 result = list_available_discharge_reports(**arguments)
             elif tool_name == "archive_old_discharge_reports":
                 result = archive_old_discharge_reports(**arguments)
+            elif tool_name == "search_discharged_patients":
+                result = search_discharged_patients(**arguments)
+            elif tool_name == "get_patient_with_discharge_details":
+                result = get_patient_with_discharge_details(**arguments)
             else:
                 result = {"error": f"System tool {tool_name} not implemented"}
         else:
