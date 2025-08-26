@@ -102,6 +102,8 @@ class User(Base):
     inventory_transactions = relationship("InventoryTransaction", back_populates="performed_by_user")
     agent_interactions = relationship("AgentInteraction", back_populates="user")
     generated_discharge_reports = relationship("DischargeReport", foreign_keys="DischargeReport.generated_by", back_populates="generated_by_user")
+    prescribed_supply_usage = relationship("PatientSupplyUsage", foreign_keys="PatientSupplyUsage.prescribed_by_id", back_populates="prescribed_by")
+    administered_supply_usage = relationship("PatientSupplyUsage", foreign_keys="PatientSupplyUsage.administered_by_id", back_populates="administered_by")
 
 class Department(Base):
     """Department table model."""
@@ -150,6 +152,7 @@ class Patient(Base):
     medical_documents = relationship("MedicalDocument", back_populates="patient")
     extracted_medical_data = relationship("ExtractedMedicalData", back_populates="patient")
     discharge_reports = relationship("DischargeReport", back_populates="patient")
+    supply_usage = relationship("PatientSupplyUsage", back_populates="patient")
     # Discharge report related relationships (will be available after models are imported)
     treatments = relationship("TreatmentRecord", back_populates="patient", lazy="dynamic")
     equipment_usage = relationship("EquipmentUsage", back_populates="patient", lazy="dynamic")
@@ -194,6 +197,7 @@ class Bed(Base):
     room = relationship("Room", back_populates="beds")
     patient = relationship("Patient", back_populates="bed")
     discharge_reports = relationship("DischargeReport", back_populates="bed")
+    supply_usage = relationship("PatientSupplyUsage", back_populates="bed")
 
 
 class Staff(Base):
@@ -292,6 +296,7 @@ class Supply(Base):
     # Relationships
     category = relationship("SupplyCategory", back_populates="supplies")
     transactions = relationship("InventoryTransaction", back_populates="supply")
+    patient_usage = relationship("PatientSupplyUsage", back_populates="supply")
 
 class InventoryTransaction(Base):
     """Inventory transaction table model."""
@@ -440,6 +445,7 @@ class DischargeReport(Base):
     equipment_summary = Column(Text)  # JSON
     staff_summary = Column(Text)  # JSON
     medications = Column(Text)  # JSON
+    supply_usage = Column(Text)  # JSON - New field for supply/medication usage
     procedures = Column(Text)  # JSON
     discharge_instructions = Column(Text)
     follow_up_required = Column(Text)
@@ -454,6 +460,58 @@ class DischargeReport(Base):
     patient = relationship("Patient", back_populates="discharge_reports")
     bed = relationship("Bed")
     generated_by_user = relationship("User", foreign_keys=[generated_by])
+
+# Patient Supply Usage Tracking Models
+
+class PatientSupplyUsage(Base):
+    """Track supply/medication usage per patient for discharge reporting."""
+    __tablename__ = "patient_supply_usage"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    patient_id = Column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
+    supply_id = Column(UUID(as_uuid=True), ForeignKey("supplies.id"), nullable=False)
+    
+    # Usage details
+    quantity_used = Column(Integer, nullable=False)
+    unit_cost = Column(DECIMAL(8, 2))  # Cost per unit at time of usage
+    total_cost = Column(DECIMAL(10, 2))  # Total cost for this usage
+    
+    # Medical context
+    prescribed_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))  # Doctor who prescribed
+    administered_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))  # Staff who administered
+    bed_id = Column(UUID(as_uuid=True), ForeignKey("beds.id"))  # Where administered
+    
+    # Clinical details
+    dosage = Column(String(100))  # e.g., "500mg", "2 tablets"
+    frequency = Column(String(100))  # e.g., "twice daily", "as needed"
+    administration_route = Column(String(50))  # oral, IV, injection, topical
+    indication = Column(String(200))  # Why was this prescribed/used
+    
+    # Timing
+    prescribed_date = Column(DateTime, nullable=False)
+    administration_date = Column(DateTime)
+    start_date = Column(Date)  # Treatment start
+    end_date = Column(Date)    # Treatment end
+    
+    # Status and notes
+    status = Column(String(20), default="prescribed")  # prescribed, administered, completed, discontinued
+    effectiveness = Column(String(20))  # effective, partial, ineffective, unknown
+    side_effects = Column(Text)  # Any reported side effects
+    notes = Column(Text)
+    
+    # Billing integration
+    billed = Column(Boolean, default=False)
+    insurance_covered = Column(Boolean, default=True)
+    
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    # Relationships
+    patient = relationship("Patient", back_populates="supply_usage")
+    supply = relationship("Supply", back_populates="patient_usage")
+    prescribed_by = relationship("User", foreign_keys=[prescribed_by_id], back_populates="prescribed_supply_usage")
+    administered_by = relationship("User", foreign_keys=[administered_by_id], back_populates="administered_supply_usage")
+    bed = relationship("Bed", back_populates="supply_usage")
 
 # Bed Turnover Management Models
 
