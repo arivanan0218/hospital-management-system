@@ -815,8 +815,65 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
    * Only specific CREATE tools trigger popup forms, all other tools use AI processing
    */
   const detectIntentWithAI = async (userMessage) => {
+    console.log('🤖 detectIntentWithAI called with message:', userMessage);
+    console.log('🤖 OpenAI API key available:', !!openaiApiKey.trim());
+    
     if (!openaiApiKey.trim()) {
-      return null; // Fall back to keyword matching if no API key
+      console.log('⚠️ No OpenAI API key found, using fallback keyword detection for popup forms');
+      
+      // Fallback keyword detection when no API key is available
+      const message = userMessage.toLowerCase();
+      console.log('🔍 Checking message for keywords:', message);
+      
+      // CREATE operations that should trigger popup forms
+      if ((message.includes('create') || message.includes('add') || message.includes('register') || message.includes('new')) && message.includes('patient')) {
+        console.log('✅ Fallback detected: create_patient');
+        return 'create_patient';
+      }
+      if ((message.includes('create') || message.includes('add') || message.includes('new')) && (message.includes('user') && !message.includes('legacy'))) {
+        console.log('✅ Fallback detected: create_user');
+        return 'create_user';
+      }
+      if ((message.includes('create') || message.includes('add') || message.includes('new')) && message.includes('legacy') && message.includes('user')) {
+        console.log('✅ Fallback detected: create_legacy_user');
+        return 'create_legacy_user';
+      }
+      if ((message.includes('create') || message.includes('add') || message.includes('new')) && message.includes('department')) {
+        console.log('✅ Fallback detected: create_department');
+        return 'create_department';
+      }
+      if ((message.includes('create') || message.includes('add') || message.includes('new')) && message.includes('room')) {
+        console.log('✅ Fallback detected: create_room');
+        return 'create_room';
+      }
+      if ((message.includes('create') || message.includes('add') || message.includes('new')) && message.includes('bed')) {
+        console.log('✅ Fallback detected: create_bed');
+        return 'create_bed';
+      }
+      if ((message.includes('create') || message.includes('add') || message.includes('new')) && (message.includes('staff') || message.includes('employee'))) {
+        console.log('✅ Fallback detected: create_staff');
+        return 'create_staff';
+      }
+      if ((message.includes('create') || message.includes('add') || message.includes('new')) && message.includes('equipment') && !message.includes('category')) {
+        console.log('✅ Fallback detected: create_equipment');
+        return 'create_equipment';
+      }
+      if ((message.includes('create') || message.includes('add') || message.includes('new')) && message.includes('supply') && !message.includes('category')) {
+        console.log('✅ Fallback detected: create_supply');
+        return 'create_supply';
+      }
+      if ((message.includes('create') || message.includes('add') || message.includes('new')) && message.includes('equipment') && message.includes('category')) {
+        console.log('✅ Fallback detected: create_equipment_category');
+        return 'create_equipment_category';
+      }
+      if ((message.includes('create') || message.includes('add') || message.includes('new')) && message.includes('supply') && message.includes('category')) {
+        console.log('✅ Fallback detected: create_supply_category');
+        return 'create_supply_category';
+      }
+      
+      // Default to AI processing for all other cases
+      console.log('🤖 Fallback defaulting to: ai_processing');
+      return 'ai_processing';
     }
 
     try {
@@ -982,18 +1039,23 @@ Examples:
 
     // 🤖 INTELLIGENT AI INTENT DETECTION FIRST
     try {
+      console.log('🔍 Starting intent detection for:', userMessage);
       const detectedIntent = await detectIntentWithAI(userMessage);
+      console.log('🎯 Detected intent:', detectedIntent);
       
       if (detectedIntent && detectedIntent !== 'ai_processing') {
         setIsLoading(false);
         
         console.log('🎯 POPUP FORM HANDLER - Processing intent:', detectedIntent);
+        console.log('🎯 Current state - showPatientAdmissionForm:', showPatientAdmissionForm);
         
         // Show appropriate popup form based on AI detection
         switch (detectedIntent) {
           case 'create_patient':
             console.log('📝 Opening Patient Admission Form');
+            console.log('📝 About to set showPatientAdmissionForm to true');
             setShowPatientAdmissionForm(true);
+            console.log('📝 After setting showPatientAdmissionForm to true');
             const patientMsg = {
               id: Date.now() + 1,
               text: "I detected you want to register a new patient! I've opened the patient admission form for you.",
