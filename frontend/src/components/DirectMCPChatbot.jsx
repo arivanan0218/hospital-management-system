@@ -10,6 +10,7 @@ import StaffCreationForm from './StaffCreationForm.jsx';
 import DepartmentCreationForm from './DepartmentCreationForm.jsx';
 import RoomCreationForm from './RoomCreationForm.jsx';
 import EquipmentCreationForm from './EquipmentCreationForm.jsx';
+import SupplyCreationForm from './SupplyCreationForm.jsx';
 
 const DirectMCPChatbot = ({ user, onLogout }) => {
   // Mobile-responsive CSS classes for consistent mobile experience (reduced height)
@@ -89,20 +90,6 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   
   // Supply creation popup form
   const [showSupplyForm, setShowSupplyForm] = useState(false);
-  const [supplyFormData, setSupplyFormData] = useState({
-    item_code: '', // Unique item code
-    name: '',
-    category_id: '', // Foreign key to supply_categories table
-    description: '',
-    unit_of_measure: '', // Required field - matches database
-    minimum_stock_level: '',
-    maximum_stock_level: '',
-    current_stock: '',
-    unit_cost: '', // matches database
-    supplier: '',
-    expiry_date: '',
-    location: ''
-  });
   const [isSubmittingSupply, setIsSubmittingSupply] = useState(false);
   
   // Legacy User creation popup form
@@ -2410,92 +2397,35 @@ You can use these commands:
   };
 
   // Supply Form Handlers
-  const handleSupplyFormChange = (field, value) => {
-    setSupplyFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
+  const handleSupplySubmit = async (response) => {
+    setIsSubmittingSupply(false);
+    setShowSupplyForm(false);
 
-  const submitSupply = async () => {
-    const requiredFields = ['item_code', 'name', 'category_id', 'unit_of_measure'];
-    const missingFields = requiredFields.filter(field => !supplyFormData[field].trim());
-    
-    if (missingFields.length > 0) {
-      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
-      return;
-    }
-
-    setIsSubmittingSupply(true);
-
-    try {
-      const response = await aiMcpServiceRef.current.callToolDirectly('create_supply', {
-        item_code: supplyFormData.item_code,
-        name: supplyFormData.name,
-        category_id: supplyFormData.category_id,
-        description: supplyFormData.description,
-        unit_of_measure: supplyFormData.unit_of_measure,
-        minimum_stock_level: supplyFormData.minimum_stock_level ? parseInt(supplyFormData.minimum_stock_level) : undefined,
-        maximum_stock_level: supplyFormData.maximum_stock_level ? parseInt(supplyFormData.maximum_stock_level) : undefined,
-        current_stock: supplyFormData.current_stock ? parseInt(supplyFormData.current_stock) : undefined,
-        unit_cost: supplyFormData.unit_cost ? parseFloat(supplyFormData.unit_cost) : undefined,
-        supplier: supplyFormData.supplier,
-        expiry_date: supplyFormData.expiry_date,
-        location: supplyFormData.location
-      });
-
-      setShowSupplyForm(false);
-      setSupplyFormData({
-        item_code: '',
-        name: '',
-        category_id: '',
-        description: '',
-        unit_of_measure: '',
-        minimum_stock_level: '',
-        maximum_stock_level: '',
-        current_stock: '',
-        unit_cost: '',
-        supplier: '',
-        expiry_date: '',
-        location: ''
-      });
-
-      let responseText = '';
-      if (response.success) {
-        const supplyData = response.result?.data || response.data || {};
-        responseText = `✅ Supply created successfully!
-        
+    let responseText = '';
+    if (response.success) {
+      const supplyData = response.result?.data || response.data || {};
+      responseText = `✅ Supply created successfully!
+      
 **Supply Details:**
 - Item Code: ${supplyData.item_code}
 - Name: ${supplyData.name}
-- Current Stock: ${supplyData.current_stock || '0'}
-- Unit: ${supplyData.unit_of_measure}
-- Location: ${supplyData.location || 'Not specified'}`;
-      } else {
-        responseText = `❌ Failed to create supply: ${response.message || 'Unknown error'}`;
-      }
+- Category: ${supplyData.category_name || 'N/A'}
+- Unit of Measure: ${supplyData.unit_of_measure}
+- Current Stock: ${supplyData.current_stock || 'N/A'}
+- Location: ${supplyData.location || 'N/A'}
 
-      const successMsg = {
-        id: Date.now(),
-        text: `✅ Supply created successfully!\n\n${responseText}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, successMsg]);
-
-    } catch (error) {
-      console.error('Error creating supply:', error);
-      
-      const errorMsg = {
-        id: Date.now(),
-        text: `❌ Error creating supply: ${error.message || 'Unknown error occurred'}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, errorMsg]);
-    } finally {
-      setIsSubmittingSupply(false);
+The supply has been added to the inventory system and is ready for use.`;
+    } else {
+      responseText = `❌ Failed to create supply: ${response.message || 'Unknown error'}`;
     }
+
+    const successMsg = {
+      id: Date.now(),
+      text: responseText,
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, successMsg]);
   };
 
   const closeSupplyForm = () => {
@@ -3975,163 +3905,16 @@ ${dischargeData.next_steps ? dischargeData.next_steps.map(step => `• ${step}`)
         loadingDropdowns={loadingDropdowns}
       />
 
-      {/* Supply Creation Form Popup */}
-      {showSupplyForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-            <div className="border-b border-gray-700 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-white">Supply Creation Form</h2>
-                <button onClick={closeSupplyForm} className="text-gray-400 hover:text-white">
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-            <div className="px-6 py-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Item Code * 
-                      <span className="text-xs text-gray-400">(e.g., SUP001, MED001)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={supplyFormData.item_code}
-                      onChange={(e) => handleSupplyFormChange('item_code', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="SUP001"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Supply Name *</label>
-                    <input
-                      type="text"
-                      value={supplyFormData.name}
-                      onChange={(e) => handleSupplyFormChange('name', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="e.g., Surgical Gloves"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Select Supply Category *</label>
-                    <select
-                      value={supplyFormData.category_id}
-                      onChange={(e) => handleSupplyFormChange('category_id', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="">Select a category</option>
-                      {Array.isArray(supplyCategoryOptions) ? supplyCategoryOptions.map(category => (
-                        <option key={category.id} value={category.id}>
-                          {category.name}
-                        </option>
-                      )) : []}
-                    </select>
-                    <p className="text-xs text-gray-400 mt-1">Choose the supply category</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Current Stock</label>
-                    <input
-                      type="number"
-                      value={supplyFormData.current_stock}
-                      onChange={(e) => handleSupplyFormChange('current_stock', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Current stock quantity"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Minimum Stock Level</label>
-                    <input
-                      type="number"
-                      value={supplyFormData.minimum_stock_level}
-                      onChange={(e) => handleSupplyFormChange('minimum_stock_level', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Minimum stock level"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Unit of Measure *</label>
-                    <input
-                      type="text"
-                      value={supplyFormData.unit_of_measure}
-                      onChange={(e) => handleSupplyFormChange('unit_of_measure', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="e.g., pieces, boxes, liters"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Supplier</label>
-                    <input
-                      type="text"
-                      value={supplyFormData.supplier}
-                      onChange={(e) => handleSupplyFormChange('supplier', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Supplier name"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Unit Cost</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={supplyFormData.unit_cost}
-                      onChange={(e) => handleSupplyFormChange('unit_cost', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Cost per unit"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Expiry Date</label>
-                    <input
-                      type="date"
-                      value={supplyFormData.expiry_date}
-                      onChange={(e) => handleSupplyFormChange('expiry_date', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Maximum Stock Level</label>
-                    <input
-                      type="number"
-                      value={supplyFormData.maximum_stock_level}
-                      onChange={(e) => handleSupplyFormChange('maximum_stock_level', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Maximum stock level"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Location</label>
-                    <input
-                      type="text"
-                      value={supplyFormData.location}
-                      onChange={(e) => handleSupplyFormChange('location', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Storage location"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Description</label>
-                    <textarea
-                      value={supplyFormData.description}
-                      onChange={(e) => handleSupplyFormChange('description', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Supply description"
-                      rows="3"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
-              <button onClick={closeSupplyForm} disabled={isSubmittingSupply} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
-              <button onClick={submitSupply} disabled={isSubmittingSupply} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
-                {isSubmittingSupply ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating Supply...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create Supply</span></>)}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Supply Creation Form Component */}
+      <SupplyCreationForm
+        isOpen={showSupplyForm}
+        onClose={closeSupplyForm}
+        onSubmit={handleSupplySubmit}
+        isSubmitting={isSubmittingSupply}
+        aiMcpServiceRef={aiMcpServiceRef}
+        supplyCategoryOptions={supplyCategoryOptions}
+        loadingDropdowns={loadingDropdowns}
+      />
 
       {/* Legacy User Creation Form Popup */}
       {showLegacyUserForm && (
