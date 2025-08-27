@@ -1,37 +1,22 @@
 """
 Medical Document Agent - Handles medical document upload, processing, and RAG queries
 
-DEPLOYMENT NOTE: AI/ML models temporarily disabled for deployment
-=================================================================
-The following features are temporarily commented out to reduce deployment size:
-1. Sentence Transformers (sentence-transformers) - for document embeddings
-2. Transformers/BERT models (transformers) - for Named Entity Recognition
-3. PyTorch (torch) - deep learning backend
+AI/ML FEATURES ENABLED
+======================
+This module now includes full AI/ML functionality:
+1. Sentence Transformers (sentence-transformers) - for document embeddings ✅
+2. Transformers/BERT models (transformers) - for Named Entity Recognition ✅
+3. PyTorch (torch) - deep learning backend ✅
+4. Spacy (spacy) - for advanced NLP processing ✅
 
-To re-enable AI features after deployment:
-1. Uncomment lines in pyproject.toml:
-   - "sentence-transformers>=2.2.0"
-   - "transformers>=4.35.0" 
-   - "torch>=2.1.0"
-
-2. Uncomment imports in this file:
-   - from sentence_transformers import SentenceTransformer
-   - from transformers import pipeline
-   - import torch
-
-3. Set feature flags to True:
-   - EMBEDDINGS_AVAILABLE = True
-   - NER_AVAILABLE = True
-
-4. Uncomment model initialization and usage throughout this file
-   (search for "Temporarily commented out for deployment")
-
-Current functionality available without AI models:
-- Document upload and basic text extraction
-- Pattern-based medical entity extraction
-- Document storage and basic search
-- Medical history compilation
-=================================================================
+Available functionality:
+- Document upload and advanced text extraction
+- AI-powered medical entity extraction using BERT models
+- Vector embeddings for semantic document search
+- RAG (Retrieval Augmented Generation) queries
+- Medical history compilation with AI insights
+- Advanced pattern-based and ML-based medical data extraction
+======================
 """
 
 import os
@@ -72,14 +57,14 @@ except ImportError:
 # Import AI/ML libraries
 try:
     import chromadb
-    # Temporarily commented out for deployment - large model size
-    # from sentence_transformers import SentenceTransformer
-    # import torch
-    # from transformers import pipeline
+    # AI/ML model imports for document processing
+    from sentence_transformers import SentenceTransformer
+    import torch
+    from transformers import pipeline
     AI_AVAILABLE = True
-    # Set flags for temporarily disabled AI features
-    EMBEDDINGS_AVAILABLE = False  # Will be True when sentence_transformers is enabled
-    NER_AVAILABLE = False  # Will be True when transformers is enabled
+    # Set flags for AI features
+    EMBEDDINGS_AVAILABLE = True  # Now enabled with sentence_transformers
+    NER_AVAILABLE = True  # Now enabled with transformers
 except ImportError:
     AI_AVAILABLE = False
     EMBEDDINGS_AVAILABLE = False
@@ -114,24 +99,20 @@ class MedicalDocumentAgent(BaseAgent):
         if AI_AVAILABLE:
             try:
                 # Initialize sentence transformer for embeddings
-                # Temporarily commented out for deployment - large model size
-                # self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
-                # print("✅ Embedding model initialized")
-                print("⚠️ Embedding model disabled for deployment")
+                self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+                print("✅ Embedding model initialized")
                 
                 # Initialize NER pipeline for medical entity extraction
-                # Temporarily commented out for deployment - large model size
-                # try:
-                #     self.ner_pipeline = pipeline(
-                #         "ner", 
-                #         model="dbmdz/bert-large-cased-finetuned-conll03-english",
-                #         aggregation_strategy="simple",
-                #         device=0 if torch.cuda.is_available() else -1
-                #     )
-                #     print("✅ NER pipeline initialized")
-                # except Exception as e:
-                #     print(f"⚠️ NER pipeline failed, using fallback: {e}")
-                print("⚠️ NER pipeline disabled for deployment")
+                try:
+                    self.ner_pipeline = pipeline(
+                        "ner", 
+                        model="dbmdz/bert-large-cased-finetuned-conll03-english",
+                        aggregation_strategy="simple",
+                        device=0 if torch.cuda.is_available() else -1
+                    )
+                    print("✅ NER pipeline initialized")
+                except Exception as e:
+                    print(f"⚠️ NER pipeline failed, using fallback: {e}")
                 
                 # Initialize ChromaDB for RAG
                 self.chroma_client = chromadb.PersistentClient(
@@ -501,9 +482,7 @@ class MedicalDocumentAgent(BaseAgent):
         
         try:
             # Create query embedding
-            # Temporarily commented out for deployment - requires sentence_transformers
-            # query_embedding = self.embedding_model.encode([query])[0].tolist()
-            return {"success": False, "message": "Embedding functionality disabled for deployment"}
+            query_embedding = self.embedding_model.encode([query])[0].tolist()
             
             # Search in ChromaDB
             search_filter = {}
@@ -708,10 +687,9 @@ class MedicalDocumentAgent(BaseAgent):
             entities = []
             
             # Use NER pipeline first
-            # Temporarily commented out for deployment - requires transformers models
-            # if self.ner_pipeline:
-            #     ner_entities = self.ner_pipeline(text)
-            #     entities.extend(ner_entities)
+            if self.ner_pipeline:
+                ner_entities = self.ner_pipeline(text)
+                entities.extend(ner_entities)
             
             # Enhanced medical content extraction (pattern-based, no AI models)
             enhanced_entities = self._extract_structured_medical_data(text)
@@ -842,10 +820,7 @@ class MedicalDocumentAgent(BaseAgent):
             chunks = self._split_text_into_chunks(text, max_length=500)
             
             # Create embeddings for each chunk
-            # Temporarily commented out for deployment - requires sentence_transformers
-            # embeddings = self.embedding_model.encode(chunks)
-            print("⚠️ Embeddings creation skipped - disabled for deployment")
-            return
+            embeddings = self.embedding_model.encode(chunks)
             
             # Store in ChromaDB
             chunk_ids = [f"{document_id}_{i}" for i in range(len(chunks))]
