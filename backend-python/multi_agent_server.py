@@ -607,22 +607,26 @@ def discharge_bed(bed_id: str, discharge_date: str = None) -> Dict[str, Any]:
 # ================================
 # PATIENT SUPPLY USAGE TOOLS
 @mcp.tool()
-def record_patient_supply_usage(patient_id: str, supply_id: str, quantity_used: int, 
-                               dosage: str = None, frequency: str = None, 
+def record_patient_supply_usage(patient_id: str = None, patient_number: str = None,
+                               supply_id: str = None, supply_item_code: str = None, 
+                               quantity_used: int = 1, dosage: str = None, frequency: str = None, 
                                prescribed_by_id: str = None, administered_by_id: str = None,
+                               staff_id: str = None, employee_id: str = None,
                                bed_id: str = None, administration_route: str = "oral",
                                indication: str = None, start_date: str = None, 
-                               end_date: str = None) -> Dict[str, Any]:
-    """Record medication or supply usage for a patient."""
+                               end_date: str = None, notes: str = None) -> Dict[str, Any]:
+    """Record medication or supply usage for a patient. Use either patient_id/patient_number and supply_id/supply_item_code."""
     if MULTI_AGENT_AVAILABLE and orchestrator:
         result = orchestrator.route_request("record_patient_supply_usage",
-                                           patient_id=patient_id, supply_id=supply_id,
+                                           patient_id=patient_id, patient_number=patient_number,
+                                           supply_id=supply_id, supply_item_code=supply_item_code,
                                            quantity_used=quantity_used, dosage=dosage,
                                            frequency=frequency, prescribed_by_id=prescribed_by_id,
-                                           administered_by_id=administered_by_id, bed_id=bed_id,
+                                           administered_by_id=administered_by_id, staff_id=staff_id,
+                                           employee_id=employee_id, bed_id=bed_id,
                                            administration_route=administration_route,
                                            indication=indication, start_date=start_date,
-                                           end_date=end_date)
+                                           end_date=end_date, notes=notes)
         return result.get("result", result)
     
     return {"error": "Multi-agent system required for this operation"}
@@ -660,6 +664,29 @@ def get_supply_usage_for_discharge_report(patient_id: str, admission_date: str =
                                            patient_id=patient_id,
                                            admission_date=admission_date,
                                            discharge_date=discharge_date)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def record_patient_supply_usage_by_code(patient_number: str = None, patient_id: str = None, 
+                                       supply_item_code: str = None, quantity_used: int = 1, 
+                                       staff_id: str = None, employee_id: str = None,
+                                       date_of_usage: str = None, notes: str = None) -> Dict[str, Any]:
+    """Record patient supply usage using user-friendly codes (patient number, item code, employee ID)."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        # Convert date_of_usage to start_date format
+        start_date = date_of_usage if date_of_usage else None
+        
+        result = orchestrator.route_request("record_patient_supply_usage",
+                                           patient_id=patient_id,
+                                           patient_number=patient_number, 
+                                           supply_item_code=supply_item_code,
+                                           quantity_used=quantity_used, 
+                                           staff_id=staff_id,
+                                           employee_id=employee_id,
+                                           start_date=start_date,
+                                           notes=notes)
         return result.get("result", result)
     
     return {"error": "Multi-agent system required for this operation"}

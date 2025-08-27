@@ -33,6 +33,7 @@ class PatientSupplyUsageAgent(BaseAgent):
         super().__init__("Patient Supply Usage Agent", "supply_usage_agent")
         self.available_tools = [
             "record_patient_supply_usage",
+            "record_patient_supply_usage_by_code",  # Convenience method for user-friendly codes
             "get_patient_supply_usage",
             "update_supply_usage_status",
             "get_supply_usage_for_discharge_report",
@@ -43,6 +44,7 @@ class PatientSupplyUsageAgent(BaseAgent):
         
         self.tool_descriptions = {
             "record_patient_supply_usage": "Record medication or supply usage for a patient",
+            "record_patient_supply_usage_by_code": "Record patient supply usage using user-friendly codes (patient number, item code, employee ID)",
             "get_patient_supply_usage": "Get specific supply usage record by ID",
             "update_supply_usage_status": "Update status of supply usage (administered, completed, discontinued)",
             "get_supply_usage_for_discharge_report": "Get all supply usage for a patient's discharge report",
@@ -72,12 +74,14 @@ class PatientSupplyUsageAgent(BaseAgent):
             raise Exception("Database not available")
         return SessionLocal()
 
-    def record_patient_supply_usage(self, patient_id: str, supply_id: str, 
-                                  quantity_used: int, dosage: str = None, 
-                                  frequency: str = None, prescribed_by_id: str = None,
-                                  administered_by_id: str = None, bed_id: str = None,
-                                  administration_route: str = "oral", indication: str = None,
-                                  start_date: str = None, end_date: str = None) -> Dict[str, Any]:
+    def record_patient_supply_usage(self, patient_id: str = None, patient_number: str = None,
+                                  supply_id: str = None, supply_item_code: str = None, 
+                                  quantity_used: int = 1, dosage: str = None, frequency: str = None, 
+                                  prescribed_by_id: str = None, administered_by_id: str = None, 
+                                  staff_id: str = None, employee_id: str = None,
+                                  bed_id: str = None, administration_route: str = "oral", 
+                                  indication: str = None, start_date: str = None, 
+                                  end_date: str = None, notes: str = None) -> Dict[str, Any]:
         """Record medication or supply usage for a patient."""
         if not DATABASE_AVAILABLE:
             return {"success": False, "message": "Database not available"}
@@ -85,17 +89,76 @@ class PatientSupplyUsageAgent(BaseAgent):
         try:
             db = self.get_db_session()
             
-            # Validate patient exists
-            patient = db.query(Patient).filter(Patient.id == uuid.UUID(patient_id)).first()
+            # Find patient by ID or patient number
+            patient = None
+            if patient_id:
+                try:
+                    patient = db.query(Patient).filter(Patient.id == uuid.UUID(patient_id)).first()
+                except ValueError:
+                    db.close()
+                    return {"success": False, "message": "Invalid patient ID format"}
+            elif patient_number:
+                patient = db.query(Patient).filter(Patient.patient_number == patient_number).first()
+            else:
+                db.close()
+                return {"success": False, "message": "Either patient_id or patient_number must be provided"}
+            
             if not patient:
                 db.close()
-                return {"success": False, "message": "Patient not found"}
+                return {"success": False, "message": f"Patient not found with {'ID: ' + patient_id if patient_id else 'number: ' + patient_number}"}
             
-            # Validate supply exists
-            supply = db.query(Supply).filter(Supply.id == uuid.UUID(supply_id)).first()
+            # Find supply by ID or item code
+            supply = None
+            if supply_id:
+                # Look up by supply ID (UUID)
+                try:
+                    supply = db.query(Supply).filter(Supply.id == uuid.UUID(supply_id)).first()
+                except ValueError:
+                    db.close()
+                    return {"success": False, "message": "Invalid supply ID format"}
+            elif supply_item_code:
+                # Look up by item code
+                supply = db.query(Supply).filter(Supply.item_code == supply_item_code).first()
+            else:
+                db.close()
+                return {"success": False, "message": "Either supply_id or supply_item_code must be provided"}
+            
             if not supply:
                 db.close()
-                return {"success": False, "message": "Supply not found"}
+                return {"success": False, "message": f"Supply not found with {'ID: ' + supply_id if supply_id else 'item code: ' + supply_item_code}"}
+            
+            # Resolve staff/administered_by
+            administered_by_uuid = None
+            if administered_by_id:
+                try:
+                    administered_by_uuid = uuid.UUID(administered_by_id)
+                except ValueError:
+                    db.close()
+                    return {"success": False, "message": "Invalid administered_by_id format"}
+            elif staff_id:
+                try:
+                    administered_by_uuid = uuid.UUID(staff_id)
+                except ValueError:
+                    db.close()
+                    return {"success": False, "message": "Invalid staff_id format"}
+            elif employee_id:
+                # Look up staff by employee_id
+                from database import Staff
+                staff = db.query(Staff).filter(Staff.employee_id == employee_id).first()
+                if staff:
+                    administered_by_uuid = staff.user_id  # Staff references User table
+                else:
+                    db.close()
+                    return {"success": False, "message": f"Staff not found with employee ID: {employee_id}"}
+            
+            # Resolve prescribed_by if provided
+            prescribed_by_uuid = None
+            if prescribed_by_id:
+                try:
+                    prescribed_by_uuid = uuid.UUID(prescribed_by_id)
+                except ValueError:
+                    db.close()
+                    return {"success": False, "message": "Invalid prescribed_by_id format"}
             
             # Calculate costs
             unit_cost = supply.unit_cost or 0
@@ -107,18 +170,18 @@ class PatientSupplyUsageAgent(BaseAgent):
             
             # Create usage record
             usage = PatientSupplyUsage(
-                patient_id=uuid.UUID(patient_id),
-                supply_id=uuid.UUID(supply_id),
+                patient_id=patient.id,  # Use the resolved patient ID
+                supply_id=supply.id,  # Use the resolved supply ID
                 quantity_used=quantity_used,
                 unit_cost=unit_cost,
                 total_cost=total_cost,
-                prescribed_by_id=uuid.UUID(prescribed_by_id) if prescribed_by_id else None,
-                administered_by_id=uuid.UUID(administered_by_id) if administered_by_id else None,
+                prescribed_by_id=prescribed_by_uuid,
+                administered_by_id=administered_by_uuid,
                 bed_id=uuid.UUID(bed_id) if bed_id else None,
                 dosage=dosage,
                 frequency=frequency,
                 administration_route=administration_route,
-                indication=indication,
+                indication=indication if indication else notes,  # Use notes as indication if provided
                 prescribed_date=datetime.now(),
                 start_date=start_date_obj,
                 end_date=end_date_obj,
@@ -171,6 +234,26 @@ class PatientSupplyUsageAgent(BaseAgent):
             db.rollback()
             db.close()
             return {"success": False, "message": f"Failed to record supply usage: {str(e)}"}
+
+    def record_patient_supply_usage_by_code(self, patient_number: str = None, patient_id: str = None, 
+                                          supply_item_code: str = None, quantity_used: int = 1, 
+                                          staff_id: str = None, employee_id: str = None,
+                                          date_of_usage: str = None, notes: str = None) -> Dict[str, Any]:
+        """Record patient supply usage using user-friendly codes (patient number, item code, employee ID)."""
+        # Convert date_of_usage to start_date format
+        start_date = date_of_usage if date_of_usage else None
+        
+        # Call the main method with the converted parameters
+        return self.record_patient_supply_usage(
+            patient_id=patient_id,
+            patient_number=patient_number, 
+            supply_item_code=supply_item_code,
+            quantity_used=quantity_used, 
+            staff_id=staff_id,
+            employee_id=employee_id,
+            start_date=start_date,
+            notes=notes
+        )
 
     def get_patient_supply_usage(self, usage_id: str) -> Dict[str, Any]:
         """Get specific supply usage record by ID."""
