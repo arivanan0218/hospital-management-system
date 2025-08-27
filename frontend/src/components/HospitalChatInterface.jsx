@@ -243,12 +243,21 @@ const HospitalChatInterface = ({
           )}
           
           {/* Chat Messages */}
-          {messages.map((message) => (
-            <div key={message.id} className={`px-2 sm:px-4 py-2 ${
-              message.isThinking ? 'bg-[#1a1a1a]' : 
-              message.isFinalAnswer ? 'bg-[#1a1a1a]' : 
-              message.isError ? 'bg-[#1a1a1a]' : 'bg-[#1a1a1a]'
-            }`}>
+          {(() => {
+            let timerAlreadyShown = false;
+            return messages.map((message, index) => {
+              // Only show timer for the first thinking message encountered
+              const shouldShowTimer = message.isThinking && message.startTime && !timerAlreadyShown;
+              if (shouldShowTimer) {
+                timerAlreadyShown = true;
+              }
+              
+              return (
+              <div key={message.id} className={`px-2 sm:px-4 py-2 ${
+                message.isThinking ? 'bg-[#1a1a1a]' : 
+                message.isFinalAnswer ? 'bg-[#1a1a1a]' : 
+                message.isError ? 'bg-[#1a1a1a]' : 'bg-[#1a1a1a]'
+              }`}>
               {message.sender === 'user' ? (
                 // User message - aligned to the right - Responsive
                 <div className="flex justify-end">
@@ -293,10 +302,16 @@ const HospitalChatInterface = ({
                       >
                         <div className="flex items-center space-x-1 sm:space-x-2 min-w-0">
                           <span className="text-gray-400">🔧</span>
-                          <span className="font-mono text-blue-400 truncate">{message.toolFunction || 'thinking'}</span>
+                          <span className="font-mono text-blue-400 truncate">
+                            {message.toolFunction || 'thinking'} 
+                            {expandedThinking[message.id]}
+                          </span>
                         </div>
                         <span className="ml-auto flex items-center space-x-1 flex-shrink-0">
-                          <ThinkingDuration startTime={message.startTime} />
+                          {/* Only show timer for the very first thinking message */}
+                          {message.isThinking && message.startTime && shouldShowTimer && (
+                            <ThinkingDuration startTime={message.startTime} />
+                          )}
                           <svg 
                             className={`w-3 h-3 transform transition-transform ${expandedThinking[message.id] ? 'rotate-180' : ''}`} 
                             fill="none" 
@@ -308,8 +323,9 @@ const HospitalChatInterface = ({
                         </span>
                       </button>
                       {expandedThinking[message.id] && (
-                        <div className="mt-2 text-xs sm:text-sm text-gray-300 pl-4 sm:pl-6">
-                          {message.text}
+                        <div className="mt-2 text-xs sm:text-sm text-gray-300 pl-4 sm:pl-6 bg-gray-800/30 rounded-lg p-3 border-l-2 border-blue-500">
+                          <div className="text-blue-400 text-xs mb-2 font-medium">🔧 Tool Details:</div>
+                          <div dangerouslySetInnerHTML={{ __html: formatMessageText(message.text) }} />
                         </div>
                       )}
                     </div>
@@ -326,7 +342,7 @@ const HospitalChatInterface = ({
                   )}
                   
                   <div className="prose prose-sm max-w-none">
-                    {(!message.isThinking || expandedThinking[message.id]) && (
+                    {!message.isThinking && (
                       <div 
                         className={`whitespace-pre-wrap leading-relaxed text-sm ${
                           message.isThinking ? 'text-gray-300' :
@@ -345,7 +361,9 @@ const HospitalChatInterface = ({
               </div>
               )}
             </div>
-          ))}
+            );
+          });
+          })()}
           
           {/* Loading indicator */}
           {isLoading && (
@@ -365,7 +383,7 @@ const HospitalChatInterface = ({
                     >
                       <span>Processing your request...</span>
                       <span className="ml-auto flex items-center space-x-1">
-                        <span>0s</span>
+                        {/* Remove the timer from loading indicator - it's just for processing */}
                         <svg 
                           className={`w-3 h-3 transform transition-transform ${expandedThinking['loading'] ? 'rotate-180' : ''}`} 
                           fill="none" 
