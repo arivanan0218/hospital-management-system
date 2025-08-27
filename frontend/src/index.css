@@ -8,28 +8,6 @@ html, body {
   overflow: hidden;
   position: fixed;
   width: 100%;
-  touch-action: manipulation;
-  -webkit-overflow-scrolling: auto;
-}
-
-/* More aggressive mobile scroll prevention */
-html {
-  height: -webkit-fill-available;
-}
-
-body {
-  min-height: 100vh;
-  min-height: -webkit-fill-available;
-  overscroll-behavior: none;
-  -webkit-overflow-scrolling: auto !important;
-}
-
-/* Root div should fill the screen */
-#root {
-  height: 100vh;
-  height: -webkit-fill-available;
-  overflow: hidden;
-  position: relative;
 }
 
 /* Prevent mobile browser zoom on input focus */
@@ -53,45 +31,4 @@ body {
   position: fixed !important;
   width: 100% !important;
   height: 100% !important;
-  touch-action: none !important;
-  overscroll-behavior: none !important;
-  -webkit-overflow-scrolling: auto !important;
-}
-
-.no-scroll * {
-  overscroll-behavior: none !important;
-}
-
-/* Disable elastic scroll on iOS */
-.no-scroll {
-  -webkit-transform: translateZ(0);
-  transform: translateZ(0);
-}
-
-/* Additional mobile-specific scroll prevention */
-@media screen and (max-width: 768px) {
-  /* Prevent secondary scroll containers */
-  * {
-    -webkit-overflow-scrolling: auto !important;
-    overscroll-behavior: none !important;
-  }
-  
-  /* iOS Safari specific fixes */
-  body {
-    -webkit-transform: translate3d(0, 0, 0);
-    transform: translate3d(0, 0, 0);
-  }
-  
-  /* Prevent any form of elastic scrolling */
-  body, html, #root {
-    overscroll-behavior-y: none !important;
-    overscroll-behavior-x: none !important;
-    -webkit-overflow-scrolling: auto !important;
-  }
-  
-  /* Force all scrollable containers to use auto scrolling */
-  div[style*="overflow"] {
-    -webkit-overflow-scrolling: auto !important;
-    overscroll-behavior: none !important;
-  }
 }
