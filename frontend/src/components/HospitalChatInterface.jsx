@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { LogOut, User, Settings, Upload, FileText, History, CheckCircle, Plus, X, Mic, MicOff, VolumeX } from 'lucide-react';
 import EnhancedMedicalDocumentUpload from './EnhancedMedicalDocumentUpload.jsx';
 import MedicalHistoryViewer from './MedicalHistoryViewer.jsx';
@@ -64,23 +64,102 @@ const HospitalChatInterface = ({
   isIOSDevice
 }) => {
   const messagesEndRef = useRef(null);
+  
+  // State for input focus and keyboard handling
+  const [isInputFocused, setIsInputFocused] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  // Detect mobile device
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+  // Handle keyboard visibility on mobile
+  useEffect(() => {
+    if (!isMobile) return;
+
+    const handleResize = () => {
+      const windowHeight = window.innerHeight;
+      const documentHeight = document.documentElement.clientHeight;
+      const keyboardVisible = windowHeight < documentHeight;
+      
+      if (keyboardVisible && isInputFocused) {
+        const keyboardHeightEstimate = documentHeight - windowHeight;
+        setKeyboardHeight(keyboardHeightEstimate);
+      } else {
+        setKeyboardHeight(0);
+      }
+    };
+
+    const handleVisualViewportChange = () => {
+      if (window.visualViewport) {
+        const keyboardHeightEstimate = window.screen.height - window.visualViewport.height;
+        if (isInputFocused && keyboardHeightEstimate > 100) {
+          setKeyboardHeight(keyboardHeightEstimate);
+        } else {
+          setKeyboardHeight(0);
+        }
+      }
+    };
+
+    // Listen for window resize (Android)
+    window.addEventListener('resize', handleResize);
+    
+    // Listen for visual viewport changes (iOS)
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleVisualViewportChange);
+    }
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleVisualViewportChange);
+      }
+    };
+  }, [isMobile, isInputFocused]);
+
+  // Handle input focus/blur
+  const handleInputFocus = () => {
+    setIsInputFocused(true);
+    // Small delay to allow keyboard to appear
+    setTimeout(() => {
+      if (isMobile) {
+        // Scroll to bottom to ensure input is visible
+        document.documentElement.scrollTop = document.documentElement.scrollHeight;
+      }
+    }, 300);
+  };
+
+  const handleInputBlur = () => {
+    setIsInputFocused(false);
+    setKeyboardHeight(0);
+  };
+
+  // Modified send message handler
+  const handleSendMessageWithBlur = () => {
+    handleSendMessage();
+    // Blur the input to hide keyboard
+    if (inputRef.current) {
+      inputRef.current.blur();
+    }
+  };
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Auto-resize textarea based on content
+  // Auto-resize textarea based on content with improved mobile handling
   useEffect(() => {
     if (inputRef.current) {
       const textarea = inputRef.current;
       // Reset height to auto to get the correct scrollHeight
       textarea.style.height = 'auto';
       // Set height based on scrollHeight, with min and max constraints
-      const newHeight = Math.min(Math.max(textarea.scrollHeight, 40), 120);
+      const maxHeight = isMobile ? 100 : 120; // Slightly smaller on mobile
+      const minHeight = 40;
+      const newHeight = Math.min(Math.max(textarea.scrollHeight, minHeight), maxHeight);
       textarea.style.height = newHeight + 'px';
     }
-  }, [inputMessage]);
+  }, [inputMessage, isMobile]);
 
   // Reset textarea height when input is cleared (after sending message)
   useEffect(() => {
@@ -89,8 +168,31 @@ const HospitalChatInterface = ({
     }
   }, [inputMessage]);
 
+  // Handle Enter key for multi-line support
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      if (e.shiftKey) {
+        // Shift+Enter: Add new line (default behavior)
+        return;
+      } else {
+        // Enter alone: Send message
+        e.preventDefault();
+        if (inputMessage.trim()) {
+          handleSendMessageWithBlur();
+        }
+      }
+    }
+  };
+
   return (
-    <div className="bg-[#1a1a1a] flex flex-col text-white overflow-hidden relative" style={{ height: 'calc(var(--vh, 1vh) * 100)' }}>
+    <div 
+      className="bg-[#1a1a1a] flex flex-col text-white overflow-hidden relative" 
+      style={{ 
+        height: isMobile && keyboardHeight > 0 
+          ? `calc(var(--vh, 1vh) * 100 - ${keyboardHeight}px)` 
+          : 'calc(var(--vh, 1vh) * 100)' 
+      }}
+    >
       {/* Claude-style Header - FIXED AT TOP */}
       <div className="fixed top-0 left-0 right-0 border-b border-gray-700 px-3 sm:px-4 py-3 bg-[#1a1a1a] z-30">
         <div className="flex items-center justify-between">
@@ -351,7 +453,14 @@ const HospitalChatInterface = ({
       </div>
 
       {/* Chat Input Area - FIXED AT BOTTOM */}
-      <div className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-gray-700 px-4 py-3 z-30" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom, 0px))' }}>
+      <div 
+        className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-gray-700 px-4 py-3 z-30" 
+        style={{ 
+          paddingBottom: 'max(12px, env(safe-area-inset-bottom, 0px))',
+          transform: isMobile && isInputFocused ? `translateY(-${keyboardHeight}px)` : 'translateY(0)',
+          transition: 'transform 0.3s ease'
+        }}
+      >
         <div className="max-w-4xl mx-auto">
           {/* Action Buttons - Inside Input Container */}
           {showActionButtons && (
@@ -455,9 +564,11 @@ const HospitalChatInterface = ({
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
-                  handleSendMessage();
+                  handleSendMessageWithBlur();
                 }
               }}
+              onFocus={handleInputFocus}
+              onBlur={handleInputBlur}
               placeholder={isConnected ? "Ask about patients, beds, staff, equipment..." : "Connecting..."}
               disabled={!isConnected || isLoading}
               className="flex-1 bg-transparent text-white placeholder-gray-400 focus:outline-none text-sm resize-none overflow-y-auto"
@@ -526,7 +637,7 @@ const HospitalChatInterface = ({
               
               {/* Send Button - Circular */}
               <button
-                onClick={handleSendMessage}
+                onClick={handleSendMessageWithBlur}
                 disabled={!isConnected || isLoading || !inputMessage.trim()}
                 className="w-7 h-7 sm:w-8 sm:h-8 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 text-white rounded-full flex items-center justify-center transition-colors duration-200"
                 title="Send message"
