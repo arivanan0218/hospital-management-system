@@ -23,6 +23,7 @@ const HospitalChatInterface = ({
   
   // Action buttons
   showActionButtons,
+  setShowActionButtons,
   smartFocusInput,
   
   // Plus menu
@@ -64,89 +65,11 @@ const HospitalChatInterface = ({
   isIOSDevice
 }) => {
   const messagesEndRef = useRef(null);
-  const [isKeyboardOpen, setIsKeyboardOpen] = React.useState(false);
-  const [inputFocused, setInputFocused] = React.useState(false);
-  const [viewportHeight, setViewportHeight] = React.useState(window.innerHeight);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-
-  // Mobile keyboard handling
-  useEffect(() => {
-    const handleViewportChange = () => {
-      if (window.visualViewport) {
-        const viewportHeight = window.visualViewport.height;
-        const windowHeight = window.innerHeight;
-        const keyboardHeight = windowHeight - viewportHeight;
-        
-        setViewportHeight(viewportHeight);
-        setIsKeyboardOpen(keyboardHeight > 150); // Threshold for keyboard detection
-      } else {
-        // Fallback for browsers without visualViewport API
-        const handleResize = () => {
-          const currentHeight = window.innerHeight;
-          const initialHeight = window.screen.height;
-          const heightDifference = initialHeight - currentHeight;
-          
-          setViewportHeight(currentHeight);
-          setIsKeyboardOpen(heightDifference > 150);
-        };
-        
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-      }
-    };
-
-    // Initial setup
-    handleViewportChange();
-
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', handleViewportChange);
-      return () => window.visualViewport.removeEventListener('resize', handleViewportChange);
-    }
-  }, []);
-
-  // Handle input focus for mobile
-  const handleInputFocus = () => {
-    setInputFocused(true);
-    
-    // Small delay to allow keyboard animation
-    setTimeout(() => {
-      // Scroll to bottom to ensure input is visible
-      messagesEndRef.current?.scrollIntoView({ 
-        behavior: 'smooth',
-        block: 'end'
-      });
-    }, 300);
-    
-    // Additional scroll after keyboard fully appears
-    setTimeout(() => {
-      if (window.visualViewport) {
-        messagesEndRef.current?.scrollIntoView({ 
-          behavior: 'smooth',
-          block: 'end'
-        });
-      }
-    }, 600);
-  };
-
-  const handleInputBlur = () => {
-    setInputFocused(false);
-  };
-
-  // Handle message send to properly manage focus and keyboard
-  const handleSendMessageWithKeyboard = () => {
-    handleSendMessage();
-    
-    // On mobile, briefly blur and refocus to maintain proper input state
-    if (window.innerWidth <= 768 && inputRef.current) {
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 100);
-    }
-  };
 
   // Auto-resize textarea based on content
   useEffect(() => {
@@ -168,7 +91,7 @@ const HospitalChatInterface = ({
   }, [inputMessage]);
 
   return (
-    <div className={`bg-[#1a1a1a] flex flex-col text-white overflow-hidden relative transition-all duration-300 ${isKeyboardOpen && inputFocused ? 'keyboard-active' : ''}`} style={{ height: 'calc(var(--vh, 1vh) * 100)' }}>
+    <div className="bg-[#1a1a1a] flex flex-col text-white overflow-hidden relative" style={{ height: 'calc(var(--vh, 1vh) * 100)' }}>
       {/* Claude-style Header - FIXED AT TOP */}
       <div className="fixed top-0 left-0 right-0 border-b border-gray-700 px-3 sm:px-4 py-3 bg-[#1a1a1a] z-30">
         <div className="flex items-center justify-between">
@@ -257,7 +180,7 @@ const HospitalChatInterface = ({
 
       {/* Chat Output Area - SCROLLABLE MIDDLE SECTION */}
       <div 
-        className="flex-1 overflow-y-auto pt-16 pb-24 bg-[#1a1a1a] messages-container"
+        className="flex-1 overflow-y-auto pt-16 pb-24 bg-[#1a1a1a]"
       >
         <div className="max-w-4xl mx-auto">
           {/* Welcome Message */}
@@ -429,7 +352,7 @@ const HospitalChatInterface = ({
       </div>
 
       {/* Chat Input Area - FIXED AT BOTTOM */}
-      <div className={`fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-gray-700 px-4 py-3 z-30 transition-transform duration-300 ease-in-out ${isKeyboardOpen && inputFocused ? 'keyboard-visible' : ''}`} style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom, 0px))' }}>
+      <div className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-gray-700 px-4 py-3 z-30" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom, 0px))' }}>
         <div className="max-w-4xl mx-auto">
           {/* Action Buttons - Inside Input Container */}
           {showActionButtons && (
@@ -533,11 +456,14 @@ const HospitalChatInterface = ({
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
-                  handleSendMessageWithKeyboard();
+                  handleSendMessage();
                 }
               }}
-              onFocus={handleInputFocus}
-              onBlur={handleInputBlur}
+              onFocus={() => setShowActionButtons(true)}
+              onBlur={() => {
+                // Hide action buttons when keyboard is dismissed, with small delay
+                setTimeout(() => setShowActionButtons(false), 150);
+              }}
               placeholder={isConnected ? "Ask about patients, beds, staff, equipment..." : "Connecting..."}
               disabled={!isConnected || isLoading}
               className="flex-1 bg-transparent text-white placeholder-gray-400 focus:outline-none text-sm resize-none overflow-y-auto"
@@ -606,7 +532,10 @@ const HospitalChatInterface = ({
               
               {/* Send Button - Circular */}
               <button
-                onClick={handleSendMessageWithKeyboard}
+                onClick={() => {
+                  handleSendMessage();
+                  setShowActionButtons(false); // Hide action buttons after sending
+                }}
                 disabled={!isConnected || isLoading || !inputMessage.trim()}
                 className="w-7 h-7 sm:w-8 sm:h-8 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 text-white rounded-full flex items-center justify-center transition-colors duration-200"
                 title="Send message"
@@ -806,67 +735,6 @@ const HospitalChatInterface = ({
           </div>
         </div>
       )}
-
-      {/* Mobile Keyboard Handling Styles */}
-      <style jsx>{`
-        @media (max-width: 768px) and (pointer: coarse) {
-          /* Mobile-specific keyboard handling */
-          .keyboard-active {
-            height: 100vh !important;
-            height: 100dvh !important;
-          }
-          
-          .keyboard-visible {
-            position: fixed;
-            bottom: 0;
-            transform: translateY(0);
-            transition: transform 0.2s ease-out;
-          }
-          
-          .keyboard-active .keyboard-visible {
-            /* Move input area up when keyboard is visible - reduced from 40vh to 25vh */
-            transform: translateY(-25vh);
-          }
-          
-          /* Ensure content can scroll properly */
-          .keyboard-active .messages-container {
-            padding-bottom: 35vh;
-          }
-          
-          /* Smooth transitions */
-          .keyboard-active,
-          .keyboard-visible {
-            transition: all 0.3s ease-in-out;
-          }
-          
-          /* Prevent input from going too high on smaller screens */
-          @media (max-height: 600px) {
-            .keyboard-active .keyboard-visible {
-              transform: translateY(-20vh);
-            }
-            .keyboard-active .messages-container {
-              padding-bottom: 30vh;
-            }
-          }
-          
-          /* Extra small screens adjustment */
-          @media (max-height: 500px) {
-            .keyboard-active .keyboard-visible {
-              transform: translateY(-15vh);
-            }
-            .keyboard-active .messages-container {
-              padding-bottom: 25vh;
-            }
-          }
-        }
-        
-        /* iOS specific fixes */
-        @supports (-webkit-touch-callout: none) {
-          .keyboard-active {
-            height: -webkit-fill-available !important;
-          }
-        }
-      `}</style>
     </div>
   );
 };
