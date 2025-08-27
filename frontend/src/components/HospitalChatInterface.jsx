@@ -90,8 +90,45 @@ const HospitalChatInterface = ({
     }
   }, [inputMessage]);
 
+  // Handle mobile viewport height issues with keyboard
+  useEffect(() => {
+    const setVH = () => {
+      const vh = window.innerHeight * 0.01;
+      document.documentElement.style.setProperty('--vh', `${vh}px`);
+    };
+
+    setVH();
+    window.addEventListener('resize', setVH);
+    window.addEventListener('orientationchange', setVH);
+
+    // Prevent body scroll on mobile when keyboard appears
+    const handleFocusIn = () => {
+      document.body.classList.add('no-scroll');
+    };
+
+    const handleFocusOut = () => {
+      document.body.classList.remove('no-scroll');
+    };
+
+    // Add event listeners for input focus/blur
+    document.addEventListener('focusin', handleFocusIn);
+    document.addEventListener('focusout', handleFocusOut);
+
+    return () => {
+      window.removeEventListener('resize', setVH);
+      window.removeEventListener('orientationchange', setVH);
+      document.removeEventListener('focusin', handleFocusIn);
+      document.removeEventListener('focusout', handleFocusOut);
+      document.body.classList.remove('no-scroll');
+    };
+  }, []);
+
   return (
-    <div className="bg-[#1a1a1a] flex flex-col text-white overflow-hidden relative" style={{ height: 'calc(var(--vh, 1vh) * 100)' }}>
+    <div className="bg-[#1a1a1a] flex flex-col text-white relative" style={{ 
+      height: 'calc(var(--vh, 1vh) * 100)',
+      maxHeight: 'calc(var(--vh, 1vh) * 100)',
+      overflow: 'hidden'
+    }}>
       {/* Claude-style Header - FIXED AT TOP */}
       <div className="fixed top-0 left-0 right-0 border-b border-gray-700 px-3 sm:px-4 py-3 bg-[#1a1a1a] z-30">
         <div className="flex items-center justify-between">
@@ -180,7 +217,14 @@ const HospitalChatInterface = ({
 
       {/* Chat Output Area - SCROLLABLE MIDDLE SECTION */}
       <div 
-        className="flex-1 overflow-y-auto pt-16 pb-24 bg-[#1a1a1a]"
+        className="flex-1 pt-16 pb-24 bg-[#1a1a1a] relative"
+        style={{ 
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          WebkitOverflowScrolling: 'touch',
+          height: 'calc(100vh - 140px)', // Fixed height to prevent keyboard viewport issues
+          maxHeight: 'calc(var(--vh, 1vh) * 100 - 140px)'
+        }}
       >
         <div className="max-w-4xl mx-auto">
           {/* Welcome Message */}
@@ -352,7 +396,16 @@ const HospitalChatInterface = ({
       </div>
 
       {/* Chat Input Area - FIXED AT BOTTOM */}
-      <div className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-gray-700 px-4 py-3 z-30" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom, 0px))' }}>
+      <div 
+        className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-gray-700 px-4 py-3 z-30" 
+        style={{ 
+          paddingBottom: 'max(12px, env(safe-area-inset-bottom, 0px))',
+          position: 'fixed',
+          bottom: '0',
+          transform: 'translateZ(0)', // Force hardware acceleration
+          willChange: 'transform'
+        }}
+      >
         <div className="max-w-4xl mx-auto">
           {/* Action Buttons - Inside Input Container */}
           {showActionButtons && (
@@ -471,8 +524,15 @@ const HospitalChatInterface = ({
                 WebkitAppearance: 'none',
                 fontSize: isIOSDevice ? '16px' : '14px',
                 maxHeight: '120px',
-                height: '40px' // Initial height
+                height: '40px', // Initial height
+                WebkitTouchCallout: 'none',
+                WebkitUserSelect: 'text',
+                WebkitTapHighlightColor: 'transparent'
               }}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="sentences"
+              spellCheck="true"
               rows={1}
             />
             
