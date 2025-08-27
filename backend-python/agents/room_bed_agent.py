@@ -257,7 +257,18 @@ class RoomBedAgent(BaseAgent):
             return {"success": False, "message": f"Failed to create bed: {str(e)}"}
 
     def list_beds(self, status: str = None, room_id: str = None) -> Dict[str, Any]:
-        """List beds with optional filtering."""
+        """❌ DO NOT USE for checking individual bed status! Returns ALL beds.
+        
+        ⚠️ For checking ONE specific bed (e.g. "check bed 302A"), 
+        use 'get_bed_status_with_time_remaining' instead!
+        
+        This tool is only for:
+        - Getting overview of MULTIPLE beds
+        - Finding beds by status (available, occupied, cleaning)
+        - Listing beds in a specific room
+        
+        Returns basic info without cleaning time details.
+        """
         if not DATABASE_AVAILABLE:
             return {"error": "Database not available"}
         
@@ -417,24 +428,25 @@ class RoomBedAgent(BaseAgent):
             # Preserve previous patient before clearing
             previous_patient_id = bed.patient_id
             
-            # Discharge patient from bed (simple flow)
+            # Discharge patient from bed and start cleaning process
             bed.patient_id = None
-            bed.status = "available"
+            bed.status = "cleaning"  # Set to cleaning, not available
             if discharge_date:
                 bed.discharge_date = datetime.strptime(discharge_date, "%Y-%m-%d").date()
             else:
                 bed.discharge_date = date.today()
             
-            # Create a BedTurnover record to retain history for report generation fallbacks
+            # Create a BedTurnover record and start cleaning immediately
             try:
                 from database import BedTurnover
                 from datetime import datetime as dt
                 turnover = BedTurnover(
                     bed_id=bed.id,
                     previous_patient_id=previous_patient_id,
-                    status="initiated",
+                    status="cleaning",  # Start cleaning immediately
                     turnover_type="standard",
                     discharge_time=dt.now(),
+                    cleaning_start_time=dt.now(),  # Start cleaning now
                     estimated_cleaning_duration=30,
                     priority_level="normal"
                 )
@@ -442,6 +454,8 @@ class RoomBedAgent(BaseAgent):
             except Exception as e:
                 # If turnover creation fails, continue with basic discharge
                 print(f"⚠️ Failed to create BedTurnover during discharge: {e}")
+                # Still set bed to cleaning status even if turnover fails
+                bed.status = "cleaning"
             
             db.commit()
             db.refresh(bed)

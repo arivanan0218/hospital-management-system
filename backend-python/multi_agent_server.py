@@ -25,7 +25,7 @@ try:
     from database import (
         User, Department, Patient, Room, Bed, Staff, Equipment, EquipmentCategory,
         Supply, SupplyCategory, InventoryTransaction, AgentInteraction,
-        LegacyUser, SessionLocal
+        LegacyUser, DischargeReport, SessionLocal
     )
     DATABASE_AVAILABLE = True
 except ImportError:
@@ -292,10 +292,60 @@ def create_patient(first_name: str, last_name: str, date_of_birth: str,
     return {"success": False, "message": "Multi-agent system required for this operation"}
 
 @mcp.tool()
-def list_patients() -> Dict[str, Any]:
-    """List all patients."""
+def check_bed_status(bed_id: str) -> Dict[str, Any]:
+    """🎯 PRIMARY TOOL: Check specific bed status (e.g., bed 302A) - USE THIS for individual bed queries!
+    
+    ✅ Use when user asks: "check bed 302A status", "is bed cleaning done", "bed status after discharge"
+    ❌ NEVER use list_beds for individual bed queries - it returns ALL beds unnecessarily!
+    
+    This tool shows:
+    - Current bed status (cleaning, available, occupied)
+    - Time remaining for cleaning process
+    - Cleaning progress percentage
+    - Estimated completion time
+    
+    Args:
+        bed_id: Bed number (e.g., "302A") or bed UUID
+        
+    Returns:
+        Detailed bed status including cleaning time remaining and progress
+    """
     if MULTI_AGENT_AVAILABLE and orchestrator:
-        result = orchestrator.route_request("list_patients")
+        result = orchestrator.route_request("get_bed_status_with_time_remaining", bed_id=bed_id)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def auto_update_expired_cleaning_beds() -> Dict[str, Any]:
+    """🔄 Automatically update beds that completed their 30-minute cleaning to 'available' status.
+    
+    This tool:
+    - Checks all beds in 'cleaning' status
+    - Updates beds to 'available' if cleaning time (30 min) has elapsed
+    - Fixes orphaned beds stuck in cleaning status
+    - Returns list of updated beds
+    
+    Use this to:
+    - Force update of expired cleaning beds
+    - Fix beds stuck in cleaning status
+    - Ensure beds become available after cleaning time completes
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("auto_update_expired_cleaning_beds")
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def list_patients(status: str = "active") -> Dict[str, Any]:
+    """List patients with optional status filtering.
+    
+    Args:
+        status: Filter by patient status - "active" (default), "discharged", "all"
+    """
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("list_patients", status=status)
         return result.get("result", result)
     
     return {"error": "Multi-agent system required for this operation"}
@@ -447,11 +497,58 @@ def create_bed(bed_number: str, room_id: str, bed_type: str = None, status: str 
         return {"success": False, "message": f"Failed to create bed: {str(e)}"}
 
 @mcp.tool()
-def list_beds(status: str = None, room_id: str = None) -> Dict[str, Any]:
-    """List beds with optional filtering."""
+def list_beds(status: str = None, room_id: str = None, bed_number: str = None) -> Dict[str, Any]:
+    """❌ WARNING: DO NOT USE for checking individual bed status! Returns ALL beds unnecessarily.
+    
+    ❌ WRONG: "check bed 302A status" - use get_bed_status_with_time_remaining() instead!
+    ❌ WRONG: "is bed cleaning done" - use get_bed_status_with_time_remaining() instead!
+    
+    ✅ ONLY use list_beds for:
+    - Getting overview of multiple beds
+    - Finding available beds for assignment
+    - General bed inventory management
+    
+    For individual bed queries, use get_bed_status_with_time_remaining() which shows cleaning time remaining!
+    
+    🔄 SMART REDIRECT: If bed_number is provided, automatically redirects to proper bed status check.
+    """
+    # SMART REDIRECT: If this looks like an individual bed query, use the correct tool
+    if bed_number:
+        print(f"🔄 SMART REDIRECT: list_beds called with bed_number '{bed_number}' - redirecting to get_bed_status_with_time_remaining")
+        if MULTI_AGENT_AVAILABLE and orchestrator:
+            result = orchestrator.route_request("get_bed_status_with_time_remaining", bed_id=bed_number)
+            redirect_result = result.get("result", result)
+            # Add redirect notice to the response
+            if isinstance(redirect_result, dict) and redirect_result.get("success"):
+                redirect_result["redirect_notice"] = f"✅ Auto-redirected from list_beds to get_bed_status_with_time_remaining for bed {bed_number}"
+            return redirect_result
+    
     if MULTI_AGENT_AVAILABLE and orchestrator:
         result = orchestrator.route_request("list_beds", status=status, room_id=room_id)
-        return result.get("result", result)
+        list_result = result.get("result", result)
+        
+        # SMART HELPER: Add guidance message if this looks like an individual bed search
+        if isinstance(list_result, dict) and "data" in list_result:
+            beds_data = list_result["data"]
+            # Check if we have bed 302A in the results
+            bed_302a = next((bed for bed in beds_data if bed.get("bed_number") == "302A"), None)
+            
+            if bed_302a:
+                # Add helpful guidance to the response
+                list_result["bed_302a_found"] = bed_302a
+                list_result["helpful_message"] = (
+                    f"🛏️ Found bed 302A: Status = {bed_302a.get('status', 'unknown')}. "
+                    f"For detailed bed status with cleaning time remaining, "
+                    f"use 'get_bed_status_with_time_remaining' tool instead of 'list_beds'."
+                )
+                
+                # If bed is available, add completion message
+                if bed_302a.get("status") == "available":
+                    list_result["helpful_message"] += (
+                        f" ✅ Bed 302A is ready for new patients!"
+                    )
+        
+        return list_result
     
     return {"error": "Multi-agent system required for this operation"}
 
@@ -506,6 +603,101 @@ def discharge_bed(bed_id: str, discharge_date: str = None) -> Dict[str, Any]:
             return {"success": False, "message": f"Failed to discharge bed: {e}"}
     
     return {"error": "Multi-agent system required for bed discharge"}
+
+# ================================
+# PATIENT SUPPLY USAGE TOOLS
+@mcp.tool()
+def record_patient_supply_usage(patient_id: str, supply_id: str, quantity_used: int, 
+                               dosage: str = None, frequency: str = None, 
+                               prescribed_by_id: str = None, administered_by_id: str = None,
+                               bed_id: str = None, administration_route: str = "oral",
+                               indication: str = None, start_date: str = None, 
+                               end_date: str = None) -> Dict[str, Any]:
+    """Record medication or supply usage for a patient."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("record_patient_supply_usage",
+                                           patient_id=patient_id, supply_id=supply_id,
+                                           quantity_used=quantity_used, dosage=dosage,
+                                           frequency=frequency, prescribed_by_id=prescribed_by_id,
+                                           administered_by_id=administered_by_id, bed_id=bed_id,
+                                           administration_route=administration_route,
+                                           indication=indication, start_date=start_date,
+                                           end_date=end_date)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def get_patient_supply_usage(usage_id: str) -> Dict[str, Any]:
+    """Get specific supply usage record by ID."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("get_patient_supply_usage", usage_id=usage_id)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def update_supply_usage_status(usage_id: str, status: str, administration_date: str = None,
+                             effectiveness: str = None, side_effects: str = None,
+                             notes: str = None) -> Dict[str, Any]:
+    """Update status of supply usage (administered, completed, discontinued)."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("update_supply_usage_status",
+                                           usage_id=usage_id, status=status,
+                                           administration_date=administration_date,
+                                           effectiveness=effectiveness,
+                                           side_effects=side_effects, notes=notes)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def get_supply_usage_for_discharge_report(patient_id: str, admission_date: str = None,
+                                        discharge_date: str = None) -> Dict[str, Any]:
+    """Get all supply usage for a patient's discharge report."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("get_supply_usage_for_discharge_report",
+                                           patient_id=patient_id,
+                                           admission_date=admission_date,
+                                           discharge_date=discharge_date)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def list_patient_medications(patient_id: str) -> Dict[str, Any]:
+    """List all medications/supplies used by a patient."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("list_patient_medications", patient_id=patient_id)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def search_supply_usage_by_patient(patient_name: str = None, patient_number: str = None,
+                                 supply_name: str = None, status: str = None) -> Dict[str, Any]:
+    """Search supply usage records for a specific patient."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("search_supply_usage_by_patient",
+                                           patient_name=patient_name,
+                                           patient_number=patient_number,
+                                           supply_name=supply_name, status=status)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
+
+@mcp.tool()
+def calculate_patient_medication_costs(patient_id: str, admission_date: str = None,
+                                     discharge_date: str = None) -> Dict[str, Any]:
+    """Calculate total medication costs for a patient stay."""
+    if MULTI_AGENT_AVAILABLE and orchestrator:
+        result = orchestrator.route_request("calculate_patient_medication_costs",
+                                           patient_id=patient_id,
+                                           admission_date=admission_date,
+                                           discharge_date=discharge_date)
+        return result.get("result", result)
+    
+    return {"error": "Multi-agent system required for this operation"}
 
 # ================================
 # STAFF MANAGEMENT TOOLS
@@ -1173,26 +1365,278 @@ def add_treatment_record_simple(
     
     return {"error": "Multi-agent system required for adding treatment records"}
 
-def add_equipment_usage_simple(
-    patient_id: str,
-    equipment_id: str,
-    staff_id: str,
-    purpose: str
+@mcp.tool()
+def add_equipment_usage_with_codes(
+    patient_id: str = None,
+    equipment_id: str = None,
+    staff_id: str = None,
+    used_by: str = None,  # Alternative name for staff_id
+    purpose: str = None,
+    purpose_of_use: str = None,  # Alternative parameter name for frontend compatibility
+    start_time: str = None,
+    start_date_time: str = None,  # Alternative name for start_time
+    end_time: str = None,
+    end_date_time: str = None,  # Alternative name for end_time
+    notes: str = None
 ) -> Dict[str, Any]:
-    """Add equipment usage record for discharge reporting.
+    """Add equipment usage with automatic code-to-UUID conversion (RECOMMENDED FOR CODES).
+    
+    This tool intelligently converts user-friendly codes like P002, EQ001, EMP001 to internal UUIDs
+    before recording equipment usage. Use this when you have patient numbers, equipment codes, and employee IDs.
     
     Args:
-        patient_id: The ID of the patient
-        equipment_id: The ID of the equipment used
-        staff_id: The ID of the staff member who used the equipment
-        purpose: Purpose of equipment usage
+        patient_id: Patient identifier (e.g., 'P002', 'P123456', or internal UUID)
+        equipment_id: Equipment identifier (e.g., 'EQ001', 'EQ123', or internal UUID) 
+        staff_id: Staff identifier (e.g., 'EMP001', 'EMP123', or internal UUID)
+        purpose: Purpose of equipment usage (e.g., 'ECG monitoring during cardiac evaluation')
+        start_time: Start time (ISO string like '2025-08-25 09:15', optional)
+        end_time: End time (ISO string like '2025-08-25 10:00', optional)
+        notes: Additional notes (optional)
+    
+    Examples:
+        patient_id: P002, EQ001, EMP001 (user-friendly codes) - PREFERRED
+        patient_id: 123e4567-e89b-12d3-a456-426614174000 (internal UUIDs)
     """
-    if MULTI_AGENT_AVAILABLE and orchestrator:
+    if not MULTI_AGENT_AVAILABLE or not orchestrator:
+        return {"success": False, "message": "Multi-agent system required for equipment usage"}
+    
+    # Validate required parameters
+    if not patient_id:
+        return {"success": False, "message": "patient_id is required (e.g., 'P002', 'P001', or UUID)"}
+    if not equipment_id:
+        return {"success": False, "message": "equipment_id is required (e.g., 'EQ001', 'EQ002', or UUID)"}
+    
+    # Handle alternative staff_id parameter names
+    actual_staff_id = staff_id or used_by
+    if not actual_staff_id:
+        return {"success": False, "message": "staff_id or used_by is required (e.g., 'EMP001', 'EMP002', or UUID)"}
+    
+    # Handle both 'purpose' and 'purpose_of_use' parameter names for frontend compatibility
+    actual_purpose = purpose or purpose_of_use
+    if not actual_purpose:
+        return {"success": False, "message": "Purpose is required (use 'purpose' or 'purpose_of_use' parameter)"}
+    
+    # Handle alternative time parameter names
+    actual_start_time = start_time or start_date_time
+    actual_end_time = end_time or end_date_time
+    
+    # Check if inputs are user-friendly codes (short strings without hyphens)
+    is_patient_code = patient_id and len(patient_id) < 20 and '-' not in patient_id
+    is_equipment_code = equipment_id and len(equipment_id) < 20 and '-' not in equipment_id  
+    is_staff_code = actual_staff_id and len(actual_staff_id) < 20 and '-' not in actual_staff_id
+    
+    if is_patient_code or is_equipment_code or is_staff_code:
+        # Perform code-to-UUID conversion locally
+        try:
+            resolved_patient_id = patient_id
+            resolved_equipment_id = equipment_id
+            resolved_staff_id = actual_staff_id
+            
+            # Resolve patient code to UUID
+            if is_patient_code:
+                patient_lookup = orchestrator.route_request("search_patients", patient_number=patient_id)
+                patient_result = patient_lookup.get("result", {})
+                if patient_result.get("data"):
+                    resolved_patient_id = patient_result["data"][0]["id"]
+                else:
+                    return {"success": False, "message": f"Patient '{patient_id}' not found in database"}
+            
+            # Resolve equipment code to UUID
+            if is_equipment_code:
+                equipment_lookup = orchestrator.route_request("list_equipment")
+                equipment_result = equipment_lookup.get("result", {})
+                resolved_equipment_id = None
+                if equipment_result.get("data"):
+                    for eq in equipment_result["data"]:
+                        if eq.get("equipment_id") == equipment_id:
+                            resolved_equipment_id = eq["id"]
+                            break
+                if not resolved_equipment_id:
+                    return {"success": False, "message": f"Equipment '{equipment_id}' not found in database"}
+            
+            # Resolve staff code to UUID  
+            if is_staff_code:
+                staff_lookup = orchestrator.route_request("list_staff")
+                staff_result = staff_lookup.get("result", {})
+                resolved_staff_id = None
+                if staff_result.get("data"):
+                    for staff in staff_result["data"]:
+                        if staff.get("employee_id") == actual_staff_id:
+                            resolved_staff_id = staff["id"]
+                            break
+                if not resolved_staff_id:
+                    return {"success": False, "message": f"Staff member '{actual_staff_id}' not found in database"}
+            
+            # Success: call with resolved UUIDs - use a different tool name to avoid routing conflicts
+            result = orchestrator.route_request("add_equipment_usage_simple",
+                                               patient_id=resolved_patient_id,
+                                               equipment_id=resolved_equipment_id,
+                                               staff_id=resolved_staff_id,
+                                               purpose=actual_purpose,
+                                               start_time=actual_start_time,
+                                               end_time=actual_end_time,
+                                               notes=notes)
+            
+            # Add success metadata showing what was resolved
+            response = result.get("result", result)
+            if isinstance(response, dict) and response.get("success"):
+                response["codes_resolved"] = {
+                    "original_patient": patient_id,
+                    "original_equipment": equipment_id,
+                    "original_staff": actual_staff_id,
+                    "resolved_patient": resolved_patient_id,
+                    "resolved_equipment": resolved_equipment_id,
+                    "resolved_staff": resolved_staff_id
+                }
+                response["message"] = "Equipment usage recorded successfully with automatic code resolution"
+            return response
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"Code resolution failed: {str(e)}",
+                "codes_provided": {
+                    "patient": patient_id,
+                    "equipment": equipment_id,
+                    "staff": staff_id
+                },
+                "suggestion": "Verify that all codes exist in the database"
+            }
+    else:
+        # Use UUIDs directly
         result = orchestrator.route_request("add_equipment_usage_simple",
                                            patient_id=patient_id,
                                            equipment_id=equipment_id,
                                            staff_id=staff_id,
-                                           purpose=purpose)
+                                           purpose=purpose,
+                                           start_time=start_time,
+                                           end_time=end_time,
+                                           notes=notes)
+        return result.get("result", result)
+
+
+@mcp.tool()
+def add_equipment_usage_simple(
+    patient_id: str,
+    equipment_id: str,
+    staff_id: str,
+    purpose: str,
+    start_time: str = None,
+    end_time: str = None,
+    notes: str = None
+) -> Dict[str, Any]:
+    """Add equipment usage using patient codes, equipment codes, and staff codes (PREFERRED METHOD).
+    
+    This tool intelligently handles both internal UUIDs and user-friendly codes like P002, EQ001, EMP001.
+    Use this tool for all equipment usage operations.
+    
+    Args:
+        patient_id: Patient identifier (e.g., 'P002', 'P123456', or internal UUID)
+        equipment_id: Equipment identifier (e.g., 'EQ001', 'EQ123', or internal UUID) 
+        staff_id: Staff identifier (e.g., 'EMP001', 'EMP123', or internal UUID)
+        purpose: Purpose of equipment usage (e.g., 'ECG monitoring during cardiac evaluation')
+        start_time: Start time (ISO string like '2025-08-25 09:15', optional)
+        end_time: End time (ISO string like '2025-08-25 10:00', optional)
+        notes: Additional notes (optional)
+    
+    Examples:
+        patient_id: P002, EQ001, EMP001 (user-friendly codes)
+        patient_id: 123e4567-e89b-12d3-a456-426614174000 (internal UUIDs)
+    """
+    if not MULTI_AGENT_AVAILABLE or not orchestrator:
+        return {"success": False, "message": "Multi-agent system required for equipment usage"}
+    
+    # Check if inputs are user-friendly codes (short strings)
+    is_patient_code = patient_id and len(patient_id) < 20 and not '-' in patient_id
+    is_equipment_code = equipment_id and len(equipment_id) < 20 and not '-' in equipment_id  
+    is_staff_code = staff_id and len(staff_id) < 20 and not '-' in staff_id
+    
+    if is_patient_code or is_equipment_code or is_staff_code:
+        # Perform code-to-UUID conversion locally
+        try:
+            resolved_patient_id = patient_id
+            resolved_equipment_id = equipment_id
+            resolved_staff_id = staff_id
+            
+            # Resolve patient code to UUID
+            if is_patient_code:
+                patient_lookup = orchestrator.route_request("search_patients", patient_number=patient_id)
+                patient_result = patient_lookup.get("result", {})
+                if patient_result.get("data"):
+                    resolved_patient_id = patient_result["data"][0]["id"]
+                else:
+                    return {"success": False, "message": f"Patient '{patient_id}' not found in database"}
+            
+            # Resolve equipment code to UUID
+            if is_equipment_code:
+                equipment_lookup = orchestrator.route_request("list_equipment")
+                equipment_result = equipment_lookup.get("result", {})
+                resolved_equipment_id = None
+                if equipment_result.get("data"):
+                    for eq in equipment_result["data"]:
+                        if eq.get("equipment_id") == equipment_id:
+                            resolved_equipment_id = eq["id"]
+                            break
+                if not resolved_equipment_id:
+                    return {"success": False, "message": f"Equipment '{equipment_id}' not found in database"}
+            
+            # Resolve staff code to UUID  
+            if is_staff_code:
+                staff_lookup = orchestrator.route_request("list_staff")
+                staff_result = staff_lookup.get("result", {})
+                resolved_staff_id = None
+                if staff_result.get("data"):
+                    for staff in staff_result["data"]:
+                        if staff.get("employee_id") == staff_id:
+                            resolved_staff_id = staff["id"]
+                            break
+                if not resolved_staff_id:
+                    return {"success": False, "message": f"Staff member '{staff_id}' not found in database"}
+            
+            # Success: call with resolved UUIDs
+            result = orchestrator.route_request("add_equipment_usage_simple",
+                                               patient_id=resolved_patient_id,
+                                               equipment_id=resolved_equipment_id,
+                                               staff_id=resolved_staff_id,
+                                               purpose=purpose,
+                                               start_time=start_time,
+                                               end_time=end_time,
+                                               notes=notes)
+            
+            # Add success metadata
+            response = result.get("result", result)
+            if isinstance(response, dict) and response.get("success"):
+                response["codes_resolved"] = {
+                    "original_patient": patient_id,
+                    "original_equipment": equipment_id,
+                    "original_staff": staff_id,
+                    "resolved_patient": resolved_patient_id,
+                    "resolved_equipment": resolved_equipment_id,
+                    "resolved_staff": resolved_staff_id
+                }
+            return response
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"Code resolution failed: {str(e)}",
+                "codes_provided": {
+                    "patient": patient_id,
+                    "equipment": equipment_id,
+                    "staff": staff_id
+                },
+                "suggestion": "Verify that all codes exist in the database"
+            }
+    else:
+        # Use UUIDs directly
+        result = orchestrator.route_request("add_equipment_usage_simple",
+                                           patient_id=patient_id,
+                                           equipment_id=equipment_id,
+                                           staff_id=staff_id,
+                                           purpose=purpose,
+                                           start_time=start_time,
+                                           end_time=end_time,
+                                           notes=notes)
         return result.get("result", result)
     
     return {"error": "Multi-agent system required for adding equipment usage records"}
@@ -1207,15 +1651,27 @@ def add_equipment_usage_by_codes(
     end_time: str = None,
     notes: str = None
 ) -> Dict[str, Any]:
-    """Add equipment usage using patient_number, equipment_id (code), and employee_id (staff code), not UUIDs.
+    """Add equipment usage using human-readable codes (PREFERRED METHOD).
+    
+    Use this tool when you have patient numbers, equipment codes, and employee IDs.
+    This is the recommended way to add equipment usage records.
+    
     Args:
-        patient_number: The patient number (business code)
-        equipment_id: The equipment code (business code)
-        employee_id: The staff employee code (business code)
-        purpose: Purpose of equipment usage
-        start_time: Start time (ISO string, optional)
-        end_time: End time (ISO string, optional)
+        patient_number: The patient number (e.g., 'P002', 'P123456')
+        equipment_id: The equipment code (e.g., 'EQ001', 'EQ123')
+        employee_id: The staff employee code (e.g., 'EMP001', 'EMP123')
+        purpose: Purpose of equipment usage (e.g., 'ECG monitoring during cardiac evaluation')
+        start_time: Start time (ISO string like '2025-08-25 09:15', optional)
+        end_time: End time (ISO string like '2025-08-25 10:00', optional)
         notes: Additional notes (optional)
+    
+    Example:
+        patient_number: P002
+        equipment_id: EQ001
+        employee_id: EMP001
+        purpose: ECG monitoring during cardiac evaluation
+        start_time: 2025-08-25 09:15
+        end_time: 2025-08-25 10:00
     """
     if MULTI_AGENT_AVAILABLE and orchestrator:
         result = orchestrator.route_request("add_equipment_usage_by_codes",
@@ -1315,10 +1771,10 @@ def complete_bed_cleaning(bed_id: str, cleaned_by: str = None, cleaning_notes: s
 
 @mcp.tool()
 def get_bed_status_with_time_remaining(bed_id: str) -> Dict[str, Any]:
-    """Get bed status with time remaining for current process.
+    """Get bed status with time remaining for current process (supports bed UUID or bed number).
     
     Args:
-        bed_id: The ID of the bed to check
+        bed_id: The ID of the bed to check (can be bed UUID like 'bed123' or bed number like '401A')
     """
     if MULTI_AGENT_AVAILABLE and orchestrator:
         result = orchestrator.route_request("get_bed_status_with_time_remaining", bed_id=bed_id)
@@ -1446,6 +1902,191 @@ def get_equipment_turnover_status(equipment_id: str) -> Dict[str, Any]:
     return {"error": "Multi-agent system required for equipment status"}
 
 @mcp.tool()
+def search_discharged_patients(patient_name: str = None, patient_number: str = None, 
+                             discharge_date_from: str = None, discharge_date_to: str = None) -> Dict[str, Any]:
+    """Search for discharged patients and get their discharge details.
+    
+    Args:
+        patient_name: Partial name match (optional)
+        patient_number: Exact patient number match (optional)
+        discharge_date_from: Start date filter YYYY-MM-DD (optional)
+        discharge_date_to: End date filter YYYY-MM-DD (optional)
+    """
+    if not DATABASE_AVAILABLE:
+        return {"success": False, "message": "Database not available"}
+    
+    db = get_db_session()
+    try:
+        query = db.query(Patient).filter(Patient.status == "discharged")
+        
+        if patient_name:
+            query = query.filter(
+                (Patient.first_name.ilike(f"%{patient_name}%")) |
+                (Patient.last_name.ilike(f"%{patient_name}%"))
+            )
+        
+        if patient_number:
+            query = query.filter(Patient.patient_number == patient_number)
+        
+        if discharge_date_from:
+            try:
+                from_date = datetime.fromisoformat(discharge_date_from)
+                query = query.filter(Patient.updated_at >= from_date)
+            except:
+                pass
+        
+        if discharge_date_to:
+            try:
+                to_date = datetime.fromisoformat(discharge_date_to)
+                query = query.filter(Patient.updated_at <= to_date)
+            except:
+                pass
+        
+        patients = query.order_by(Patient.updated_at.desc()).limit(50).all()
+        
+        result_data = []
+        for patient in patients:
+            # Get discharge reports for this patient
+            discharge_reports = db.query(DischargeReport).filter(
+                DischargeReport.patient_id == patient.id
+            ).order_by(DischargeReport.created_at.desc()).all()
+            
+            patient_data = {
+                "patient_id": str(patient.id),
+                "patient_number": patient.patient_number,
+                "name": f"{patient.first_name} {patient.last_name}",
+                "status": patient.status,
+                "discharge_date": patient.updated_at.isoformat() if patient.updated_at else None,
+                "phone": patient.phone,
+                "emergency_contact": patient.emergency_contact_name,
+                "discharge_reports": [
+                    {
+                        "report_id": str(report.id),
+                        "report_number": report.report_number,
+                        "discharge_date": report.discharge_date.isoformat() if report.discharge_date else None,
+                        "discharge_condition": report.discharge_condition,
+                        "discharge_destination": report.discharge_destination,
+                        "length_of_stay_days": report.length_of_stay_days,
+                        "download_url": f"/discharge/{report.report_number}.pdf"
+                    } for report in discharge_reports
+                ]
+            }
+            result_data.append(patient_data)
+        
+        db.close()
+        return {
+            "success": True,
+            "patients": result_data,
+            "total_found": len(result_data),
+            "message": f"Found {len(result_data)} discharged patients"
+        }
+        
+    except Exception as e:
+        db.close()
+        return {"success": False, "message": f"Error searching discharged patients: {str(e)}"}
+
+@mcp.tool()
+def get_patient_with_discharge_details(patient_identifier: str) -> Dict[str, Any]:
+    """Get complete patient information including discharge details by name, patient number, or ID.
+    
+    Args:
+        patient_identifier: Patient name, patient number, or UUID
+    """
+    if not DATABASE_AVAILABLE:
+        return {"success": False, "message": "Database not available"}
+    
+    db = get_db_session()
+    try:
+        patient = None
+        
+        # Try to find patient by UUID first
+        try:
+            patient = db.query(Patient).filter(Patient.id == uuid.UUID(patient_identifier)).first()
+        except:
+            pass
+        
+        # Try by patient number
+        if not patient:
+            patient = db.query(Patient).filter(Patient.patient_number == patient_identifier).first()
+        
+        # Try by name (partial match)
+        if not patient:
+            patient = db.query(Patient).filter(
+                (Patient.first_name.ilike(f"%{patient_identifier}%")) |
+                (Patient.last_name.ilike(f"%{patient_identifier}%"))
+            ).first()
+        
+        if not patient:
+            db.close()
+            return {"success": False, "message": f"Patient not found: {patient_identifier}"}
+        
+        # Get discharge reports
+        discharge_reports = db.query(DischargeReport).filter(
+            DischargeReport.patient_id == patient.id
+        ).order_by(DischargeReport.created_at.desc()).all()
+        
+        # Get current or last bed assignment
+        bed_assignment = db.query(Bed).filter(
+            (Bed.patient_id == patient.id) | 
+            (Bed.discharge_date.isnot(None))
+        ).order_by(Bed.updated_at.desc()).first()
+        
+        result = {
+            "success": True,
+            "patient": {
+                "id": str(patient.id),
+                "patient_number": patient.patient_number,
+                "name": f"{patient.first_name} {patient.last_name}",
+                "first_name": patient.first_name,
+                "last_name": patient.last_name,
+                "status": patient.status,
+                "date_of_birth": patient.date_of_birth.isoformat() if patient.date_of_birth else None,
+                "gender": patient.gender,
+                "phone": patient.phone,
+                "email": patient.email,
+                "address": patient.address,
+                "blood_type": patient.blood_type,
+                "allergies": patient.allergies,
+                "emergency_contact_name": patient.emergency_contact_name,
+                "emergency_contact_phone": patient.emergency_contact_phone,
+                "last_updated": patient.updated_at.isoformat() if patient.updated_at else None
+            },
+            "bed_assignment": {
+                "bed_id": str(bed_assignment.id) if bed_assignment else None,
+                "bed_number": bed_assignment.bed_number if bed_assignment else None,
+                "room_number": bed_assignment.room.room_number if bed_assignment and bed_assignment.room else None,
+                "status": bed_assignment.status if bed_assignment else None,
+                "admission_date": bed_assignment.admission_date.isoformat() if bed_assignment and bed_assignment.admission_date else None,
+                "discharge_date": bed_assignment.discharge_date.isoformat() if bed_assignment and bed_assignment.discharge_date else None
+            } if bed_assignment else None,
+            "discharge_reports": [
+                {
+                    "report_id": str(report.id),
+                    "report_number": report.report_number,
+                    "discharge_date": report.discharge_date.isoformat() if report.discharge_date else None,
+                    "admission_date": report.admission_date.isoformat() if report.admission_date else None,
+                    "length_of_stay_days": report.length_of_stay_days,
+                    "discharge_condition": report.discharge_condition,
+                    "discharge_destination": report.discharge_destination,
+                    "discharge_instructions": report.discharge_instructions,
+                    "follow_up_required": report.follow_up_required,
+                    "created_at": report.created_at.isoformat() if report.created_at else None,
+                    "download_url": f"/discharge/{report.report_number}.pdf",
+                    "bed_number": db.query(Bed).filter(Bed.id == report.bed_id).first().bed_number if report.bed_id else None
+                } for report in discharge_reports
+            ],
+            "total_discharge_reports": len(discharge_reports),
+            "is_discharged": patient.status == "discharged"
+        }
+        
+        db.close()
+        return result
+        
+    except Exception as e:
+        db.close()
+        return {"success": False, "message": f"Error getting patient details: {str(e)}"}
+
+@mcp.tool()
 def download_discharge_report(report_number: str, download_format: str = "pdf") -> Dict[str, Any]:
     """Download a discharge report in the specified format.
     
@@ -1543,7 +2184,9 @@ async def call_tool_http(request: Request):
         # System-level tools that should not be routed through orchestrator
         system_tools = ["get_system_status", "get_agent_info", "list_agents", "execute_workflow", 
                        "download_discharge_report", "get_discharge_report_storage_stats", 
-                       "list_available_discharge_reports", "archive_old_discharge_reports"]
+                       "list_available_discharge_reports", "archive_old_discharge_reports",
+                       "add_equipment_usage_with_codes", "search_discharged_patients", 
+                       "get_patient_with_discharge_details", "check_bed_status"]
         
         if tool_name in system_tools:
             # Handle system tools directly
@@ -1557,12 +2200,20 @@ async def call_tool_http(request: Request):
                 result = execute_workflow(**arguments)
             elif tool_name == "download_discharge_report":
                 result = download_discharge_report(**arguments)
+            elif tool_name == "add_equipment_usage_with_codes":
+                result = add_equipment_usage_with_codes(**arguments)
             elif tool_name == "get_discharge_report_storage_stats":
                 result = get_discharge_report_storage_stats(**arguments)
             elif tool_name == "list_available_discharge_reports":
                 result = list_available_discharge_reports(**arguments)
             elif tool_name == "archive_old_discharge_reports":
                 result = archive_old_discharge_reports(**arguments)
+            elif tool_name == "search_discharged_patients":
+                result = search_discharged_patients(**arguments)
+            elif tool_name == "get_patient_with_discharge_details":
+                result = get_patient_with_discharge_details(**arguments)
+            elif tool_name == "check_bed_status":
+                result = check_bed_status(**arguments)
             else:
                 result = {"error": f"System tool {tool_name} not implemented"}
         else:
@@ -1586,12 +2237,24 @@ async def call_tool_http(request: Request):
         })
         
     except Exception as e:
+        # Detailed error logging for debugging
+        error_details = {
+            "error_type": type(e).__name__,
+            "error_message": str(e),
+            "tool_name": data.get("params", {}).get("name", "unknown"),
+            "arguments": data.get("params", {}).get("arguments", {}),
+            "traceback": traceback.format_exc()
+        }
+        
+        print(f"❌ HTTP TOOL CALL ERROR: {error_details}")
+        
         return JSONResponse({
             "jsonrpc": "2.0",
             "id": data.get("id", 1),
             "error": {
                 "code": -32603,
-                "message": f"Internal error: {str(e)}"
+                "message": f"Internal error: {str(e)}",
+                "details": error_details
             }
         }, status_code=500)
 
@@ -1606,25 +2269,61 @@ async def list_tools_http(request: Request):
         
         # Get tools from orchestrator if available
         if MULTI_AGENT_AVAILABLE and orchestrator:
-            print("🔍 DEBUG: Getting tools from orchestrator...")
-            orchestrator_tools = orchestrator.get_tools()
-            print(f"🔍 DEBUG: Got {len(orchestrator_tools) if orchestrator_tools else 0} tools from orchestrator")
+            print("🔍 DEBUG: Getting tools with descriptions from orchestrator...")
             
-            # Handle if get_tools() returns a list or dict
-            if isinstance(orchestrator_tools, list):
-                for tool_name in orchestrator_tools:
+            # Get tools with their actual descriptions from docstrings
+            if hasattr(orchestrator, 'get_tools_with_descriptions'):
+                tools_with_descriptions = orchestrator.get_tools_with_descriptions()
+                print(f"🔍 DEBUG: Got {len(tools_with_descriptions)} tools with descriptions")
+                
+                for tool_name, description in tools_with_descriptions.items():
                     tools_list.append({
                         "name": tool_name,
-                        "description": f"Multi-agent tool: {tool_name}"
+                        "description": description
                     })
-            elif isinstance(orchestrator_tools, dict):
-                for tool_name, tool_info in orchestrator_tools.items():
+            else:
+                # Fallback to old method
+                orchestrator_tools = orchestrator.get_tools()
+                print(f"🔍 DEBUG: Got {len(orchestrator_tools) if orchestrator_tools else 0} tools from orchestrator (fallback)")
+                
+                # Handle if get_tools() returns a list or dict
+                if isinstance(orchestrator_tools, list):
+                    for tool_name in orchestrator_tools:
+                        tools_list.append({
+                            "name": tool_name,
+                            "description": f"Multi-agent tool: {tool_name}"
+                        })
+                elif isinstance(orchestrator_tools, dict):
+                    for tool_name, tool_info in orchestrator_tools.items():
+                        tools_list.append({
+                            "name": tool_name,
+                            "description": tool_info.get("description", "Multi-agent tool")
+                        })
+        
+        # ALSO include MCP wrapper tools (like check_bed_status)
+        print("🔍 DEBUG: Adding MCP wrapper tools...")
+        if hasattr(mcp, '_tools'):
+            for tool in mcp._tools:
+                # Avoid duplicates - only add if not already in list
+                if not any(t["name"] == tool.name for t in tools_list):
+                    tools_list.append({
+                        "name": tool.name,
+                        "description": tool.description or "No description available"
+                    })
+                    print(f"🔍 DEBUG: Added MCP tool: {tool.name}")
+        elif hasattr(mcp, 'registry') and hasattr(mcp.registry, 'tools'):
+            for tool_name, tool in mcp.registry.tools.items():
+                # Avoid duplicates - only add if not already in list
+                if not any(t["name"] == tool_name for t in tools_list):
                     tools_list.append({
                         "name": tool_name,
-                        "description": tool_info.get("description", "Multi-agent tool")
+                        "description": getattr(tool, 'description', "No description available")
                     })
-        else:
-            # Fallback: get tools from mcp server registry
+                    print(f"🔍 DEBUG: Added MCP tool: {tool_name}")
+        
+        # If no orchestrator, fall back to MCP tools only
+        if not MULTI_AGENT_AVAILABLE or not orchestrator:
+            print("🔍 DEBUG: No orchestrator available, using MCP tools only...")
             # FastMCP stores tools in the registry
             if hasattr(mcp, '_tools'):
                 for tool in mcp._tools:

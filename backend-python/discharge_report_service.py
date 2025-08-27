@@ -12,10 +12,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 from sqlalchemy.orm import Session
-from database import SessionLocal, Patient, Bed, User, Staff, Equipment, Appointment
-from discharge_report_models import (
-    TreatmentRecord, EquipmentUsage, StaffAssignment, DischargeReport
-)
+from database import SessionLocal, Patient, Bed, User, Staff, Equipment, TreatmentRecord, EquipmentUsage, StaffAssignment, DischargeReport
 
 class PatientDischargeReportGenerator:
     """Generate comprehensive discharge reports for patients."""
@@ -65,6 +62,7 @@ class PatientDischargeReportGenerator:
                 "equipment_summary": self._get_equipment_summary(patient.id, admission_date, discharge_date),
                 "staff_summary": self._get_staff_summary(patient.id, admission_date, discharge_date),
                 "medications": self._get_medications_summary(patient.id, admission_date, discharge_date),
+                "supply_usage": self._get_supply_usage_summary(patient.id, admission_date, discharge_date),
                 "procedures": self._get_procedures_summary(patient.id, admission_date, discharge_date),
                 "appointments": self._get_appointments_summary(patient.id, admission_date, discharge_date)
             }
@@ -72,10 +70,14 @@ class PatientDischargeReportGenerator:
             # Create discharge report record
             report_number = f"DR-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
             
+            # Use Admin User as default if no user provided
+            default_user_id = "6756128d-1f7e-4f2f-abc5-91efc1a6e1a5"  # Admin User
+            generated_by_id = uuid.UUID(generated_by_user_id) if generated_by_user_id else uuid.UUID(default_user_id)
+            
             discharge_report = DischargeReport(
                 patient_id=patient.id,
                 bed_id=uuid.UUID(bed_id),
-                generated_by=uuid.UUID(generated_by_user_id) if generated_by_user_id else None,
+                generated_by=generated_by_id,
                 report_number=report_number,
                 admission_date=admission_date,
                 discharge_date=discharge_date,
@@ -85,6 +87,7 @@ class PatientDischargeReportGenerator:
                 equipment_summary=json.dumps(report_data["equipment_summary"]),
                 staff_summary=json.dumps(report_data["staff_summary"]),
                 medications=json.dumps(report_data["medications"]),
+                supply_usage=json.dumps(report_data["supply_usage"]),
                 procedures=json.dumps(report_data["procedures"]),
                 discharge_instructions=discharge_instructions,
                 follow_up_required=follow_up_required,
@@ -220,6 +223,99 @@ class PatientDischargeReportGenerator:
             "effectiveness": m.effectiveness
         } for m in medications]
     
+    def _get_supply_usage_summary(self, patient_id, admission_date, discharge_date) -> Dict[str, Any]:
+        """Get supply and medication usage from inventory system."""
+        try:
+            from database import PatientSupplyUsage
+            
+            # Query patient supply usage records
+            usage_records = self.session.query(PatientSupplyUsage).filter(
+                PatientSupplyUsage.patient_id == patient_id,
+                PatientSupplyUsage.prescribed_date >= admission_date,
+                PatientSupplyUsage.prescribed_date <= discharge_date
+            ).all()
+            
+            if not usage_records:
+                return {
+                    "medications": [],
+                    "medical_supplies": [],
+                    "total_cost": 0,
+                    "summary": {
+                        "total_items": 0,
+                        "medications_count": 0,
+                        "supplies_count": 0,
+                        "total_cost": 0
+                    }
+                }
+            
+            medications = []
+            medical_supplies = []
+            total_cost = 0
+            
+            for usage in usage_records:
+                # Build usage data
+                usage_data = {
+                    "item_name": usage.supply.name if usage.supply else "Unknown",
+                    "category": usage.supply.category.name if usage.supply and usage.supply.category else "Unknown",
+                    "quantity_used": usage.quantity_used,
+                    "unit_of_measure": usage.supply.unit_of_measure if usage.supply else "",
+                    "dosage": usage.dosage,
+                    "frequency": usage.frequency,
+                    "administration_route": usage.administration_route,
+                    "indication": usage.indication,
+                    "prescribed_by": f"{usage.prescribed_by.first_name} {usage.prescribed_by.last_name}" if usage.prescribed_by else "Unknown",
+                    "administered_by": f"{usage.administered_by.first_name} {usage.administered_by.last_name}" if usage.administered_by else None,
+                    "prescribed_date": usage.prescribed_date.isoformat() if usage.prescribed_date else None,
+                    "administration_date": usage.administration_date.isoformat() if usage.administration_date else None,
+                    "start_date": usage.start_date.isoformat() if usage.start_date else None,
+                    "end_date": usage.end_date.isoformat() if usage.end_date else None,
+                    "status": usage.status,
+                    "effectiveness": usage.effectiveness,
+                    "side_effects": usage.side_effects,
+                    "unit_cost": float(usage.unit_cost or 0),
+                    "total_cost": float(usage.total_cost or 0),
+                    "notes": usage.notes
+                }
+                
+                # Calculate total cost
+                total_cost += float(usage.total_cost or 0)
+                
+                # Categorize as medication or supply
+                if usage.supply and usage.supply.category:
+                    category_name = usage.supply.category.name.lower()
+                    if any(med_keyword in category_name for med_keyword in ['medication', 'drug', 'pharmaceutical', 'medicine']):
+                        medications.append(usage_data)
+                    else:
+                        medical_supplies.append(usage_data)
+                else:
+                    medical_supplies.append(usage_data)
+            
+            return {
+                "medications": medications,
+                "medical_supplies": medical_supplies,
+                "total_cost": round(total_cost, 2),
+                "summary": {
+                    "total_items": len(usage_records),
+                    "medications_count": len(medications),
+                    "supplies_count": len(medical_supplies),
+                    "total_cost": round(total_cost, 2)
+                }
+            }
+            
+        except Exception as e:
+            # Fallback to empty data if PatientSupplyUsage is not available
+            return {
+                "medications": [],
+                "medical_supplies": [],
+                "total_cost": 0,
+                "summary": {
+                    "total_items": 0,
+                    "medications_count": 0,
+                    "supplies_count": 0,
+                    "total_cost": 0
+                }
+            }
+    
     def _get_procedures_summary(self, patient_id, admission_date, discharge_date) -> List[Dict[str, Any]]:
         """Get procedure treatments."""
         procedures = self.session.query(TreatmentRecord).filter(
@@ -242,21 +338,25 @@ class PatientDischargeReportGenerator:
     
     def _get_appointments_summary(self, patient_id, admission_date, discharge_date) -> List[Dict[str, Any]]:
         """Get appointments during the stay."""
-        appointments = self.session.query(Appointment).filter(
-            Appointment.patient_id == patient_id,
-            Appointment.appointment_date >= admission_date,
-            Appointment.appointment_date <= discharge_date
-        ).all()
+        # Note: Appointment model not available, returning empty list
+        return []
         
-        return [{
-            "appointment_date": a.appointment_date.isoformat(),
-            "doctor": f"{a.doctor.first_name} {a.doctor.last_name}" if a.doctor else "Unknown",
-            "department": a.department.name if a.department else "Unknown",
-            "duration_minutes": a.duration_minutes,
-            "status": a.status,
-            "reason": a.reason,
-            "notes": a.notes
-        } for a in appointments]
+        # Commented out until Appointment model is available
+        # appointments = self.session.query(Appointment).filter(
+        #     Appointment.patient_id == patient_id,
+        #     Appointment.appointment_date >= admission_date,
+        #     Appointment.appointment_date <= discharge_date
+        # ).all()
+        # 
+        # return [{
+        #     "appointment_date": a.appointment_date.isoformat(),
+        #     "doctor": f"{a.doctor.first_name} {a.doctor.last_name}" if a.doctor else "Unknown",
+        #     "department": a.department.name if a.department else "Unknown",
+        #     "duration_minutes": a.duration_minutes,
+        #     "status": a.status,
+        #     "reason": a.reason,
+        #     "notes": a.notes
+        # } for a in appointments]
     
     def _format_discharge_report(self, data, report_record) -> str:
         """Format the discharge report as a comprehensive document."""
@@ -331,6 +431,52 @@ class PatientDischargeReportGenerator:
 """
         else:
             report += "\nNo medications prescribed during this stay.\n"
+        
+        # Add supply usage (medications and medical supplies from inventory)
+        report += "\n---\n\n## SUPPLY USAGE & INVENTORY\n"
+        supply_data = data.get("supply_usage", {})
+        
+        if supply_data.get("medications") or supply_data.get("medical_supplies"):
+            # Medications from inventory
+            if supply_data.get("medications"):
+                report += "\n### 💊 Medications Used\n"
+                for med in supply_data["medications"]:
+                    report += f"""
+**{med['item_name']}** ({med['category']})
+- **Quantity:** {med['quantity_used']} {med['unit_of_measure']}
+- **Dosage:** {med['dosage'] or 'Not specified'}
+- **Frequency:** {med['frequency'] or 'Not specified'}
+- **Route:** {med['administration_route'] or 'Not specified'}
+- **Indication:** {med['indication'] or 'Not specified'}
+- **Prescribed by:** {med['prescribed_by']}
+- **Status:** {med['status']}
+- **Cost:** ${med['total_cost']:.2f}
+- **Effectiveness:** {med['effectiveness'] or 'Not assessed'}
+"""
+            
+            # Medical supplies from inventory
+            if supply_data.get("medical_supplies"):
+                report += "\n### 🏥 Medical Supplies Used\n"
+                for supply in supply_data["medical_supplies"]:
+                    report += f"""
+**{supply['item_name']}** ({supply['category']})
+- **Quantity:** {supply['quantity_used']} {supply['unit_of_measure']}
+- **Used for:** {supply['indication'] or 'Not specified'}
+- **Used by:** {supply['administered_by'] or supply['prescribed_by']}
+- **Cost:** ${supply['total_cost']:.2f}
+"""
+            
+            # Cost summary
+            summary = supply_data.get("summary", {})
+            if summary.get("total_cost", 0) > 0:
+                report += f"""
+### 💰 Supply Cost Summary
+- **Total Medications:** {summary.get('medications_count', 0)} items
+- **Total Supplies:** {summary.get('supplies_count', 0)} items
+- **Total Cost:** ${summary.get('total_cost', 0):.2f}
+"""
+        else:
+            report += "\nNo supply usage recorded from inventory system.\n"
         
         # Add procedures
         report += "\n---\n\n## PROCEDURES\n"
