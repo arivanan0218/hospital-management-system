@@ -102,29 +102,12 @@ const HospitalChatInterface = ({
     window.addEventListener('orientationchange', setVH);
 
     // Prevent body scroll on mobile when keyboard appears
-    const handleFocusIn = (e) => {
-      // Only apply for input/textarea elements
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-        document.body.classList.add('no-scroll');
-        document.documentElement.classList.add('no-scroll');
-        // Prevent any parent scrolling
-        document.body.style.position = 'fixed';
-        document.body.style.top = `-${window.scrollY}px`;
-        document.body.style.width = '100%';
-      }
+    const handleFocusIn = () => {
+      document.body.classList.add('no-scroll');
     };
 
-    const handleFocusOut = (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-        document.body.classList.remove('no-scroll');
-        document.documentElement.classList.remove('no-scroll');
-        // Restore normal positioning
-        const scrollY = document.body.style.top;
-        document.body.style.position = '';
-        document.body.style.top = '';
-        document.body.style.width = '';
-        window.scrollTo(0, parseInt(scrollY || '0') * -1);
-      }
+    const handleFocusOut = () => {
+      document.body.classList.remove('no-scroll');
     };
 
     // Add event listeners for input focus/blur
@@ -137,31 +120,15 @@ const HospitalChatInterface = ({
       document.removeEventListener('focusin', handleFocusIn);
       document.removeEventListener('focusout', handleFocusOut);
       document.body.classList.remove('no-scroll');
-      document.documentElement.classList.remove('no-scroll');
-      // Reset styles
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
     };
   }, []);
 
   return (
-    <div 
-      className="bg-[#1a1a1a] flex flex-col text-white relative" 
-      style={{ 
-        height: 'calc(var(--vh, 1vh) * 100)',
-        maxHeight: 'calc(var(--vh, 1vh) * 100)',
-        overflow: 'hidden',
-        touchAction: 'manipulation', // Prevent unwanted touch behaviors
-        overscrollBehavior: 'none'
-      }}
-      onTouchMove={(e) => {
-        // Prevent scrolling on the main container when keyboard is visible
-        if (document.body.classList.contains('no-scroll')) {
-          e.preventDefault();
-        }
-      }}
-    >
+    <div className="bg-[#1a1a1a] flex flex-col text-white relative" style={{ 
+      height: 'calc(var(--vh, 1vh) * 100)',
+      maxHeight: 'calc(var(--vh, 1vh) * 100)',
+      overflow: 'hidden'
+    }}>
       {/* Claude-style Header - FIXED AT TOP */}
       <div className="fixed top-0 left-0 right-0 border-b border-gray-700 px-3 sm:px-4 py-3 bg-[#1a1a1a] z-30">
         <div className="flex items-center justify-between">
@@ -254,11 +221,9 @@ const HospitalChatInterface = ({
         style={{ 
           overflowY: 'auto',
           overflowX: 'hidden',
-          WebkitOverflowScrolling: 'auto', // Changed from 'touch' to prevent secondary scroll
+          WebkitOverflowScrolling: 'touch',
           height: 'calc(100vh - 140px)', // Fixed height to prevent keyboard viewport issues
-          maxHeight: 'calc(var(--vh, 1vh) * 100 - 140px)',
-          overscrollBehavior: 'none', // Prevent overscroll
-          transform: 'translateZ(0)' // Force hardware acceleration and contain scrolling
+          maxHeight: 'calc(var(--vh, 1vh) * 100 - 140px)'
         }}
       >
         <div className="max-w-4xl mx-auto">
