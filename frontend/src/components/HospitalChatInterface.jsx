@@ -147,19 +147,17 @@ const HospitalChatInterface = ({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Auto-resize textarea based on content with improved mobile handling
+  // Auto-resize textarea based on content
   useEffect(() => {
     if (inputRef.current) {
       const textarea = inputRef.current;
       // Reset height to auto to get the correct scrollHeight
       textarea.style.height = 'auto';
       // Set height based on scrollHeight, with min and max constraints
-      const maxHeight = isMobile ? 100 : 120; // Slightly smaller on mobile
-      const minHeight = 40;
-      const newHeight = Math.min(Math.max(textarea.scrollHeight, minHeight), maxHeight);
+      const newHeight = Math.min(Math.max(textarea.scrollHeight, 40), 120);
       textarea.style.height = newHeight + 'px';
     }
-  }, [inputMessage, isMobile]);
+  }, [inputMessage]);
 
   // Reset textarea height when input is cleared (after sending message)
   useEffect(() => {
@@ -168,31 +166,8 @@ const HospitalChatInterface = ({
     }
   }, [inputMessage]);
 
-  // Handle Enter key for multi-line support
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      if (e.shiftKey) {
-        // Shift+Enter: Add new line (default behavior)
-        return;
-      } else {
-        // Enter alone: Send message
-        e.preventDefault();
-        if (inputMessage.trim()) {
-          handleSendMessageWithBlur();
-        }
-      }
-    }
-  };
-
   return (
-    <div 
-      className="bg-[#1a1a1a] flex flex-col text-white overflow-hidden relative" 
-      style={{ 
-        height: isMobile && keyboardHeight > 0 
-          ? `calc(var(--vh, 1vh) * 100 - ${keyboardHeight}px)` 
-          : 'calc(var(--vh, 1vh) * 100)' 
-      }}
-    >
+    <div className="bg-[#1a1a1a] flex flex-col text-white overflow-hidden relative" style={{ height: 'calc(var(--vh, 1vh) * 100)' }}>
       {/* Claude-style Header - FIXED AT TOP */}
       <div className="fixed top-0 left-0 right-0 border-b border-gray-700 px-3 sm:px-4 py-3 bg-[#1a1a1a] z-30">
         <div className="flex items-center justify-between">
