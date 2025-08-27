@@ -1,9 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { LogOut, User, Settings, Upload, FileText, History, CheckCircle, Plus, X, Mic, MicOff, VolumeX } from 'lucide-react';
 import DirectHttpAIMCPService from '../services/directHttpAiMcpService.js';
-import MedicalDocumentUpload from './MedicalDocumentUpload.jsx';
-import EnhancedMedicalDocumentUpload from './EnhancedMedicalDocumentUpload.jsx';
-import MedicalHistoryViewer from './MedicalHistoryViewer.jsx';
+//import MedicalDocumentUpload from './MedicalDocumentUpload.jsx';
+//import EnhancedMedicalDocumentUpload from './EnhancedMedicalDocumentUpload.jsx';
+//import MedicalHistoryViewer from './MedicalHistoryViewer.jsx';
+import PatientAdmissionForm from './PatientAdmissionForm.jsx';
+import UserCreationForm from './UserCreationForm.jsx';
+import StaffCreationForm from './StaffCreationForm.jsx';
+import DepartmentCreationForm from './DepartmentCreationForm.jsx';
+import RoomCreationForm from './RoomCreationForm.jsx';
+import EquipmentCreationForm from './EquipmentCreationForm.jsx';
+import SupplyCreationForm from './SupplyCreationForm.jsx';
+import BedCreationForm from './BedCreationForm.jsx';
+import LegacyUserCreationForm from './LegacyUserCreationForm.jsx';
+import EquipmentCategoryCreationForm from './EquipmentCategoryCreationForm.jsx';
+import SupplyCategoryCreationForm from './SupplyCategoryCreationForm.jsx';
+import HospitalChatInterface from './HospitalChatInterface.jsx';
 
 const DirectMCPChatbot = ({ user, onLogout }) => {
   // Mobile-responsive CSS classes for consistent mobile experience (reduced height)
@@ -48,149 +60,47 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   
   // Patient admission popup form
   const [showPatientAdmissionForm, setShowPatientAdmissionForm] = useState(false);
-  const [admissionFormData, setAdmissionFormData] = useState({
-    patient_number: '',
-    first_name: '',
-    last_name: '',
-    date_of_birth: '',
-    gender: '',
-    phone: '',
-    email: '',
-    address: '',
-    emergency_contact_name: '',
-    emergency_contact_phone: '',
-    blood_type: '',
-    allergies: '',
-    medical_history: ''
-  });
   const [isSubmittingAdmission, setIsSubmittingAdmission] = useState(false);
   
   // Department creation popup form
   const [showDepartmentForm, setShowDepartmentForm] = useState(false);
-  const [departmentFormData, setDepartmentFormData] = useState({
-    name: '',
-    description: '',
-    head_doctor_id: '', // Foreign key to users table
-    floor_number: '',
-    phone: '',
-    email: ''
-  });
   const [isSubmittingDepartment, setIsSubmittingDepartment] = useState(false);
   
   // Staff creation popup form
   const [showStaffForm, setShowStaffForm] = useState(false);
-  const [staffFormData, setStaffFormData] = useState({
-    user_id: '', // Foreign key to users table
-    employee_id: '',
-    department_id: '', // Foreign key to departments table
-    position: '',
-    specialization: '',
-    license_number: '',
-    hire_date: '',
-    salary: '',
-    shift_pattern: '', // day, night, rotating
-    status: 'active' // active, inactive, on_leave
-  });
   const [isSubmittingStaff, setIsSubmittingStaff] = useState(false);
   
   // User creation popup form
   const [showUserForm, setShowUserForm] = useState(false);
-  const [userFormData, setUserFormData] = useState({
-    username: '',
-    email: '',
-    password_hash: '', // This should be hashed on backend
-    role: '', // admin, doctor, nurse, manager, receptionist
-    first_name: '',
-    last_name: '',
-    phone: '',
-    is_active: true
-  });
   const [isSubmittingUser, setIsSubmittingUser] = useState(false);
   
   // Room creation popup form
+  // Room creation popup form
   const [showRoomForm, setShowRoomForm] = useState(false);
-  const [roomFormData, setRoomFormData] = useState({
-    room_number: '',
-    room_type: '', // varchar(20)
-    capacity: '',
-    floor_number: '', // Integer field in database
-    department_id: '' // Foreign key to departments table
-  });
   const [isSubmittingRoom, setIsSubmittingRoom] = useState(false);
   
   // Bed creation popup form
   const [showBedForm, setShowBedForm] = useState(false);
-  const [bedFormData, setBedFormData] = useState({
-    bed_number: '',
-    room_id: '',
-    bed_type: '',
-    status: 'available'
-  });
   const [isSubmittingBed, setIsSubmittingBed] = useState(false);
   
   // Equipment creation popup form
   const [showEquipmentForm, setShowEquipmentForm] = useState(false);
-  const [equipmentFormData, setEquipmentFormData] = useState({
-    equipment_id: '', // Unique equipment ID
-    name: '',
-    category_id: '', // Foreign key to equipment_categories table
-    model: '',
-    manufacturer: '',
-    serial_number: '',
-    purchase_date: '',
-    warranty_expiry: '',
-    location: '',
-    department_id: '', // Foreign key to departments table
-    status: 'available', // available, in_use, maintenance, out_of_order
-    last_maintenance: '',
-    next_maintenance: '',
-    cost: '',
-    notes: ''
-  });
   const [isSubmittingEquipment, setIsSubmittingEquipment] = useState(false);
   
   // Supply creation popup form
   const [showSupplyForm, setShowSupplyForm] = useState(false);
-  const [supplyFormData, setSupplyFormData] = useState({
-    item_code: '', // Unique item code
-    name: '',
-    category_id: '', // Foreign key to supply_categories table
-    description: '',
-    unit_of_measure: '', // Required field - matches database
-    minimum_stock_level: '',
-    maximum_stock_level: '',
-    current_stock: '',
-    unit_cost: '', // matches database
-    supplier: '',
-    expiry_date: '',
-    location: ''
-  });
   const [isSubmittingSupply, setIsSubmittingSupply] = useState(false);
   
   // Legacy User creation popup form
   const [showLegacyUserForm, setShowLegacyUserForm] = useState(false);
-  const [legacyUserFormData, setLegacyUserFormData] = useState({
-    name: '',
-    email: '',
-    address: '',
-    phone: ''
-  });
   const [isSubmittingLegacyUser, setIsSubmittingLegacyUser] = useState(false);
   
   // Equipment Category creation popup form
   const [showEquipmentCategoryForm, setShowEquipmentCategoryForm] = useState(false);
-  const [equipmentCategoryFormData, setEquipmentCategoryFormData] = useState({
-    name: '',
-    description: ''
-  });
   const [isSubmittingEquipmentCategory, setIsSubmittingEquipmentCategory] = useState(false);
   
   // Supply Category creation popup form
   const [showSupplyCategoryForm, setShowSupplyCategoryForm] = useState(false);
-  const [supplyCategoryFormData, setSupplyCategoryFormData] = useState({
-    name: '',
-    description: ''
-  });
   const [isSubmittingSupplyCategory, setIsSubmittingSupplyCategory] = useState(false);
   
   // Discharge workflow popup form
@@ -456,6 +366,11 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
            (window.innerWidth <= 768) || // Also check for small screen width
            ('ontouchstart' in window); // Check for touch capability
+  };
+
+  // iOS detection utility function
+  const isIOSDevice = () => {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent);
   };
 
   // Smart focus function - focuses input but prevents keyboard popup on mobile
@@ -900,8 +815,75 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
    * Only specific CREATE tools trigger popup forms, all other tools use AI processing
    */
   const detectIntentWithAI = async (userMessage) => {
+    console.log('🤖 detectIntentWithAI called with message:', userMessage);
+    console.log('🤖 OpenAI API key available:', !!openaiApiKey.trim());
+    
     if (!openaiApiKey.trim()) {
-      return null; // Fall back to keyword matching if no API key
+      console.log('⚠️ No OpenAI API key found, using fallback keyword detection for popup forms');
+      
+      // Fallback keyword detection when no API key is available
+      const message = userMessage.toLowerCase();
+      console.log('🔍 Checking message for keywords:', message);
+      
+      // CREATE operations that should trigger popup forms
+      if ((message.includes('create') || message.includes('add') || message.includes('register') || message.includes('new')) && message.includes('patient')) {
+        console.log('✅ Fallback detected: create_patient');
+        return 'create_patient';
+      }
+      if ((message.includes('create') || message.includes('add') || message.includes('new')) && (message.includes('user') && !message.includes('legacy'))) {
+        console.log('✅ Fallback detected: create_user');
+        return 'create_user';
+      }
+      if ((message.includes('create') || message.includes('add') || message.includes('new')) && message.includes('legacy') && message.includes('user')) {
+        console.log('✅ Fallback detected: create_legacy_user');
+        return 'create_legacy_user';
+      }
+      if ((message.includes('create') || message.includes('add') || message.includes('new')) && message.includes('department')) {
+        console.log('✅ Fallback detected: create_department');
+        return 'create_department';
+      }
+      if ((message.includes('create') || message.includes('add') || message.includes('new')) && message.includes('room')) {
+        console.log('✅ Fallback detected: create_room');
+        return 'create_room';
+      }
+      if ((message.includes('create') || message.includes('add') || message.includes('new')) && message.includes('bed')) {
+        console.log('✅ Fallback detected: create_bed');
+        return 'create_bed';
+      }
+      if ((message.includes('create') || message.includes('add') || message.includes('new')) && (message.includes('staff') || message.includes('employee')) && !message.includes('usage') && !message.includes('assign')) {
+        console.log('✅ Fallback detected: create_staff');
+        return 'create_staff';
+      }
+      // Check for equipment usage first (before equipment creation)
+      if (message.includes('equipment') && (message.includes('usage') || message.includes('assign') || message.includes('used by') || message.includes('patient id') || message.includes('inventory') || message.includes('tracking'))) {
+        console.log('🤖 Equipment usage/inventory detected - using AI processing');
+        return 'ai_processing';
+      }
+      if ((message.includes('create') || message.includes('add') || message.includes('new')) && message.includes('equipment') && !message.includes('category') && !message.includes('usage') && !message.includes('assign')) {
+        console.log('✅ Fallback detected: create_equipment');
+        return 'create_equipment';
+      }
+      // Check for supply usage first (before supply creation)
+      if (message.includes('supply') && (message.includes('usage') || message.includes('assign') || message.includes('used by') || message.includes('patient id') || message.includes('inventory') || message.includes('tracking') || message.includes('consumption'))) {
+        console.log('🤖 Supply usage/inventory detected - using AI processing');
+        return 'ai_processing';
+      }
+      if ((message.includes('create') || message.includes('add') || message.includes('new')) && message.includes('supply') && !message.includes('category') && !message.includes('usage') && !message.includes('assign')) {
+        console.log('✅ Fallback detected: create_supply');
+        return 'create_supply';
+      }
+      if ((message.includes('create') || message.includes('add') || message.includes('new')) && message.includes('equipment') && message.includes('category')) {
+        console.log('✅ Fallback detected: create_equipment_category');
+        return 'create_equipment_category';
+      }
+      if ((message.includes('create') || message.includes('add') || message.includes('new')) && message.includes('supply') && message.includes('category')) {
+        console.log('✅ Fallback detected: create_supply_category');
+        return 'create_supply_category';
+      }
+      
+      // Default to AI processing for all other cases
+      console.log('🤖 Fallback defaulting to: ai_processing');
+      return 'ai_processing';
     }
 
     try {
@@ -912,13 +894,13 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-3.5-turbo',
+          model: 'gpt-4-turbo-preview',
           messages: [
             {
               role: 'system',
               content: `You are an intelligent intent detection system for a hospital management application with multi-agent backend tools. 
 
-POPUP FORM TRIGGERS (Only these EXACT 10 CREATE tools should show popup forms):
+POPUP FORM TRIGGERS (Only these EXACT 11 CREATE tools should show popup forms):
 1. create_user: User creation popup form
 2. create_patient: Patient admission popup form  
 3. create_legacy_user: Legacy user creation popup form
@@ -926,23 +908,27 @@ POPUP FORM TRIGGERS (Only these EXACT 10 CREATE tools should show popup forms):
 5. create_room: Room creation popup form
 6. create_bed: Bed creation popup form
 7. create_staff: Staff creation popup form
-8. create_equipment: Equipment creation popup form (ONLY this exact tool)
-9. create_supply: Supply creation popup form (ONLY this exact tool)
+8. create_equipment: Equipment creation popup form (ONLY for NEW equipment registration)
+9. create_supply: Supply creation popup form (ONLY for NEW supply registration)
+10. create_equipment_category: Equipment category creation popup form
+11. create_supply_category: Supply category creation popup form
 
-CRITICAL: These tools should use AI processing (NOT popup forms):
-- create_equipment_category (AI processing, NOT popup)
-- create_supply_category (AI processing, NOT popup)
-- All other tools like list, get, update, delete, search, etc.
+CRITICAL USAGE vs CREATION DISTINCTION:
+- "add equipment usage" or "equipment usage" → ai_processing (add_equipment_usage tool)
+- "add supply usage" or "supply usage" → ai_processing (add_supply_usage tool)
+- "equipment assignment" or "assign equipment" → ai_processing (assignment tools)
+- "supply assignment" or "assign supply" → ai_processing (assignment tools)
+- "create equipment" or "register equipment" → create_equipment popup form
+- "create supply" or "register supply" → create_supply popup form
 
-IMPORTANT DISTINCTION:
-- "create equipment" or "add equipment" → create_equipment popup form
-- "create equipment category" → ai_processing (no popup)
-- "create supply" or "add supply" → create_supply popup form  
-- "create supply category" → ai_processing (no popup)
+IMPORTANT KEYWORDS FOR AI PROCESSING (NOT popup forms):
+- Any message containing "usage", "assign", "assignment", "used by", "patient id", "inventory", "tracking", "consumption" should use ai_processing
+- Equipment/supply USAGE, INVENTORY, TRACKING = ai_processing
+- Equipment/supply CREATION = popup forms
 
 RULES:
-1. Only the exact 9 CREATE tools above trigger popup forms
-2. Equipment/Supply categories are handled by AI processing
+1. Only the exact 11 CREATE tools above trigger popup forms
+2. All USAGE, ASSIGNMENT, TRACKING, INVENTORY operations use AI processing
 3. All listing, searching, updating, deleting operations use AI processing
 4. Staff meetings = AI processing (schedule_meeting tool)
 
@@ -954,23 +940,32 @@ Return ONLY one of these values:
 - "create_room" for room creation
 - "create_bed" for bed creation
 - "create_staff" for staff hiring/registration
-- "create_equipment" for equipment registration/adding new equipment
-- "create_supply" for supply registration
+- "create_equipment" for NEW equipment registration (not usage/inventory)
+- "create_supply" for NEW supply registration (not usage/inventory)
 - "create_equipment_category" for equipment category creation
 - "create_supply_category" for supply category creation
-- "ai_processing" for everything else (including equipment usage, staff assignments, updates, searches, etc.)
+- "ai_processing" for everything else (including equipment/supply usage, inventory, assignments, updates, searches, etc.)
 
 Examples:
 - "Register a new patient" → create_patient
 - "Add new staff member" → create_staff  
 - "Create cardiology department" → create_department
-- "Add new equipment" → create_equipment
+- "Add new equipment" → create_equipment (only for NEW equipment registration)
 - "Register equipment" → create_equipment
 - "Create equipment category" → create_equipment_category
 - "Add equipment usage for patient" → ai_processing
+- "Add equipment usage Equipment ID: EQ001" → ai_processing
 - "Record equipment usage" → ai_processing
-- "Add new supply" → create_supply
+- "Equipment usage tracking" → ai_processing
+- "Equipment inventory" → ai_processing
+- "Assign equipment to patient" → ai_processing
+- "Add new supply" → create_supply (only for NEW supply registration)
 - "Create supply category" → create_supply_category
+- "Add supply usage" → ai_processing
+- "Supply usage tracking" → ai_processing
+- "Supply inventory usage" → ai_processing
+- "Supply inventory tracking" → ai_processing
+- "Supply consumption" → ai_processing
 - "Schedule staff meeting" → ai_processing
 - "List all patients" → ai_processing
 - "Update bed status" → ai_processing`
@@ -1067,18 +1062,23 @@ Examples:
 
     // 🤖 INTELLIGENT AI INTENT DETECTION FIRST
     try {
+      console.log('🔍 Starting intent detection for:', userMessage);
       const detectedIntent = await detectIntentWithAI(userMessage);
+      console.log('🎯 Detected intent:', detectedIntent);
       
       if (detectedIntent && detectedIntent !== 'ai_processing') {
         setIsLoading(false);
         
         console.log('🎯 POPUP FORM HANDLER - Processing intent:', detectedIntent);
+        console.log('🎯 Current state - showPatientAdmissionForm:', showPatientAdmissionForm);
         
         // Show appropriate popup form based on AI detection
         switch (detectedIntent) {
           case 'create_patient':
             console.log('📝 Opening Patient Admission Form');
+            console.log('📝 About to set showPatientAdmissionForm to true');
             setShowPatientAdmissionForm(true);
+            console.log('📝 After setting showPatientAdmissionForm to true');
             const patientMsg = {
               id: Date.now() + 1,
               text: "I detected you want to register a new patient! I've opened the patient admission form for you.",
@@ -1304,6 +1304,68 @@ Examples:
         
         // Remove artificial delay for faster response
         // await new Promise(resolve => setTimeout(resolve, 200));
+      }
+      
+      // 🎯 HANDLE POPUP FORM INTENTS FROM SERVICE
+      if (response.success && response.showPopupForm && response.popupIntent) {
+        console.log('🎯 SERVICE POPUP INTENT DETECTED:', response.popupIntent);
+        
+        // Load dropdown options if needed for certain forms
+        const formsNeedingDropdowns = ['create_staff', 'create_department', 'create_room', 'create_bed', 'create_equipment', 'create_supply'];
+        if (formsNeedingDropdowns.includes(response.popupIntent)) {
+          await loadDropdownOptions();
+        }
+        
+        // Show the appropriate popup form
+        switch (response.popupIntent) {
+          case 'create_patient':
+            setShowPatientAdmissionForm(true);
+            break;
+          case 'create_user':
+            setShowUserForm(true);
+            break;
+          case 'create_staff':
+            setShowStaffForm(true);
+            break;
+          case 'create_department':
+            setShowDepartmentForm(true);
+            break;
+          case 'create_room':
+            setShowRoomForm(true);
+            break;
+          case 'create_bed':
+            setShowBedForm(true);
+            break;
+          case 'create_equipment':
+            setShowEquipmentForm(true);
+            break;
+          case 'create_supply':
+            setShowSupplyForm(true);
+            break;
+          case 'create_legacy_user':
+            setShowLegacyUserForm(true);
+            break;
+          case 'create_equipment_category':
+            setShowEquipmentCategoryForm(true);
+            break;
+          case 'create_supply_category':
+            setShowSupplyCategoryForm(true);
+            break;
+          default:
+            console.warn('Unknown popup intent:', response.popupIntent);
+        }
+        
+        // Add the service response message
+        const serviceMessage = {
+          id: Date.now() + 1,
+          text: response.message,
+          sender: 'ai',
+          timestamp: new Date().toLocaleTimeString()
+        };
+        setMessages(prev => [...prev, serviceMessage]);
+        
+        setIsLoading(false);
+        return; // Exit early for popup forms
       }
       
       if (response.success) {
@@ -2126,78 +2188,19 @@ Examples:
   };
 
   /**
-   * Handle patient admission form input changes
+   * Handle successful patient admission from the component
    */
-  const handleAdmissionFormChange = (field, value) => {
-    setAdmissionFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
+  const handlePatientAdmissionSuccess = (response) => {
+    // Close the form
+    setShowPatientAdmissionForm(false);
 
-  /**
-   * Submit patient admission form
-   */
-  const submitPatientAdmission = async () => {
-    // Validate required fields
-    const requiredFields = ['first_name', 'last_name', 'date_of_birth'];
-    const missingFields = requiredFields.filter(field => !admissionFormData[field].trim());
-    
-    if (missingFields.length > 0) {
-      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
-      return;
-    }
-
-    setIsSubmittingAdmission(true);
-
-    try {
-      // Call the MCP tool directly to create the patient (bypass AI processing)
-      const response = await aiMcpServiceRef.current.callToolDirectly('create_patient', {
-        patient_number: admissionFormData.patient_number || undefined, // Only send if provided
-        first_name: admissionFormData.first_name,
-        last_name: admissionFormData.last_name,
-        date_of_birth: admissionFormData.date_of_birth,
-        gender: admissionFormData.gender,
-        phone: admissionFormData.phone,
-        email: admissionFormData.email,
-        address: admissionFormData.address,
-        emergency_contact_name: admissionFormData.emergency_contact_name,
-        emergency_contact_phone: admissionFormData.emergency_contact_phone,
-        blood_type: admissionFormData.blood_type,
-        allergies: admissionFormData.allergies,
-        medical_history: admissionFormData.medical_history
-      });
-
-      // Debug logging for deployment troubleshooting
-      console.log('Patient admission response:', JSON.stringify(response, null, 2));
-
-      // Close the form and show success message
-      setShowPatientAdmissionForm(false);
+    // Add success message to chat
+    let responseText = '';
+    if (response.success) {
+      // Success case - handle nested response structure
+      const patientData = response.result?.data || response.data || {};
+      responseText = `✅ Patient created successfully in the database!
       
-      // Reset form data
-      setAdmissionFormData({
-        patient_number: '',
-        first_name: '',
-        last_name: '',
-        date_of_birth: '',
-        gender: '',
-        phone: '',
-        email: '',
-        address: '',
-        emergency_contact_name: '',
-        emergency_contact_phone: '',
-        blood_type: '',
-        allergies: '',
-        medical_history: ''
-      });
-
-      // Add success message to chat
-      let responseText = '';
-      if (response.success) {
-        // Success case - handle nested response structure
-        const patientData = response.result?.data || response.data || {};
-        responseText = `✅ Patient created successfully in the database!
-        
 **Patient Details:**
 - Name: ${patientData.first_name || 'Unknown'} ${patientData.last_name || 'Unknown'}
 - Patient Number: ${patientData.patient_number || patientData.id || 'Not generated'}
@@ -2218,33 +2221,18 @@ You can use these commands:
 • "Assign staff [staff_name] to patient [patient_name]"
 • "Assign equipment [equipment_name] to patient [patient_name]"
 • "Assign supplies [supply_name] to patient [patient_name]"`;
-      } else {
-        // Error case
-        responseText = `❌ Failed to create patient: ${response.message || 'Unknown error'}`;
-      }
-
-      const successMsg = {
-        id: Date.now(),
-        text: `✅ Patient admission completed successfully!\n\n${responseText}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, successMsg]);
-
-    } catch (error) {
-      console.error('Error submitting patient admission:', error);
-      
-      // Add error message to chat
-      const errorMsg = {
-        id: Date.now(),
-        text: `❌ Error during patient admission: ${error.message || 'Unknown error occurred'}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, errorMsg]);
-    } finally {
-      setIsSubmittingAdmission(false);
+    } else {
+      // Error case
+      responseText = `❌ Failed to create patient: ${response.message || 'Unknown error'}`;
     }
+
+    const successMsg = {
+      id: Date.now(),
+      text: `✅ Patient admission completed successfully!\n\n${responseText}`,
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, successMsg]);
   };
 
   /**
@@ -2264,80 +2252,31 @@ You can use these commands:
   };
 
   // Department Form Handlers
-  const handleDepartmentFormChange = (field, value) => {
-    setDepartmentFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  const submitDepartment = async () => {
-    const requiredFields = ['name'];
-    const missingFields = requiredFields.filter(field => !departmentFormData[field].trim());
+  const handleDepartmentSubmit = (response) => {
+    setShowDepartmentForm(false);
     
-    if (missingFields.length > 0) {
-      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
-      return;
-    }
-
-    setIsSubmittingDepartment(true);
-
-    try {
-      const response = await aiMcpServiceRef.current.callToolDirectly('create_department', {
-        name: departmentFormData.name,
-        description: departmentFormData.description,
-        head_doctor_id: departmentFormData.head_doctor_id,
-        floor_number: departmentFormData.floor_number ? parseInt(departmentFormData.floor_number) : undefined,
-        phone: departmentFormData.phone,
-        email: departmentFormData.email
-      });
-
-      setShowDepartmentForm(false);
-      setDepartmentFormData({
-        name: '',
-        description: '',
-        head_doctor_id: '',
-        floor_number: '',
-        phone: '',
-        email: ''
-      });
-
-      let responseText = '';
-      if (response.success) {
-        const deptData = response.result?.data || response.data || {};
-        responseText = `✅ Department created successfully!
-        
+    let responseText = '';
+    if (response.success) {
+      const deptData = response.result?.data || response.data || {};
+      responseText = `✅ Department created successfully!
+      
 **Department Details:**
 - Name: ${deptData.name || 'Unknown'}
 - Description: ${deptData.description || 'Not provided'}
 - Floor: ${deptData.floor_number || 'Not specified'}
 - Phone: ${deptData.phone || 'Not provided'}
 - Email: ${deptData.email || 'Not provided'}`;
-      } else {
-        responseText = `❌ Failed to create department: ${response.message || 'Unknown error'}`;
-      }
-
-      const successMsg = {
-        id: Date.now(),
-        text: `✅ Department created successfully!\n\n${responseText}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, successMsg]);
-
-    } catch (error) {
-      console.error('Error creating department:', error);
-      
-      const errorMsg = {
-        id: Date.now(),
-        text: `❌ Error creating department: ${error.message || 'Unknown error occurred'}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, errorMsg]);
-    } finally {
-      setIsSubmittingDepartment(false);
+    } else {
+      responseText = `❌ Failed to create department: ${response.message || 'Unknown error'}`;
     }
+
+    const successMsg = {
+      id: Date.now(),
+      text: responseText,
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, successMsg]);
   };
 
   const closeDepartmentForm = () => {
@@ -2352,87 +2291,30 @@ You can use these commands:
   };
 
   // Staff Form Handlers
-  const handleStaffFormChange = (field, value) => {
-    setStaffFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  const submitStaff = async () => {
-    const requiredFields = ['user_id', 'employee_id', 'position', 'department_id'];
-    const missingFields = requiredFields.filter(field => !staffFormData[field].trim());
+  const handleStaffSubmit = (response) => {
+    setShowStaffForm(false);
     
-    if (missingFields.length > 0) {
-      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
-      return;
-    }
-
-    setIsSubmittingStaff(true);
-
-    try {
-      const response = await aiMcpServiceRef.current.callToolDirectly('create_staff', {
-        user_id: staffFormData.user_id,
-        employee_id: staffFormData.employee_id,
-        department_id: staffFormData.department_id,
-        position: staffFormData.position,
-        specialization: staffFormData.specialization,
-        license_number: staffFormData.license_number,
-        hire_date: staffFormData.hire_date,
-        salary: staffFormData.salary ? parseFloat(staffFormData.salary) : undefined,
-        shift_pattern: staffFormData.shift_pattern,
-        status: staffFormData.status
-      });
-
-      setShowStaffForm(false);
-      setStaffFormData({
-        user_id: '',
-        employee_id: '',
-        department_id: '',
-        position: '',
-        specialization: '',
-        license_number: '',
-        hire_date: '',
-        salary: '',
-        shift_pattern: '',
-        status: 'active'
-      });
-
-      let responseText = '';
-      if (response.success) {
-        const staffData = response.result?.data || response.data || {};
-        responseText = `✅ Staff member created successfully!
-        
+    let responseText = '';
+    if (response.success) {
+      const staffData = response.result?.data || response.data || {};
+      responseText = `✅ Staff member created successfully!
+      
 **Staff Details:**
 - Employee ID: ${staffData.employee_id || 'Not provided'}
 - Position: ${staffData.position || 'Not provided'}
 - Department ID: ${staffData.department_id || 'Not provided'}
 - Status: ${staffData.status || 'Active'}`;
-      } else {
-        responseText = `❌ Failed to create staff member: ${response.message || 'Unknown error'}`;
-      }
-
-      const successMsg = {
-        id: Date.now(),
-        text: `✅ Staff member created successfully!\n\n${responseText}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, successMsg]);
-
-    } catch (error) {
-      console.error('Error creating staff:', error);
-      
-      const errorMsg = {
-        id: Date.now(),
-        text: `❌ Error creating staff: ${error.message || 'Unknown error occurred'}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, errorMsg]);
-    } finally {
-      setIsSubmittingStaff(false);
+    } else {
+      responseText = `❌ Failed to create staff member: ${response.message || 'Unknown error'}`;
     }
+
+    const successMsg = {
+      id: Date.now(),
+      text: responseText,
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, successMsg]);
   };
 
   const closeStaffForm = () => {
@@ -2447,84 +2329,36 @@ You can use these commands:
   };
 
   // User Form Handlers
-  const handleUserFormChange = (field, value) => {
-    setUserFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
+  /**
+   * Handle successful user creation from the component
+   */
+  const handleUserCreationSuccess = (response) => {
+    // Close the form
+    setShowUserForm(false);
 
-  const submitUser = async () => {
-    const requiredFields = ['username', 'email', 'password_hash', 'role', 'first_name', 'last_name'];
-    const missingFields = requiredFields.filter(field => !userFormData[field] || userFormData[field].toString().trim() === '');
-    
-    if (missingFields.length > 0) {
-      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
-      return;
-    }
-
-    setIsSubmittingUser(true);
-
-    try {
-      const response = await aiMcpServiceRef.current.callToolDirectly('create_user', {
-        username: userFormData.username,
-        email: userFormData.email,
-        password_hash: userFormData.password_hash,
-        role: userFormData.role,
-        first_name: userFormData.first_name,
-        last_name: userFormData.last_name,
-        phone: userFormData.phone,
-        is_active: userFormData.is_active
-      });
-
-      setShowUserForm(false);
-      setUserFormData({
-        username: '',
-        email: '',
-        password_hash: '',
-        role: '',
-        first_name: '',
-        last_name: '',
-        phone: '',
-        is_active: true
-      });
-
-      let responseText = '';
-      if (response.success) {
-        const userData = response.result?.data || response.data || {};
-        responseText = `✅ User created successfully!
-        
+    // Add success message to chat
+    let responseText = '';
+    if (response.success) {
+      const userData = response.result?.data || response.data || {};
+      responseText = `✅ User created successfully!
+      
 **User Details:**
 - Username: ${userData.username || 'Unknown'}
 - Email: ${userData.email || 'Unknown'}
 - Role: ${userData.role || 'Unknown'}
 - Name: ${userData.first_name || 'Unknown'} ${userData.last_name || 'Unknown'}
 - Active: ${userData.is_active ? 'Yes' : 'No'}`;
-      } else {
-        responseText = `❌ Failed to create user: ${response.message || 'Unknown error'}`;
-      }
-
-      const successMsg = {
-        id: Date.now(),
-        text: `✅ User created successfully!\n\n${responseText}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, successMsg]);
-
-    } catch (error) {
-      console.error('Error creating user:', error);
-      
-      const errorMsg = {
-        id: Date.now(),
-        text: `❌ Error creating user: ${error.message || 'Unknown error occurred'}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, errorMsg]);
-    } finally {
-      setIsSubmittingUser(false);
+    } else {
+      responseText = `❌ Failed to create user: ${response.message || 'Unknown error'}`;
     }
+
+    const successMsg = {
+      id: Date.now(),
+      text: `✅ User created successfully!\n\n${responseText}`,
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, successMsg]);
   };
 
   const closeUserForm = () => {
@@ -2539,79 +2373,31 @@ You can use these commands:
   };
 
   // Room Form Handlers
-  const handleRoomFormChange = (field, value) => {
-    setRoomFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  const submitRoom = async () => {
-    const requiredFields = ['room_number', 'department_id'];
-    const missingFields = requiredFields.filter(field => !roomFormData[field].trim());
+  const handleRoomSubmit = (response) => {
+    setShowRoomForm(false);
     
-    if (missingFields.length > 0) {
-      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
-      return;
-    }
-
-    setIsSubmittingRoom(true);
-
-    try {
-      const response = await aiMcpServiceRef.current.callToolDirectly('create_room', {
-        room_number: roomFormData.room_number,
-        department_id: roomFormData.department_id,
-        room_type: roomFormData.room_type,
-        floor_number: roomFormData.floor_number ? parseInt(roomFormData.floor_number) : undefined,
-        capacity: roomFormData.capacity ? parseInt(roomFormData.capacity) : undefined
-      });
-
-      setShowRoomForm(false);
-      setRoomFormData({
-        room_number: '',
-        room_type: '',
-        capacity: '',
-        floor_number: '',
-        department_id: '',
-        status: 'available'
-      });
-
-      let responseText = '';
-      if (response.success) {
-        const roomData = response.result?.data || response.data || {};
-        responseText = `✅ Room created successfully!
-        
+    let responseText = '';
+    if (response.success) {
+      const roomData = response.result?.data || response.data || {};
+      responseText = `✅ Room created successfully!
+      
 **Room Details:**
 - Room Number: ${roomData.room_number || 'Unknown'}
 - Type: ${roomData.room_type || 'Standard'}
 - Floor: ${roomData.floor_number || 'Not specified'}
 - Capacity: ${roomData.capacity || 'Not specified'}
 - Department ID: ${roomData.department_id || 'Not specified'}`;
-      } else {
-        responseText = `❌ Failed to create room: ${response.message || 'Unknown error'}`;
-      }
-
-      const successMsg = {
-        id: Date.now(),
-        text: `✅ Room created successfully!\n\n${responseText}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, successMsg]);
-
-    } catch (error) {
-      console.error('Error creating room:', error);
-      
-      const errorMsg = {
-        id: Date.now(),
-        text: `❌ Error creating room: ${error.message || 'Unknown error occurred'}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, errorMsg]);
-    } finally {
-      setIsSubmittingRoom(false);
+    } else {
+      responseText = `❌ Failed to create room: ${response.message || 'Unknown error'}`;
     }
+
+    const successMsg = {
+      id: Date.now(),
+      text: responseText,
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, successMsg]);
   };
 
   const closeRoomForm = () => {
@@ -2626,75 +2412,33 @@ You can use these commands:
   };
 
   // Bed Form Handlers
-  const handleBedFormChange = (field, value) => {
-    setBedFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
+  const handleBedSubmit = async (response) => {
+    setIsSubmittingBed(false);
+    setShowBedForm(false);
 
-  const submitBed = async () => {
-    const requiredFields = ['bed_number'];
-    const missingFields = requiredFields.filter(field => !bedFormData[field].trim());
-    
-    if (missingFields.length > 0) {
-      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
-      return;
-    }
-
-    setIsSubmittingBed(true);
-
-    try {
-      const response = await aiMcpServiceRef.current.callToolDirectly('create_bed', {
-        bed_number: bedFormData.bed_number,
-        room_id: bedFormData.room_id,
-        bed_type: bedFormData.bed_type,
-        status: bedFormData.status
-      });
-
-      setShowBedForm(false);
-      setBedFormData({
-        bed_number: '',
-        room_id: '',
-        bed_type: '',
-        status: 'available'
-      });
-
-      let responseText = '';
-      if (response.success) {
-        const bedData = response.result?.data || response.data || {};
-        responseText = `✅ Bed created successfully!
-        
+    let responseText = '';
+    if (response.success) {
+      const bedData = response.result?.data || response.data || {};
+      responseText = `✅ Bed created successfully!
+      
 **Bed Details:**
 - Bed Number: ${bedData.bed_number || 'Unknown'}
 - Room ID: ${bedData.room_id || 'Unknown'}
 - Type: ${bedData.bed_type || 'Standard'}
-- Status: ${bedData.status || 'Available'}`;
-      } else {
-        responseText = `❌ Failed to create bed: ${response.message || 'Unknown error'}`;
-      }
+- Status: ${bedData.status || 'Available'}
 
-      const successMsg = {
-        id: Date.now(),
-        text: `✅ Bed created successfully!\n\n${responseText}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, successMsg]);
-
-    } catch (error) {
-      console.error('Error creating bed:', error);
-      
-      const errorMsg = {
-        id: Date.now(),
-        text: `❌ Error creating bed: ${error.message || 'Unknown error occurred'}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, errorMsg]);
-    } finally {
-      setIsSubmittingBed(false);
+The bed has been added to the hospital system and is ready for assignment.`;
+    } else {
+      responseText = `❌ Failed to create bed: ${response.message || 'Unknown error'}`;
     }
+
+    const successMsg = {
+      id: Date.now(),
+      text: responseText,
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, successMsg]);
   };
 
   const closeBedForm = () => {
@@ -2709,96 +2453,31 @@ You can use these commands:
   };
 
   // Equipment Form Handlers
-  const handleEquipmentFormChange = (field, value) => {
-    setEquipmentFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  const submitEquipment = async () => {
-    const requiredFields = ['equipment_id', 'name', 'category_id'];
-    const missingFields = requiredFields.filter(field => !equipmentFormData[field].trim());
+  const handleEquipmentSubmit = (response) => {
+    setShowEquipmentForm(false);
     
-    if (missingFields.length > 0) {
-      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
-      return;
-    }
-
-    setIsSubmittingEquipment(true);
-
-    try {
-      const response = await aiMcpServiceRef.current.callToolDirectly('create_equipment', {
-        equipment_id: equipmentFormData.equipment_id,
-        name: equipmentFormData.name,
-        category_id: equipmentFormData.category_id,
-        model: equipmentFormData.model,
-        manufacturer: equipmentFormData.manufacturer,
-        serial_number: equipmentFormData.serial_number,
-        purchase_date: equipmentFormData.purchase_date,
-        warranty_expiry: equipmentFormData.warranty_expiry,
-        location: equipmentFormData.location,
-        department_id: equipmentFormData.department_id,
-        status: equipmentFormData.status,
-        last_maintenance: equipmentFormData.last_maintenance,
-        next_maintenance: equipmentFormData.next_maintenance,
-        cost: equipmentFormData.cost ? parseFloat(equipmentFormData.cost) : undefined,
-        notes: equipmentFormData.notes
-      });
-
-      setShowEquipmentForm(false);
-      setEquipmentFormData({
-        equipment_id: '',
-        name: '',
-        category_id: '',
-        model: '',
-        manufacturer: '',
-        serial_number: '',
-        purchase_date: '',
-        warranty_expiry: '',
-        location: '',
-        department_id: '',
-        status: 'available',
-        cost: '',
-        notes: ''
-      });
-
-      let responseText = '';
-      if (response.success) {
-        const equipmentData = response.result?.data || response.data || {};
-        responseText = `✅ Equipment created successfully!
-        
+    let responseText = '';
+    if (response.success) {
+      const equipmentData = response.result?.data || response.data || {};
+      responseText = `✅ Equipment created successfully!
+      
 **Equipment Details:**
-- Equipment ID: ${equipmentData.equipment_id}
-- Name: ${equipmentData.name}
+- Equipment ID: ${equipmentData.equipment_id || 'Unknown'}
+- Name: ${equipmentData.name || 'Unknown'}
 - Model: ${equipmentData.model || 'Not specified'}
 - Location: ${equipmentData.location || 'Not specified'}
-- Status: ${equipmentData.status}`;
-      } else {
-        responseText = `❌ Failed to create equipment: ${response.message || 'Unknown error'}`;
-      }
-
-      const successMsg = {
-        id: Date.now(),
-        text: `✅ Equipment created successfully!\n\n${responseText}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, successMsg]);
-
-    } catch (error) {
-      console.error('Error creating equipment:', error);
-      
-      const errorMsg = {
-        id: Date.now(),
-        text: `❌ Error creating equipment: ${error.message || 'Unknown error occurred'}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, errorMsg]);
-    } finally {
-      setIsSubmittingEquipment(false);
+- Status: ${equipmentData.status || 'Operational'}`;
+    } else {
+      responseText = `❌ Failed to create equipment: ${response.message || 'Unknown error'}`;
     }
+
+    const successMsg = {
+      id: Date.now(),
+      text: responseText,
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, successMsg]);
   };
 
   const closeEquipmentForm = () => {
@@ -2813,92 +2492,35 @@ You can use these commands:
   };
 
   // Supply Form Handlers
-  const handleSupplyFormChange = (field, value) => {
-    setSupplyFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
+  const handleSupplySubmit = async (response) => {
+    setIsSubmittingSupply(false);
+    setShowSupplyForm(false);
 
-  const submitSupply = async () => {
-    const requiredFields = ['item_code', 'name', 'category_id', 'unit_of_measure'];
-    const missingFields = requiredFields.filter(field => !supplyFormData[field].trim());
-    
-    if (missingFields.length > 0) {
-      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
-      return;
-    }
-
-    setIsSubmittingSupply(true);
-
-    try {
-      const response = await aiMcpServiceRef.current.callToolDirectly('create_supply', {
-        item_code: supplyFormData.item_code,
-        name: supplyFormData.name,
-        category_id: supplyFormData.category_id,
-        description: supplyFormData.description,
-        unit_of_measure: supplyFormData.unit_of_measure,
-        minimum_stock_level: supplyFormData.minimum_stock_level ? parseInt(supplyFormData.minimum_stock_level) : undefined,
-        maximum_stock_level: supplyFormData.maximum_stock_level ? parseInt(supplyFormData.maximum_stock_level) : undefined,
-        current_stock: supplyFormData.current_stock ? parseInt(supplyFormData.current_stock) : undefined,
-        unit_cost: supplyFormData.unit_cost ? parseFloat(supplyFormData.unit_cost) : undefined,
-        supplier: supplyFormData.supplier,
-        expiry_date: supplyFormData.expiry_date,
-        location: supplyFormData.location
-      });
-
-      setShowSupplyForm(false);
-      setSupplyFormData({
-        item_code: '',
-        name: '',
-        category_id: '',
-        description: '',
-        unit_of_measure: '',
-        minimum_stock_level: '',
-        maximum_stock_level: '',
-        current_stock: '',
-        unit_cost: '',
-        supplier: '',
-        expiry_date: '',
-        location: ''
-      });
-
-      let responseText = '';
-      if (response.success) {
-        const supplyData = response.result?.data || response.data || {};
-        responseText = `✅ Supply created successfully!
-        
+    let responseText = '';
+    if (response.success) {
+      const supplyData = response.result?.data || response.data || {};
+      responseText = `✅ Supply created successfully!
+      
 **Supply Details:**
 - Item Code: ${supplyData.item_code}
 - Name: ${supplyData.name}
-- Current Stock: ${supplyData.current_stock || '0'}
-- Unit: ${supplyData.unit_of_measure}
-- Location: ${supplyData.location || 'Not specified'}`;
-      } else {
-        responseText = `❌ Failed to create supply: ${response.message || 'Unknown error'}`;
-      }
+- Category: ${supplyData.category_name || 'N/A'}
+- Unit of Measure: ${supplyData.unit_of_measure}
+- Current Stock: ${supplyData.current_stock || 'N/A'}
+- Location: ${supplyData.location || 'N/A'}
 
-      const successMsg = {
-        id: Date.now(),
-        text: `✅ Supply created successfully!\n\n${responseText}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, successMsg]);
-
-    } catch (error) {
-      console.error('Error creating supply:', error);
-      
-      const errorMsg = {
-        id: Date.now(),
-        text: `❌ Error creating supply: ${error.message || 'Unknown error occurred'}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, errorMsg]);
-    } finally {
-      setIsSubmittingSupply(false);
+The supply has been added to the inventory system and is ready for use.`;
+    } else {
+      responseText = `❌ Failed to create supply: ${response.message || 'Unknown error'}`;
     }
+
+    const successMsg = {
+      id: Date.now(),
+      text: responseText,
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, successMsg]);
   };
 
   const closeSupplyForm = () => {
@@ -2913,74 +2535,33 @@ You can use these commands:
   };
 
   // Legacy User Form Handlers
-  const handleLegacyUserFormChange = (field, value) => {
-    setLegacyUserFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
+  const handleLegacyUserSubmit = async (response) => {
+    setIsSubmittingLegacyUser(false);
+    setShowLegacyUserForm(false);
 
-  const submitLegacyUser = async () => {
-    const requiredFields = ['name', 'email'];
-    const missingFields = requiredFields.filter(field => !legacyUserFormData[field].trim());
-    
-    if (missingFields.length > 0) {
-      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
-      return;
-    }
-
-    setIsSubmittingLegacyUser(true);
-
-    try {
-      const response = await aiMcpServiceRef.current.callToolDirectly('create_legacy_user', {
-        name: legacyUserFormData.name,
-        email: legacyUserFormData.email,
-        address: legacyUserFormData.address,
-        phone: legacyUserFormData.phone
-      });
-
-      setShowLegacyUserForm(false);
-      setLegacyUserFormData({
-        name: '',
-        email: '',
-        role: ''
-      });
-
-      let responseText = '';
-      if (response.success) {
-        const legacyUserData = response.result?.data || response.data || {};
-        responseText = `✅ Legacy user created successfully!
-        
+    let responseText = '';
+    if (response.success) {
+      const legacyUserData = response.result?.data || response.data || {};
+      responseText = `✅ Legacy user created successfully!
+      
 **Legacy User Details:**
 - Name: ${legacyUserData.name}
 - Email: ${legacyUserData.email}
 - Phone: ${legacyUserData.phone || 'Not provided'}
-- Address: ${legacyUserData.address || 'Not provided'}`;
-      } else {
-        responseText = `❌ Failed to create legacy user: ${response.message || 'Unknown error'}`;
-      }
+- Address: ${legacyUserData.address || 'Not provided'}
 
-      const successMsg = {
-        id: Date.now(),
-        text: `✅ Legacy user created successfully!\n\n${responseText}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, successMsg]);
-
-    } catch (error) {
-      console.error('Error creating legacy user:', error);
-      
-      const errorMsg = {
-        id: Date.now(),
-        text: `❌ Error creating legacy user: ${error.message || 'Unknown error occurred'}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, errorMsg]);
-    } finally {
-      setIsSubmittingLegacyUser(false);
+The legacy user has been added to the system for reference purposes.`;
+    } else {
+      responseText = `❌ Failed to create legacy user: ${response.message || 'Unknown error'}`;
     }
+
+    const successMsg = {
+      id: Date.now(),
+      text: responseText,
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, successMsg]);
   };
 
   const closeLegacyUserForm = () => {
@@ -2995,60 +2576,28 @@ You can use these commands:
   };
 
   // Equipment Category Form Handlers
-  const handleEquipmentCategoryFormChange = (field, value) => {
-    setEquipmentCategoryFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
+  const handleEquipmentCategorySubmit = async (response) => {
+    setIsSubmittingEquipmentCategory(false);
+    setShowEquipmentCategoryForm(false);
 
-  const submitEquipmentCategory = async () => {
-    const requiredFields = ['name'];
-    const missingFields = requiredFields.filter(field => !equipmentCategoryFormData[field].trim());
-    
-    if (missingFields.length > 0) {
-      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
-      return;
+    let responseText = '';
+    if (response && response.success) {
+      responseText = `✅ Equipment category created successfully!
+      
+The new equipment category has been added to the system and is now available for equipment assignment.`;
+      // Reload equipment categories for dropdowns
+      await loadDropdownOptions();
+    } else {
+      responseText = `❌ Failed to create equipment category: ${response.message || 'Unknown error'}`;
     }
 
-    setIsSubmittingEquipmentCategory(true);
-
-    try {
-      const response = await aiMcpServiceRef.current.callToolDirectly(
-        'create_equipment_category',
-        equipmentCategoryFormData
-      );
-
-      let responseText = '';
-      if (response && response.success) {
-        responseText = `✅ Equipment category "${equipmentCategoryFormData.name}" created successfully!`;
-        setEquipmentCategoryFormData({ name: '', description: '' });
-        setShowEquipmentCategoryForm(false);
-        // Reload equipment categories for dropdowns
-        await loadDropdownOptions();
-      } else {
-        responseText = `❌ Failed to create equipment category: ${response.message || 'Unknown error'}`;
-      }
-
-      const responseMsg = {
-        id: Date.now(),
-        text: responseText,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, responseMsg]);
-
-    } catch (error) {
-      const errorMsg = {
-        id: Date.now(),
-        text: `❌ Error creating equipment category: ${error.message}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, errorMsg]);
-    } finally {
-      setIsSubmittingEquipmentCategory(false);
-    }
+    const responseMsg = {
+      id: Date.now(),
+      text: responseText,
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, responseMsg]);
   };
 
   const closeEquipmentCategoryForm = () => {
@@ -3063,60 +2612,18 @@ You can use these commands:
   };
 
   // Supply Category Form Handlers
-  const handleSupplyCategoryFormChange = (field, value) => {
-    setSupplyCategoryFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  const submitSupplyCategory = async () => {
-    const requiredFields = ['name'];
-    const missingFields = requiredFields.filter(field => !supplyCategoryFormData[field].trim());
+  const handleSupplyCategorySubmit = async (categoryName) => {
+    const responseText = `✅ Supply category "${categoryName}" created successfully!`;
+    await loadDropdownOptions(); // Reload supply categories for dropdowns
     
-    if (missingFields.length > 0) {
-      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
-      return;
-    }
-
-    setIsSubmittingSupplyCategory(true);
-
-    try {
-      const response = await aiMcpServiceRef.current.callToolDirectly(
-        'create_supply_category',
-        supplyCategoryFormData
-      );
-
-      let responseText = '';
-      if (response && response.success) {
-        responseText = `✅ Supply category "${supplyCategoryFormData.name}" created successfully!`;
-        setSupplyCategoryFormData({ name: '', description: '' });
-        setShowSupplyCategoryForm(false);
-        // Reload supply categories for dropdowns
-        await loadDropdownOptions();
-      } else {
-        responseText = `❌ Failed to create supply category: ${response.message || 'Unknown error'}`;
-      }
-
-      const responseMsg = {
-        id: Date.now(),
-        text: responseText,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, responseMsg]);
-
-    } catch (error) {
-      const errorMsg = {
-        id: Date.now(),
-        text: `❌ Error creating supply category: ${error.message}`,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setMessages(prev => [...prev, errorMsg]);
-    } finally {
-      setIsSubmittingSupplyCategory(false);
-    }
+    const responseMsg = {
+      id: Date.now(),
+      text: responseText,
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setMessages(prev => [...prev, responseMsg]);
+    setShowSupplyCategoryForm(false);
   };
 
   const closeSupplyCategoryForm = () => {
@@ -3425,2147 +2932,182 @@ ${dischargeData.next_steps ? dischargeData.next_steps.map(step => `• ${step}`)
     );
   }
 
-  // Main Chat Interface - Claude Desktop Style with Responsive Design
+  // Main Chat Interface - Using HospitalChatInterface Component
   return (
-    <div className="bg-[#1a1a1a] flex flex-col text-white overflow-hidden relative" style={{ height: 'calc(var(--vh, 1vh) * 100)' }}>
-      {/* Claude-style Header - FIXED AT TOP */}
-      <div className="fixed top-0 left-0 right-0 border-b border-gray-700 px-3 sm:px-4 py-3 bg-[#1a1a1a] z-30">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2 sm:space-x-3">
-            <div className="w-6 h-6 sm:w-7 sm:h-7 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs sm:text-sm font-medium shadow-lg">
-              H
-            </div>
-            <div className="min-w-0 flex-1">
-              <h1 className="text-sm font-medium text-white truncate">Hospital Agent</h1>
-              {serverInfo && (
-                <p className="text-xs text-gray-400 hidden sm:block">
-                  Connected • {serverInfo.toolCount} tools • {aiMcpServiceRef.current?.getConversationSummary?.()?.messageCount || 0} messages in memory
-                </p>
-              )}
-            </div>
-          </div>
-          
-          {/* User Info and Actions - Responsive */}
-          <div className="flex items-center space-x-1 sm:space-x-3">
-            {/* User Profile */}
-            <div className="flex items-center space-x-1 sm:space-x-2">
-              <div className="w-5 h-5 sm:w-6 sm:h-6 bg-blue-600 rounded-full flex items-center justify-center">
-                <span className="text-white text-xs font-medium">
-                  {user?.fullName ? user.fullName.charAt(0).toUpperCase() : user?.email?.charAt(0).toUpperCase() || 'U'}
-                </span>
-              </div>
-              <div className="hidden md:block">
-                <p className="text-xs text-white font-medium">{user?.fullName || 'User'}</p>
-                <p className="text-xs text-gray-400">{user?.role || 'Staff'}</p>
-              </div>
-            </div>
+    <>
+      <HospitalChatInterface
+        // User and server info
+        user={user}
+        serverInfo={serverInfo}
+        onLogout={onLogout}
+        
+        // Chat state
+        messages={messages}
+        isLoading={isLoading}
+        expandedThinking={expandedThinking}
+        setExpandedThinking={setExpandedThinking}
+        
+        // Input handling
+        inputMessage={inputMessage}
+        setInputMessage={setInputMessage}
+        handleSendMessage={handleSendMessage}
+        isConnected={isConnected}
+        
+        // Action buttons
+        showActionButtons={showActionButtons}
+        smartFocusInput={smartFocusInput}
+        
+        // Plus menu
+        showPlusMenu={showPlusMenu}
+        setShowPlusMenu={setShowPlusMenu}
+        plusMenuRef={plusMenuRef}
+        setActiveTab={setActiveTab}
+        
+        // Medical document functionality
+        activeTab={activeTab}
+        selectedPatientId={selectedPatientId}
+        setSelectedPatientId={setSelectedPatientId}
+        selectedPatientNumber={selectedPatientNumber}
+        setSelectedPatientNumber={setSelectedPatientNumber}
+        searchingPatient={searchingPatient}
+        patientSearchResult={patientSearchResult}
+        verifyPatient={verifyPatient}
+        searchPatientByNumber={searchPatientByNumber}
+        
+        // Voice functionality
+        toggleVoiceInput={toggleVoiceInput}
+        isListening={isListening}
+        isRecording={isRecording}
+        isProcessingVoice={isProcessingVoice}
+        isSpeaking={isSpeaking}
+        microphoneAvailable={microphoneAvailable}
+        
+        // Chat functionality
+        aiMcpServiceRef={aiMcpServiceRef}
+        setMessages={setMessages}
+        setShowSetup={setShowSetup}
+        
+        // Formatting functions
+        formatMessageText={formatMessageText}
+        ThinkingDuration={ThinkingDuration}
+        
+        // Mobile responsiveness
+        inputRef={inputFieldRef}
+        isIOSDevice={isIOSDevice()}
+      />
 
-            {/* Action Buttons - Responsive with Mobile Menu */}
-            <div className="flex items-center space-x-1">
-              {/* Mobile: Show only essential buttons */}
-              <div className="flex items-center space-x-1 sm:hidden">
-                {/* <button
-                  onClick={() => setShowSetup(true)}
-                  className="p-1.5 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors"
-                  title="Settings"
-                >
-                  <Settings className="w-4 h-4" />
-                </button> */}
-                <button
-                  onClick={onLogout}
-                  className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded-md transition-colors"
-                  title="Logout"
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
-              </div>
-              
-              {/* Desktop: Show all buttons */}
-              <div className="hidden sm:flex items-center space-x-1">
-                <button
-                  onClick={() => {
-                    if (aiMcpServiceRef.current) {
-                      aiMcpServiceRef.current.resetConversation();
-                      setMessages(prev => [...prev, {
-                        id: Date.now(),
-                        text: '🔄 **Conversation Reset** - Memory cleared. Starting fresh!',
-                        sender: 'ai',
-                        timestamp: new Date().toLocaleTimeString()
-                      }]);
-                    }
-                  }}
-                  className="p-1.5 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors"
-                  title="Reset Conversation Memory"
-                >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-              </button>
-              <button
-                onClick={checkStatus}
-                className="p-1.5 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors"
-                title="Check Status"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-              </button>
-              {/* <button
-                onClick={disconnect}
-                className="p-1.5 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors"
-                title="Disconnect"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button> */}
-              
-              {/* Settings Button */}
-              {/* <button
-                onClick={() => setShowSetup(true)}
-                className="p-1.5 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors"
-                title="Settings"
-              >
-                <Settings className="w-4 h-4" />
-              </button> */}
-              
-              {/* Logout Button */}
-              <button
-                onClick={onLogout}
-                className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded-md transition-colors"
-                title="Logout"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* Patient Admission Form Component */}
+      <PatientAdmissionForm 
+        isOpen={showPatientAdmissionForm}
+        onClose={closePatientAdmissionForm}
+        onSubmit={handlePatientAdmissionSuccess}
+        isSubmitting={isSubmittingAdmission}
+        aiMcpServiceRef={aiMcpServiceRef}
+      />
 
-      {/* Tab Navigation - Hidden since we're using plus menu */}
-      <div className="hidden border-b border-gray-700 bg-[#1a1a1a]">
-        <div className="max-w-4xl mx-auto px-3 sm:px-4">
-          <nav className="flex space-x-4 sm:space-x-8 overflow-x-auto">
-            <button
-              onClick={() => setActiveTab('chat')}
-              className={`py-3 px-1 border-b-2 font-medium text-xs sm:text-sm flex items-center space-x-1 sm:space-x-2 whitespace-nowrap ${
-                activeTab === 'chat'
-                  ? 'border-blue-500 text-blue-400'
-                  : 'border-transparent text-gray-400 hover:text-gray-300'
-              }`}
-            >
-              <User className="w-3 h-3 sm:w-4 sm:h-4" />
-              <span className="hidden sm:inline">Chat Assistant</span>
-              <span className="sm:hidden">Chat</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('upload')}
-              className={`py-3 px-1 border-b-2 font-medium text-xs sm:text-sm flex items-center space-x-1 sm:space-x-2 whitespace-nowrap ${
-                activeTab === 'upload'
-                  ? 'border-blue-500 text-blue-400'
-                  : 'border-transparent text-gray-400 hover:text-gray-300'
-              }`}
-            >
-              <Upload className="w-3 h-3 sm:w-4 sm:h-4" />
-              <span className="hidden sm:inline">Upload Documents</span>
-              <span className="sm:hidden">Upload</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('history')}
-              className={`py-3 px-1 border-b-2 font-medium text-xs sm:text-sm flex items-center space-x-1 sm:space-x-2 whitespace-nowrap ${
-                activeTab === 'history'
-                  ? 'border-blue-500 text-blue-400'
-                  : 'border-transparent text-gray-400 hover:text-gray-300'
-              }`}
-            >
-              <History className="w-3 h-3 sm:w-4 sm:h-4" />
-              <span className="hidden sm:inline">Medical History</span>
-              <span className="sm:hidden">History</span>
-            </button>
-          </nav>
-        </div>
-      </div>
+      {/* Department Creation Form Component */}
+      <DepartmentCreationForm
+        isOpen={showDepartmentForm}
+        onClose={closeDepartmentForm}
+        onSubmit={handleDepartmentSubmit}
+        isSubmitting={isSubmittingDepartment}
+        aiMcpServiceRef={aiMcpServiceRef}
+        userOptions={userOptions}
+        loadingDropdowns={loadingDropdowns}
+      />
 
-        {/* Fixed Back Button for Upload / History - ensures reliable navigation on mobile */}
-        {(activeTab === 'upload' || activeTab === 'history') && (
-          <div className="fixed left-4 top-[76px] z-40">
-            <button
-              onClick={() => setActiveTab('chat')}
-              className="flex items-center space-x-2 bg-[#2a2a2a] hover:bg-[#333] text-white px-3 py-2 rounded-lg border border-gray-700 shadow-md"
-              title="Back to Chat"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              <span className="hidden sm:inline">Back to Chat</span>
-            </button>
-          </div>
-        )}
+      {/* User Creation Form Component */}
+      <UserCreationForm 
+        isOpen={showUserForm}
+        onClose={closeUserForm}
+        onSubmit={handleUserCreationSuccess}
+        isSubmitting={isSubmittingUser}
+        aiMcpServiceRef={aiMcpServiceRef}
+      />
 
-      {/* Content Area - MAIN SCROLLABLE CONTAINER */}
-      {activeTab === 'chat' && (
-        <div className="flex-1 flex flex-col min-h-0 overflow-hidden" style={{ 
-          marginTop: '70px', 
-          marginBottom: showActionButtons ? 'calc(150px + env(safe-area-inset-bottom, 0px))' : 'calc(80px + env(safe-area-inset-bottom, 0px))',
-        }}>
-          {/* Messages Container - ONLY THIS SCROLLS */}
-          <div 
-            ref={messagesContainerRef} 
-            className="flex-1 overflow-y-auto overflow-x-hidden bg-[#1a1a1a] px-0 sm:px-2"
-            style={{ 
-              WebkitOverflowScrolling: 'touch',
-              scrollBehavior: 'smooth'
-            }}
-            onClick={() => {
-              // Smart focus input when clicking anywhere in the chat area, but not when selecting text
-              const selection = window.getSelection();
-              if (inputFieldRef.current && isConnected && selection.toString().length === 0) {
-                if (isMobileDevice()) {
-                  // On mobile: focus without keyboard popup
-                  smartFocusInput(0);
-                } else {
-                  // On desktop: normal focus
-                  inputFieldRef.current.focus();
-                }
-              }
-            }}
-          >
-            <div className="max-w-4xl mx-auto px-3 sm:px-4">
-              {messages.length === 0 && (
-                <div className="flex items-center justify-center h-full text-center px-3 sm:px-6">
-                  <div className="max-w-xs sm:max-w-md">
-                    <div className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6 shadow-lg">
-                      <span className="text-lg sm:text-2xl font-medium text-white">H</span>
-                    </div>
-                    <h2 className="text-lg sm:text-xl font-medium text-white mb-2 sm:mb-3">
-                      Welcome back, {user?.fullName?.split(' ')[0] || 'User'}!
-                    </h2>
-                    <p className="text-gray-400 mb-4 sm:mb-6 text-sm">
-                      I'm your AI assistant for hospital management tasks. I can help you manage patients, staff, departments, equipment, and more through natural conversation.
-                    </p>
-                  </div>
-                </div>
-              )}
-          
-          {messages.map((message) => (
-            <div key={message.id} className={`px-2 sm:px-4 py-2 ${
-              message.isThinking ? 'bg-[#1a1a1a]' : 
-              message.isFinalAnswer ? 'bg-[#1a1a1a]' : 
-              message.isError ? 'bg-[#1a1a1a]' : 'bg-[#1a1a1a]'
-            }`}>
-              {message.sender === 'user' ? (
-                // User message - aligned to the right - Responsive
-                <div className="flex justify-end">
-                  <div className="max-w-[85%] sm:max-w-[80%]">
-                    <div className="prose prose-sm max-w-none">
-                      <div className={`whitespace-pre-wrap leading-relaxed text-xs sm:text-sm text-white rounded-2xl px-3 sm:px-4 py-2 ${
-                        message.isVoiceInput ? 'bg-blue-700 border border-blue-500' : 'bg-slate-700'
-                      }`}>
-                        {message.isVoiceInput && (
-                          <div className="flex items-center space-x-1 mb-1 text-blue-200">
-                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                              <path d="M12 2c1.1 0 2 .9 2 2v6c0 1.1-.9 2-2 2s-2-.9-2-2V4c0-1.1.9-2 2-2zm5.3 6c0 3-2.5 5.1-5.3 5.1S6.7 11 6.7 8H5c0 3.4 2.7 6.2 6 6.7v3.3h2v-3.3c3.3-.5 6-3.3 6-6.7h-1.7z" />
-                            </svg>
-                            <span className="text-xs">Voice Input</span>
-                          </div>
-                        )}
-                        <div dangerouslySetInnerHTML={{ __html: formatMessageText(message.text) }} />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                // AI message - aligned to the left - Responsive
-                <div className="flex space-x-2 sm:space-x-3">
-                  <div className="w-6 h-6 sm:w-7 sm:h-7 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 text-xs sm:text-sm font-medium text-white shadow-lg">
-                    {message.isThinking ? (
-                      <div className="w-2 h-2 sm:w-3 sm:h-3 border border-gray-400 border-t-white rounded-full animate-spin"></div>
-                    ) : (
-                      'H'
-                    )}
-                  </div>
-                
-                <div className="flex-1 min-w-0">
-                  {message.isThinking && (
-                    <div className="mb-1">
-                      <button
-                        onClick={() => setExpandedThinking(prev => ({
-                          ...prev,
-                          [message.id]: !prev[message.id]
-                        }))}
-                        className="flex items-center space-x-1 sm:space-x-2 text-xs text-gray-500 italic hover:text-gray-400 transition-colors w-full justify-between"
-                      >
-                        <div className="flex items-center space-x-1 sm:space-x-2 min-w-0">
-                          <span className="text-gray-400">🔧</span>
-                          <span className="font-mono text-blue-400 truncate">{message.toolFunction || 'thinking'}</span>
-                        </div>
-                        <span className="ml-auto flex items-center space-x-1 flex-shrink-0">
-                          <ThinkingDuration startTime={message.startTime} />
-                          <svg 
-                            className={`w-3 h-3 transform transition-transform ${expandedThinking[message.id] ? 'rotate-180' : ''}`} 
-                            fill="none" 
-                            stroke="currentColor" 
-                            viewBox="0 0 24 24"
-                          >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </span>
-                      </button>
-                      {expandedThinking[message.id] && (
-                        <div className="mt-2 text-xs sm:text-sm text-gray-300 pl-4 sm:pl-6">
-                          {message.text}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  
-                  {/* Tool Call Display */}
-                  {message.isToolCall && (
-                    <div className="mb-2">
-                      <div className="flex items-center space-x-2 text-xs text-gray-400 mb-1">
-                        <span className="text-blue-400">🔧</span>
-                        <span>Tool Execution</span>
-                      </div>
-                    </div>
-                  )}
-                  
-                  <div className="prose prose-sm max-w-none">
-                    {(!message.isThinking || expandedThinking[message.id]) && (
-                      <div 
-                        className={`whitespace-pre-wrap leading-relaxed text-sm ${
-                          message.isThinking ? 'text-gray-300' :
-                          message.isFinalAnswer ? 'text-white' :
-                          message.isError ? 'text-red-400' :
-                          message.isToolCall ? 'text-blue-200 bg-gray-800 p-3 rounded-lg border-l-2 border-blue-500' :
-                          'text-white'
-                        }`}
-                        dangerouslySetInnerHTML={{
-                          __html: formatMessageText(message.text)
-                        }}
-                      />
-                    )}
-                  </div>
-                </div>
-              </div>
-              )}
-            </div>
-          ))}
-          
-          {isLoading && (
-            <div className="px-4 py-2 bg-[#1a1a1a]">
-              <div className="flex space-x-3">
-                <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg">
-                  <div className="w-3 h-3 border border-gray-400 border-t-white rounded-full animate-spin"></div>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="mb-1">
-                    <button
-                      onClick={() => setExpandedThinking(prev => ({
-                        ...prev,
-                        ['loading']: !prev['loading']
-                      }))}
-                      className="flex items-center space-x-2 text-xs text-gray-500 italic hover:text-gray-400 transition-colors"
-                    >
-                      <span>Processing your request...</span>
-                      <span className="ml-auto flex items-center space-x-1">
-                        <span>0s</span>
-                        <svg 
-                          className={`w-3 h-3 transform transition-transform ${expandedThinking['loading'] ? 'rotate-180' : ''}`} 
-                          fill="none" 
-                          stroke="currentColor" 
-                          viewBox="0 0 24 24"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </span>
-                    </button>
-                  </div>
-                  <div className="flex items-center space-x-2 text-gray-300 mb-1">
-                    <span className="text-blue-400">🔍</span>
-                    <span className="text-xs text-gray-400">Request Analysis</span>
-                  </div>
-                  {expandedThinking['loading'] && (
-                    <div className="text-sm text-gray-300">
-                      Analyzing your request and determining the best approach...
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-          
-          <div ref={messagesEndRef} />
-            </div>
-          </div>
+      {/* Staff Creation Form Component */}
+      <StaffCreationForm
+        isOpen={showStaffForm}
+        onClose={closeStaffForm}
+        onSubmit={handleStaffSubmit}
+        isSubmitting={isSubmittingStaff}
+        aiMcpServiceRef={aiMcpServiceRef}
+        userOptions={userOptions}
+        departmentOptions={departmentOptions}
+        loadingDropdowns={loadingDropdowns}
+      />
 
-          {/* Action Buttons Above Input - FIXED ABOVE BOTTOM INPUT */}
-          <div className={`fixed left-0 right-0 bg-[#1a1a1a] px-4 z-20 border-t border-gray-700 transition-all duration-500 ease-in-out ${
-            showActionButtons ? 'py-3 opacity-100' : 'py-0 opacity-0 -bottom-full'
-          }`} style={{
-            bottom: showActionButtons ? 'calc(90px + env(safe-area-inset-bottom, 0px))' : '-100px',
-            minHeight: showActionButtons ? '120px' : '0px'
-          }}>
-            <div className="max-w-4xl mx-auto">
-            {/* Desktop: 1 row 4 columns, Mobile: 2 rows 2 columns */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {/* View All Patients */}
-              <button
-                onClick={() => {
-                  setInputMessage("List all patients");
-                  smartFocusInput(100);
-                }}
-                className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-2 py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
-                title="View all patients"
-              >
-                <span className="font-medium whitespace-nowrap">View Patients</span>
-              </button>
+      {/* Room Creation Form Component */}
+      <RoomCreationForm
+        isOpen={showRoomForm}
+        onClose={closeRoomForm}
+        onSubmit={handleRoomSubmit}
+        isSubmitting={isSubmittingRoom}
+        aiMcpServiceRef={aiMcpServiceRef}
+        departmentOptions={departmentOptions}
+        loadingDropdowns={loadingDropdowns}
+      />
 
-              {/* Check Bed Status */}
-              <button
-                onClick={() => {
-                  setInputMessage("Show bed availability");
-                  smartFocusInput(100);
-                }}
-                className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-2 py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
-                title="Check bed availability"
-              >
-                <span className="font-medium whitespace-nowrap">Bed Status</span>
-              </button>
+      {/* Bed Creation Form Component */}
+      <BedCreationForm
+        isOpen={showBedForm}
+        onClose={closeBedForm}
+        onSubmit={handleBedSubmit}
+        isSubmitting={isSubmittingBed}
+        aiMcpServiceRef={aiMcpServiceRef}
+        roomOptions={roomOptions}
+        loadingDropdowns={loadingDropdowns}
+      />
 
-              {/* Emergency Alert */}
-              <button
-                onClick={() => {
-                  setInputMessage("Show emergency status and available emergency beds");
-                  smartFocusInput(100);
-                }}
-                className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-2 py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
-                title="Emergency status"
-              >
-                <span className="font-medium whitespace-nowrap">Emergency</span>
-              </button>
+      {/* Equipment Creation Form Component */}
+      <EquipmentCreationForm
+        isOpen={showEquipmentForm}
+        onClose={closeEquipmentForm}
+        onSubmit={handleEquipmentSubmit}
+        isSubmitting={isSubmittingEquipment}
+        aiMcpServiceRef={aiMcpServiceRef}
+        departmentOptions={departmentOptions}
+        equipmentCategoryOptions={equipmentCategoryOptions}
+        loadingDropdowns={loadingDropdowns}
+      />
 
-              {/* staff list */}
-              <button
-                onClick={() => {
-                  setInputMessage("Show staff list");
-                  smartFocusInput(100);
-                }}
-                className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-2 py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
-                title="Staff List"
-              >
-                <span className="font-medium whitespace-nowrap">Staff List</span>
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Supply Creation Form Component */}
+      <SupplyCreationForm
+        isOpen={showSupplyForm}
+        onClose={closeSupplyForm}
+        onSubmit={handleSupplySubmit}
+        isSubmitting={isSubmittingSupply}
+        aiMcpServiceRef={aiMcpServiceRef}
+        supplyCategoryOptions={supplyCategoryOptions}
+        loadingDropdowns={loadingDropdowns}
+      />
 
-        {/* Modern Chat Input - FIXED AT BOTTOM */}
-        <div 
-          className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] px-3 sm:px-4 py-2 border-t border-gray-700 z-30"
-          style={{ 
-            paddingBottom: 'calc(8px + env(safe-area-inset-bottom, 0px))'
-          }}
-        >
-          <div className="max-w-4xl mx-auto">
-              {/* Voice Status Indicator */}
-              {(isRecording || isProcessingVoice || isSpeaking) && (
-                <div className="mb-3 px-3 py-2 bg-[#2a2a2a] border border-gray-600 rounded-lg">
-                  <div className="flex items-center space-x-2">
-                    {isRecording && (
-                      <>
-                        <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                        <span className="text-sm text-red-400">
-                          🎤 Recording with OpenAI Whisper...
-                        </span>
-                      </>
-                    )}
-                    {isProcessingVoice && (
-                      <>
-                        <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
-                        <span className="text-sm text-yellow-400">
-                          🔄 Processing speech with OpenAI...
-                        </span>
-                      </>
-                    )}
-                    {isSpeaking && (
-                      <>
-                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                        <span className="text-sm text-blue-400">
-                          🔊 Speaking with OpenAI TTS...
-                        </span>
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
-              
-              <div className="relative">
-                {/* Main Input Container - Rounded Rectangle */}
-                <div className={`bg-[#2a2a2a] rounded-2xl sm:rounded-3xl border px-3 sm:px-4 py-3 sm:py-4 transition-colors duration-200 ${
-                  isInputFocused ? 'border-blue-500' : 'border-gray-600'
-                }`}>
-                  
-                  {/* First Row - Text Input (Full Width) */}
-                  <div className="mb-2 sm:mb-3">
-                    <textarea
-                      ref={inputFieldRef}
-                      value={inputMessage}
-                      onChange={(e) => setInputMessage(e.target.value)}
-                      onKeyPress={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSendMessage();
-                        }
-                      }}
-                      onFocus={() => setIsInputFocused(true)}
-                      onBlur={() => setIsInputFocused(false)}
-                      placeholder={isConnected ? "Ask anything (Ctrl+/ to focus)" : "Ask anything"}
-                      disabled={!isConnected || isLoading}
-                      rows={1}
-                      className="w-full bg-transparent border-none outline-none resize-none text-white placeholder-gray-400 text-base"
-                      style={{
-                        minHeight: '20px',
-                        maxHeight: '120px',
-                        fontSize: '16px', // Prevents zoom on iOS
-                        WebkitAppearance: 'none',
-                        WebkitBorderRadius: 0
-                      }}
-                      onInput={(e) => {
-                        e.target.style.height = 'auto';
-                        e.target.style.height = e.target.scrollHeight + 'px';
-                      }}
-                    />
-                  </div>
-                  
-                  {/* Second Row - Icons */}
-                  <div className="flex items-center justify-between">
-                    {/* Left Side - Plus and Tools Icons */}
-                    <div className="flex items-center space-x-2 sm:space-x-3">
-                      {/* Plus Button with Dropdown */}
-                      <div className="relative" ref={plusMenuRef}>
-                        <button
-                          onClick={() => setShowPlusMenu(!showPlusMenu)}
-                          className="text-gray-400 hover:text-white transition-colors p-1"
-                          title="Upload documents or view medical history"
-                        >
-                          <Plus className="w-4 h-4" />
-                        </button>
-                        
-                        {showPlusMenu && (
-                          <div className="absolute bottom-full left-0 mb-2 bg-[#2a2a2a] border border-gray-600 rounded-lg shadow-lg min-w-48 z-50">
-                            <button
-                              onClick={() => {
-                                setActiveTab('upload');
-                                setShowPlusMenu(false);
-                              }}
-                              className="w-full text-left px-3 py-2 text-sm text-white hover:bg-gray-700 rounded-t-lg flex items-center space-x-2"
-                            >
-                              <Upload className="w-4 h-4" />
-                              <span>Upload Documents</span>
-                            </button>
-                            <button
-                              onClick={() => {
-                                setActiveTab('history');
-                                setShowPlusMenu(false);
-                              }}
-                              className="w-full text-left px-3 py-2 text-sm text-white hover:bg-gray-700 rounded-b-lg border-t border-gray-600 flex items-center space-x-2"
-                            >
-                              <History className="w-4 h-4" />
-                              <span>Medical History</span>
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {/* Right Side - Send Button */}
-                    <div className="flex items-center">
-                      {/* Microphone Button */}
-                      <button
-                        onClick={toggleVoiceInput}
-                        disabled={!isConnected || isLoading || isProcessingVoice || microphoneAvailable === false}
-                        className={`transition-colors duration-200 p-1 ${
-                          microphoneAvailable === false
-                            ? "text-gray-500 cursor-not-allowed opacity-50"
-                            : isListening || isRecording
-                            ? "text-red-400 hover:text-red-300 animate-pulse"
-                            : isProcessingVoice
-                            ? "text-yellow-400 hover:text-yellow-300 animate-pulse"
-                            : isSpeaking
-                            ? "text-blue-400 hover:text-blue-300 animate-pulse"
-                            : "text-gray-400 hover:text-white disabled:text-gray-600"
-                        }`}
-                        title={
-                          microphoneAvailable === false
-                            ? "Microphone not available (requires HTTPS connection and permissions)"
-                            : microphoneAvailable === null
-                            ? "Checking microphone availability..."
-                            : isListening || isRecording
-                            ? "Recording... (Click to stop)"
-                            : isProcessingVoice
-                            ? "Processing voice input..."
-                            : isSpeaking
-                            ? "AI is speaking... (Click to stop)"
-                            : "Start voice input (OpenAI Whisper)"
-                        }
-                      >
-                        {microphoneAvailable === false ? (
-                          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V4c0-1.66-1.34-3-3-3S9 2.34 9 4v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"/>
-                          </svg>
-                        ) : isListening || isRecording ? (
-                          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M6 6h12v12H6z" />
-                          </svg>
-                        ) : isProcessingVoice ? (
-                          <svg className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                          </svg>
-                        ) : isSpeaking ? (
-                          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
-                          </svg>
-                        ) : (
-                          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M12 2c1.1 0 2 .9 2 2v6c0 1.1-.9 2-2 2s-2-.9-2-2V4c0-1.1.9-2 2-2zm5.3 6c0 3-2.5 5.1-5.3 5.1S6.7 11 6.7 8H5c0 3.4 2.7 6.2 6 6.7v3.3h2v-3.3c3.3-.5 6-3.3 6-6.7h-1.7z" />
-                          </svg>
-                        )}
-                      </button>
-                      {/* Send Button - Circular */}
-                      <button
-                        onClick={handleSendMessage}
-                        disabled={!isConnected || isLoading || !inputMessage.trim()}
-                        className="w-7 h-7 sm:w-8 sm:h-8 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 text-white rounded-full flex items-center justify-center transition-colors duration-200"
-                        title="Send message"
-                      >
-                        {isLoading ? (
-                          <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
-                        ) : (
-                          <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                          </svg>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Legacy User Creation Form Component */}
+      <LegacyUserCreationForm
+        isOpen={showLegacyUserForm}
+        onClose={closeLegacyUserForm}
+        onSubmit={handleLegacyUserSubmit}
+        isSubmitting={isSubmittingLegacyUser}
+        aiMcpServiceRef={aiMcpServiceRef}
+      />
 
-      {/* Upload Documents Tab */}
-      {activeTab === 'upload' && (
-  <div onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd} className="flex-1 overflow-y-auto bg-[#1a1a1a] p-3 sm:p-6">
-          <div className="max-w-4xl mx-auto">
-            <div className="mb-4 sm:mb-6">
-              {/* Back to Chat Button */}
-              <button
-                onClick={() => setActiveTab('chat')}
-                className="mb-4 flex items-center space-x-2 text-gray-400 hover:text-white transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                <span>Back to Chat</span>
-              </button>
-              
-              <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">Upload Medical Documents</h2>
-              <p className="text-sm sm:text-base text-gray-400">Upload patient medical documents for AI-powered analysis and history tracking.</p>
-            </div>
-            
-            {/* Patient Selection */}
-            <div className="mb-4 sm:mb-6">
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Select Patient by Patient Number
-              </label>
-              <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
-                <input
-                  type="text"
-                  placeholder="Enter Patient Number (e.g., P123456)"
-                  value={selectedPatientNumber}
-                  onChange={(e) => setSelectedPatientNumber(e.target.value.toUpperCase())}
-                  className="flex-1 p-3 bg-[#2a2a2a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
-                  onKeyPress={(e) => e.key === 'Enter' && verifyPatient()}
-                />
-                <button
-                  onClick={verifyPatient}
-                  disabled={searchingPatient || !selectedPatientNumber.trim()}
-                  className="bg-blue-600 text-white px-4 sm:px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-sm sm:text-base whitespace-nowrap"
-                >
-                  {searchingPatient ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                      Searching...
-                    </>
-                  ) : (
-                    'Verify Patient'
-                  )}
-                </button>
-              </div>
-              
-              {/* Patient Search Result */}
-              {patientSearchResult && (
-                <div className="mt-3 p-3 bg-green-900/20 border border-green-500/30 rounded-lg">
-                  <div className="flex items-center text-green-400">
-                    <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                    <span className="font-medium text-sm sm:text-base">Patient Found:</span>
-                  </div>
-                  <div className="mt-1 text-xs sm:text-sm text-gray-300 space-y-1">
-                    <p><strong>Name:</strong> {patientSearchResult.name}</p>
-                    <p><strong>Patient Number:</strong> {patientSearchResult.patient_number}</p>
-                    <p><strong>Email:</strong> {patientSearchResult.patient.email || 'Not provided'}</p>
-                    <p><strong>Phone:</strong> {patientSearchResult.patient.phone || 'Not provided'}</p>
-                  </div>
-                </div>
-              )}
-              
-              <p className="text-xs text-gray-500 mt-2">
-                Enter the patient number (like P123456) to verify the patient exists before uploading documents.
-              </p>
-            </div>
-
-            {/* Enhanced Document Upload Component */}
-            {selectedPatientId && (
-              <EnhancedMedicalDocumentUpload 
-                patientId={selectedPatientId}
-                onUploadComplete={(results) => {
-                  console.log('Documents uploaded:', results);
-                  // Show success message and potentially switch to history tab
-                  setMessages(prev => [...prev, {
-                    id: Date.now(),
-                    type: 'assistant',
-                    content: `✅ Successfully uploaded ${results.length} medical document(s) for patient ${patientSearchResult?.name} (${patientSearchResult?.patient_number}). ${results.map(r => `\n• ${r.fileName}: ${r.entitiesCount} entities extracted`).join('')}`,
-                    timestamp: new Date()
-                  }]);
-                }}
-              />
-            )}
-
-            {!selectedPatientId && (
-              <div className="text-center text-gray-500 py-8 sm:py-12">
-                <Upload className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4" />
-                <p className="text-base sm:text-lg font-medium">Enter a Patient Number to start uploading documents</p>
-                <p className="text-xs sm:text-sm">Search for the patient by their patient number (like P123456) before uploading medical documents.</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Medical History Tab */}
-      {activeTab === 'history' && (
-  <div onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd} className="flex-1 overflow-y-auto bg-[#1a1a1a] p-3 sm:p-6">
-          <div className="max-w-4xl mx-auto">
-            <div className="mb-4 sm:mb-6">
-              {/* Back to Chat Button */}
-              <button
-                onClick={() => setActiveTab('chat')}
-                className="mb-4 flex items-center space-x-2 text-gray-400 hover:text-white transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                <span>Back to Chat</span>
-              </button>
-              
-              <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">Medical History</h2>
-              <p className="text-sm sm:text-base text-gray-400">View comprehensive medical history extracted from uploaded documents.</p>
-            </div>
-            
-            {/* Patient Selection for History */}
-            <div className="mb-4 sm:mb-6">
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                View History for Patient
-              </label>
-              <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
-                <input
-                  type="text"
-                  placeholder="Enter Patient Number (e.g., P123456)"
-                  value={selectedPatientNumber}
-                  onChange={(e) => setSelectedPatientNumber(e.target.value.toUpperCase())}
-                  className="flex-1 p-3 bg-[#2a2a2a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
-                  onKeyPress={(e) => e.key === 'Enter' && verifyPatient()}
-                />
-                <button
-                  onClick={verifyPatient}
-                  disabled={searchingPatient || !selectedPatientNumber.trim()}
-                  className="bg-blue-600 text-white px-4 sm:px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-sm sm:text-base whitespace-nowrap"
-                >
-                  {searchingPatient ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                      Searching...
-                    </>
-                  ) : (
-                    'Find Patient'
-                  )}
-                </button>
-              </div>
-              
-              {/* Patient Search Result */}
-              {patientSearchResult && (
-                <div className="mt-3 p-3 bg-green-900/20 border border-green-500/30 rounded-lg">
-                  <div className="flex items-center text-green-400">
-                    <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                    <span className="font-medium text-sm sm:text-base">Viewing history for:</span>
-                  </div>
-                  <div className="mt-1 text-xs sm:text-sm text-gray-300">
-                    <p><strong>{patientSearchResult.name}</strong> ({patientSearchResult.patient_number})</p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Medical History Component */}
-            {selectedPatientId && (
-              <MedicalHistoryViewer patientId={selectedPatientId} />
-            )}
-
-            {!selectedPatientId && (
-              <div className="text-center text-gray-500 py-8 sm:py-12">
-                <FileText className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4" />
-                <p className="text-base sm:text-lg font-medium">Enter a Patient ID to view medical history</p>
-                <p className="text-xs sm:text-sm">Access comprehensive medical records and AI-extracted insights.</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Patient Admission Form Popup */}
-      {showPatientAdmissionForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50">
-          <div className="bg-[#1a1a1a] rounded-lg border border-gray-700 max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto mx-2 sm:mx-0">
-            {/* Header */}
-            <div className="border-b border-gray-700 px-4 sm:px-6 py-3 sm:py-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg sm:text-xl font-semibold text-white">Patient Admission Form</h2>
-                  <p className="text-xs sm:text-sm text-gray-400">Fill in the patient information to complete admission</p>
-                </div>
-                <button
-                  onClick={closePatientAdmissionForm}
-                  className="text-gray-400 hover:text-white transition-colors p-1"
-                >
-                  <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            {/* Form Content */}
-            <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-              {/* Required Fields Section */}
-              <div>
-                <h3 className="text-lg font-medium text-white mb-4">Required Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Patient Number <span className="text-gray-500">(Optional - auto-generated if blank)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={admissionFormData.patient_number}
-                      onChange={(e) => handleAdmissionFormChange('patient_number', e.target.value)}
-                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Enter patient number (e.g., P123456) or leave blank for auto-generation"
-                    />
-                  </div>
-                  <div></div> {/* Empty div for spacing */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      First Name <span className="text-red-400">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={admissionFormData.first_name}
-                      onChange={(e) => handleAdmissionFormChange('first_name', e.target.value)}
-                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Enter first name"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Last Name <span className="text-red-400">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={admissionFormData.last_name}
-                      onChange={(e) => handleAdmissionFormChange('last_name', e.target.value)}
-                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Enter last name"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Date of Birth <span className="text-red-400">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      value={admissionFormData.date_of_birth}
-                      onChange={(e) => handleAdmissionFormChange('date_of_birth', e.target.value)}
-                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Gender</label>
-                    <select
-                      value={admissionFormData.gender}
-                      onChange={(e) => handleAdmissionFormChange('gender', e.target.value)}
-                      className="w-full px-3 py-3 sm:py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base sm:text-sm"
-                    >
-                      <option value="">Select gender</option>
-                      <option value="Male">Male</option>
-                      <option value="Female">Female</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Contact Information */}
-              <div>
-                <h3 className="text-lg font-medium text-white mb-4">Contact Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Phone Number</label>
-                    <input
-                      type="tel"
-                      value={admissionFormData.phone}
-                      onChange={(e) => handleAdmissionFormChange('phone', e.target.value)}
-                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Enter phone number"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Email Address</label>
-                    <input
-                      type="email"
-                      value={admissionFormData.email}
-                      onChange={(e) => handleAdmissionFormChange('email', e.target.value)}
-                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Enter email address"
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Home Address</label>
-                    <textarea
-                      value={admissionFormData.address}
-                      onChange={(e) => handleAdmissionFormChange('address', e.target.value)}
-                      rows="3"
-                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Enter home address"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Emergency Contact */}
-              <div>
-                <h3 className="text-lg font-medium text-white mb-4">Emergency Contact</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Contact Name</label>
-                    <input
-                      type="text"
-                      value={admissionFormData.emergency_contact_name}
-                      onChange={(e) => handleAdmissionFormChange('emergency_contact_name', e.target.value)}
-                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Enter emergency contact name"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Contact Phone</label>
-                    <input
-                      type="tel"
-                      value={admissionFormData.emergency_contact_phone}
-                      onChange={(e) => handleAdmissionFormChange('emergency_contact_phone', e.target.value)}
-                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Enter emergency contact phone"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Medical Information */}
-              <div>
-                <h3 className="text-lg font-medium text-white mb-4">Medical Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Blood Type</label>
-                    <select
-                      value={admissionFormData.blood_type}
-                      onChange={(e) => handleAdmissionFormChange('blood_type', e.target.value)}
-                      className="w-full px-3 py-3 sm:py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base sm:text-sm"
-                    >
-                      <option value="">Select blood type</option>
-                      <option value="A+">A+</option>
-                      <option value="A-">A-</option>
-                      <option value="B+">B+</option>
-                      <option value="B-">B-</option>
-                      <option value="AB+">AB+</option>
-                      <option value="AB-">AB-</option>
-                      <option value="O+">O+</option>
-                      <option value="O-">O-</option>
-                    </select>
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Allergies</label>
-                    <textarea
-                      value={admissionFormData.allergies}
-                      onChange={(e) => handleAdmissionFormChange('allergies', e.target.value)}
-                      rows="3"
-                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="List any known allergies (medications, food, environmental, etc.)"
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Medical History</label>
-                    <textarea
-                      value={admissionFormData.medical_history}
-                      onChange={(e) => handleAdmissionFormChange('medical_history', e.target.value)}
-                      rows="4"
-                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Enter relevant medical history, previous conditions, surgeries, etc."
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="border-t border-gray-700 px-4 sm:px-6 py-4 flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3">
-              <button
-                onClick={closePatientAdmissionForm}
-                disabled={isSubmittingAdmission}
-                className="px-4 py-3 sm:py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50 text-base sm:text-sm"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={submitPatientAdmission}
-                disabled={isSubmittingAdmission}
-                className="px-6 py-3 sm:py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-base sm:text-sm"
-              >
-                {isSubmittingAdmission ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Admitting Patient...</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="w-4 h-4" />
-                    <span>Admit Patient</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Department Creation Form Popup */}
-      {showDepartmentForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            {/* Header */}
-            <div className="border-b border-gray-700 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-white">Department Creation Form</h2>
-                <button
-                  onClick={closeDepartmentForm}
-                  className="text-gray-400 hover:text-white"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-
-            {/* Form Content */}
-            <div className="px-6 py-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Basic Information */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-medium text-white border-b border-gray-700 pb-2">
-                    Department Information
-                  </h3>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Department Name *
-                    </label>
-                    <input
-                      type="text"
-                      value={departmentFormData.name}
-                      onChange={(e) => handleDepartmentFormChange('name', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="e.g., Cardiology"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Description
-                    </label>
-                    <textarea
-                      value={departmentFormData.description}
-                      onChange={(e) => handleDepartmentFormChange('description', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      rows="3"
-                      placeholder="Department description and services"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Head Doctor
-                    </label>
-                    <select
-                      value={departmentFormData.head_doctor_id}
-                      onChange={(e) => handleDepartmentFormChange('head_doctor_id', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="">Select head doctor (optional)</option>
-                      {Array.isArray(userOptions) ? userOptions
-                        .filter(user => user.role === 'doctor' || user.role === 'admin')
-                        .map(user => (
-                          <option key={user.id} value={user.id}>
-                            {user.first_name} {user.last_name} ({user.username})
-                          </option>
-                        )) : []}
-                    </select>
-                    <p className="text-xs text-gray-400 mt-1">Choose who will head this department</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Floor Number
-                    </label>
-                    <input
-                      type="number"
-                      value={departmentFormData.floor_number}
-                      onChange={(e) => handleDepartmentFormChange('floor_number', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="e.g., 3"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <h3 className="text-lg font-medium text-white border-b border-gray-700 pb-2">
-                    Contact & Management
-                  </h3>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Phone
-                    </label>
-                    <input
-                      type="tel"
-                      value={departmentFormData.phone}
-                      onChange={(e) => handleDepartmentFormChange('phone', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Department phone number"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      value={departmentFormData.email}
-                      onChange={(e) => handleDepartmentFormChange('email', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="department@hospital.com"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
-              <button
-                onClick={closeDepartmentForm}
-                disabled={isSubmittingDepartment}
-                className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={submitDepartment}
-                disabled={isSubmittingDepartment}
-                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-              >
-                {isSubmittingDepartment ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Creating Department...</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="w-4 h-4" />
-                    <span>Create Department</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* User Creation Form Popup */}
-      {showUserForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="border-b border-gray-700 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-white">User Creation Form</h2>
-                <button onClick={closeUserForm} className="text-gray-400 hover:text-white">
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-            <div className="px-6 py-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Username *</label>
-                <input
-                  type="text"
-                  value={userFormData.username}
-                  onChange={(e) => handleUserFormChange('username', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Enter username"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Email *</label>
-                <input
-                  type="email"
-                  value={userFormData.email}
-                  onChange={(e) => handleUserFormChange('email', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Enter email"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">First Name *</label>
-                <input
-                  type="text"
-                  value={userFormData.first_name}
-                  onChange={(e) => handleUserFormChange('first_name', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Enter first name"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Last Name *</label>
-                <input
-                  type="text"
-                  value={userFormData.last_name}
-                  onChange={(e) => handleUserFormChange('last_name', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Enter last name"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Password Hash *</label>
-                <input
-                  type="password"
-                  value={userFormData.password_hash}
-                  onChange={(e) => handleUserFormChange('password_hash', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Enter password"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Role *</label>
-                <select
-                  value={userFormData.role}
-                  onChange={(e) => handleUserFormChange('role', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                >
-                  <option value="">Select role</option>
-                  <option value="admin">Admin</option>
-                  <option value="doctor">Doctor</option>
-                  <option value="nurse">Nurse</option>
-                  <option value="staff">Staff</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Phone</label>
-                <input
-                  type="tel"
-                  value={userFormData.phone}
-                  onChange={(e) => handleUserFormChange('phone', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Enter phone number"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Active Status</label>
-                <select
-                  value={userFormData.is_active ? "true" : "false"}
-                  onChange={(e) => handleUserFormChange('is_active', e.target.value === "true")}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                >
-                  <option value="true">Active</option>
-                  <option value="false">Inactive</option>
-                </select>
-              </div>
-            </div>
-            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
-              <button onClick={closeUserForm} disabled={isSubmittingUser} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
-              <button onClick={submitUser} disabled={isSubmittingUser} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
-                {isSubmittingUser ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating User...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create User</span></>)}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Staff Creation Form Popup */}
-      {showStaffForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
-          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-3xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto mx-2 sm:mx-0">
-            <div className="border-b border-gray-700 px-4 sm:px-6 py-3 sm:py-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg sm:text-xl font-semibold text-white">Staff Creation Form</h2>
-                <button onClick={closeStaffForm} className="text-gray-400 hover:text-white p-1">
-                  <X className="w-5 h-5 sm:w-6 sm:h-6" />
-                </button>
-              </div>
-            </div>
-            <div className="px-4 sm:px-6 py-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Select User *</label>
-                    <select
-                      value={staffFormData.user_id}
-                      onChange={(e) => handleStaffFormChange('user_id', e.target.value)}
-                      className="w-full px-3 py-3 sm:py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500 text-base sm:text-sm"
-                      disabled={loadingDropdowns}
-                    >
-                      <option value="">
-                        {loadingDropdowns ? 'Loading users...' : 'Select a user'}
-                      </option>
-                      {Array.isArray(userOptions) ? userOptions.map(user => (
-                        <option key={user.id} value={user.id}>
-                          {user.first_name} {user.last_name} ({user.username}) - {user.role}
-                        </option>
-                      )) : []}
-                    </select>
-                    <p className="text-xs text-gray-400 mt-1">Choose which user this staff record belongs to</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Employee ID *</label>
-                    <input
-                      type="text"
-                      value={staffFormData.employee_id}
-                      onChange={(e) => handleStaffFormChange('employee_id', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Employee ID (e.g., EMP001)"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Select Department *</label>
-                    <select
-                      value={staffFormData.department_id}
-                      onChange={(e) => handleStaffFormChange('department_id', e.target.value)}
-                      className="w-full px-3 py-3 sm:py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500 text-base sm:text-sm"
-                    >
-                      <option value="">Select a department</option>
-                      {Array.isArray(departmentOptions) ? departmentOptions.map(dept => (
-                        <option key={dept.id} value={dept.id}>
-                          {dept.name} (Floor {dept.floor_number || 'N/A'})
-                        </option>
-                      )) : []}
-                    </select>
-                    <p className="text-xs text-gray-400 mt-1">Choose which department this staff member works in</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Position *</label>
-                    <select
-                      value={staffFormData.position}
-                      onChange={(e) => handleStaffFormChange('position', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="">Select position</option>
-                      <option value="Doctor">Doctor</option>
-                      <option value="Nurse">Nurse</option>
-                      <option value="Physician Assistant">Physician Assistant</option>
-                      <option value="Medical Technician">Medical Technician</option>
-                      <option value="Radiologist">Radiologist</option>
-                      <option value="Pharmacist">Pharmacist</option>
-                      <option value="Lab Technician">Lab Technician</option>
-                      <option value="Receptionist">Receptionist</option>
-                      <option value="Administrator">Administrator</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Specialization</label>
-                    <input
-                      type="text"
-                      value={staffFormData.specialization}
-                      onChange={(e) => handleStaffFormChange('specialization', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Medical specialization"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">License Number</label>
-                    <input
-                      type="text"
-                      value={staffFormData.license_number}
-                      onChange={(e) => handleStaffFormChange('license_number', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Professional license number"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Hire Date *</label>
-                    <input
-                      type="date"
-                      value={staffFormData.hire_date}
-                      onChange={(e) => handleStaffFormChange('hire_date', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Salary</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={staffFormData.salary}
-                      onChange={(e) => handleStaffFormChange('salary', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Annual salary"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Shift Pattern</label>
-                    <select
-                      value={staffFormData.shift_pattern}
-                      onChange={(e) => handleStaffFormChange('shift_pattern', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="">Select shift pattern</option>
-                      <option value="day">Day</option>
-                      <option value="night">Night</option>
-                      <option value="rotating">Rotating</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Status</label>
-                    <select
-                      value={staffFormData.status}
-                      onChange={(e) => handleStaffFormChange('status', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="active">Active</option>
-                      <option value="inactive">Inactive</option>
-                      <option value="on_leave">On Leave</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="border-t border-gray-700 px-4 sm:px-6 py-4 flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3">
-              <button 
-                onClick={closeStaffForm} 
-                disabled={isSubmittingStaff} 
-                className="px-4 py-3 sm:py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50 text-base sm:text-sm"
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={submitStaff} 
-                disabled={isSubmittingStaff} 
-                className="px-6 py-3 sm:py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-base sm:text-sm"
-              >
-                {isSubmittingStaff ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating Staff...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create Staff</span></>)}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Room Creation Form Popup */}
-      {showRoomForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="border-b border-gray-700 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-white">Room Creation Form</h2>
-                <button onClick={closeRoomForm} className="text-gray-400 hover:text-white">
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-            <div className="px-6 py-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Room Number *</label>
-                <input
-                  type="text"
-                  value={roomFormData.room_number}
-                  onChange={(e) => handleRoomFormChange('room_number', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="e.g., R101"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Room Type *</label>
-                <select
-                  value={roomFormData.room_type}
-                  onChange={(e) => handleRoomFormChange('room_type', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                >
-                  <option value="">Select room type</option>
-                  <option value="patient">Patient Room</option>
-                  <option value="icu">ICU</option>
-                  <option value="operation">Operation Theater</option>
-                  <option value="emergency">Emergency Room</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Capacity</label>
-                <input
-                  type="number"
-                  value={roomFormData.capacity}
-                  onChange={(e) => handleRoomFormChange('capacity', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Number of beds"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Select Department *</label>
-                <select
-                  value={roomFormData.department_id}
-                  onChange={(e) => handleRoomFormChange('department_id', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                >
-                  <option value="">Select a department</option>
-                  {Array.isArray(departmentOptions) ? departmentOptions.map(dept => (
-                    <option key={dept.id} value={dept.id}>
-                      {dept.name} (Floor {dept.floor_number || 'N/A'})
-                    </option>
-                  )) : []}
-                </select>
-                <p className="text-xs text-gray-400 mt-1">Choose which department this room belongs to</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Floor Number</label>
-                <input
-                  type="number"
-                  value={roomFormData.floor_number}
-                  onChange={(e) => handleRoomFormChange('floor_number', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Floor number"
-                />
-              </div>
-            </div>
-            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
-              <button onClick={closeRoomForm} disabled={isSubmittingRoom} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
-              <button onClick={submitRoom} disabled={isSubmittingRoom} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
-                {isSubmittingRoom ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating Room...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create Room</span></>)}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Bed Creation Form Popup */}
-      {showBedForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="border-b border-gray-700 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-white">Bed Creation Form</h2>
-                <button onClick={closeBedForm} className="text-gray-400 hover:text-white">
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-            <div className="px-6 py-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Bed Number *</label>
-                <input
-                  type="text"
-                  value={bedFormData.bed_number}
-                  onChange={(e) => handleBedFormChange('bed_number', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="e.g., B101"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Select Room *</label>
-                <select
-                  value={bedFormData.room_id}
-                  onChange={(e) => handleBedFormChange('room_id', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                  onFocus={() => console.log('🚪 Room dropdown focused. Available rooms:', roomOptions)}
-                >
-                  <option value="">Select a room ({roomOptions?.length || 0} available)</option>
-                  {Array.isArray(roomOptions) ? roomOptions.map(room => (
-                    <option key={room.id} value={room.id}>
-                      Room {room.room_number} ({room.room_type}) - Floor {room.floor_number || 'N/A'}
-                    </option>
-                  )) : []}
-                </select>
-                <p className="text-xs text-gray-400 mt-1">Choose which room this bed will be placed in</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Bed Type</label>
-                <select
-                  value={bedFormData.bed_type}
-                  onChange={(e) => handleBedFormChange('bed_type', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                >
-                  <option value="">Select bed type</option>
-                  <option value="standard">Standard</option>
-                  <option value="icu">ICU</option>
-                  <option value="pediatric">Pediatric</option>
-                  <option value="maternity">Maternity</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Status</label>
-                <select
-                  value={bedFormData.status}
-                  onChange={(e) => handleBedFormChange('status', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                >
-                  <option value="">Select status</option>
-                  <option value="available">Available</option>
-                  <option value="occupied">Occupied</option>
-                  <option value="maintenance">Maintenance</option>
-                  <option value="reserved">Reserved</option>
-                </select>
-              </div>
-            </div>
-            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
-              <button onClick={closeBedForm} disabled={isSubmittingBed} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
-              <button onClick={submitBed} disabled={isSubmittingBed} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
-                {isSubmittingBed ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating Bed...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create Bed</span></>)}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Equipment Creation Form Popup */}
-      {showEquipmentForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-            <div className="border-b border-gray-700 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-white">Equipment Creation Form</h2>
-                <button onClick={closeEquipmentForm} className="text-gray-400 hover:text-white">
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-            <div className="px-6 py-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Equipment ID * 
-                      <span className="text-xs text-gray-400">(e.g., EQ001, EQ002)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={equipmentFormData.equipment_id}
-                      onChange={(e) => handleEquipmentFormChange('equipment_id', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="EQ001"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Equipment Name *</label>
-                    <input
-                      type="text"
-                      value={equipmentFormData.name}
-                      onChange={(e) => handleEquipmentFormChange('name', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="e.g., X-Ray Machine"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Select Equipment Category *</label>
-                    <select
-                      value={equipmentFormData.category_id}
-                      onChange={(e) => handleEquipmentFormChange('category_id', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="">Select a category</option>
-                      {Array.isArray(equipmentCategoryOptions) ? equipmentCategoryOptions.map(category => (
-                        <option key={category.id} value={category.id}>
-                          {category.name}
-                        </option>
-                      )) : []}
-                    </select>
-                    <p className="text-xs text-gray-400 mt-1">Choose the equipment category</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Serial Number</label>
-                    <input
-                      type="text"
-                      value={equipmentFormData.serial_number}
-                      onChange={(e) => handleEquipmentFormChange('serial_number', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Equipment serial number"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Model</label>
-                    <input
-                      type="text"
-                      value={equipmentFormData.model}
-                      onChange={(e) => handleEquipmentFormChange('model', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Equipment model"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Purchase Date</label>
-                    <input
-                      type="date"
-                      value={equipmentFormData.purchase_date}
-                      onChange={(e) => handleEquipmentFormChange('purchase_date', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Location</label>
-                    <input
-                      type="text"
-                      value={equipmentFormData.location}
-                      onChange={(e) => handleEquipmentFormChange('location', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Equipment location"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Manufacturer</label>
-                    <input
-                      type="text"
-                      value={equipmentFormData.manufacturer}
-                      onChange={(e) => handleEquipmentFormChange('manufacturer', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Manufacturer name"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Warranty Expiry</label>
-                    <input
-                      type="date"
-                      value={equipmentFormData.warranty_expiry}
-                      onChange={(e) => handleEquipmentFormChange('warranty_expiry', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Status</label>
-                    <select
-                      value={equipmentFormData.status}
-                      onChange={(e) => handleEquipmentFormChange('status', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="">Select status</option>
-                      <option value="operational">Operational</option>
-                      <option value="maintenance">Maintenance</option>
-                      <option value="out_of_order">Out of Order</option>
-                      <option value="retired">Retired</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Price</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={equipmentFormData.price}
-                      onChange={(e) => handleEquipmentFormChange('price', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Purchase price"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Select Department</label>
-                    <select
-                      value={equipmentFormData.department_id}
-                      onChange={(e) => handleEquipmentFormChange('department_id', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="">Select a department (optional)</option>
-                      {Array.isArray(departmentOptions) ? departmentOptions.map(dept => (
-                        <option key={dept.id} value={dept.id}>
-                          {dept.name} (Floor {dept.floor_number || 'N/A'})
-                        </option>
-                      )) : []}
-                    </select>
-                    <p className="text-xs text-gray-400 mt-1">Choose which department will use this equipment</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Last Maintenance</label>
-                    <input
-                      type="date"
-                      value={equipmentFormData.last_maintenance}
-                      onChange={(e) => handleEquipmentFormChange('last_maintenance', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Next Maintenance</label>
-                    <input
-                      type="date"
-                      value={equipmentFormData.next_maintenance}
-                      onChange={(e) => handleEquipmentFormChange('next_maintenance', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Notes</label>
-                    <textarea
-                      value={equipmentFormData.notes}
-                      onChange={(e) => handleEquipmentFormChange('notes', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      rows="3"
-                      placeholder="Additional notes"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
-              <button onClick={closeEquipmentForm} disabled={isSubmittingEquipment} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
-              <button onClick={submitEquipment} disabled={isSubmittingEquipment} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
-                {isSubmittingEquipment ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating Equipment...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create Equipment</span></>)}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Supply Creation Form Popup */}
-      {showSupplyForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-            <div className="border-b border-gray-700 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-white">Supply Creation Form</h2>
-                <button onClick={closeSupplyForm} className="text-gray-400 hover:text-white">
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-            <div className="px-6 py-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Item Code * 
-                      <span className="text-xs text-gray-400">(e.g., SUP001, MED001)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={supplyFormData.item_code}
-                      onChange={(e) => handleSupplyFormChange('item_code', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="SUP001"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Supply Name *</label>
-                    <input
-                      type="text"
-                      value={supplyFormData.name}
-                      onChange={(e) => handleSupplyFormChange('name', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="e.g., Surgical Gloves"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Select Supply Category *</label>
-                    <select
-                      value={supplyFormData.category_id}
-                      onChange={(e) => handleSupplyFormChange('category_id', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="">Select a category</option>
-                      {Array.isArray(supplyCategoryOptions) ? supplyCategoryOptions.map(category => (
-                        <option key={category.id} value={category.id}>
-                          {category.name}
-                        </option>
-                      )) : []}
-                    </select>
-                    <p className="text-xs text-gray-400 mt-1">Choose the supply category</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Current Stock</label>
-                    <input
-                      type="number"
-                      value={supplyFormData.current_stock}
-                      onChange={(e) => handleSupplyFormChange('current_stock', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Current stock quantity"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Minimum Stock Level</label>
-                    <input
-                      type="number"
-                      value={supplyFormData.minimum_stock_level}
-                      onChange={(e) => handleSupplyFormChange('minimum_stock_level', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Minimum stock level"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Unit of Measure *</label>
-                    <input
-                      type="text"
-                      value={supplyFormData.unit_of_measure}
-                      onChange={(e) => handleSupplyFormChange('unit_of_measure', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="e.g., pieces, boxes, liters"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Supplier</label>
-                    <input
-                      type="text"
-                      value={supplyFormData.supplier}
-                      onChange={(e) => handleSupplyFormChange('supplier', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Supplier name"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Unit Cost</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={supplyFormData.unit_cost}
-                      onChange={(e) => handleSupplyFormChange('unit_cost', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Cost per unit"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Expiry Date</label>
-                    <input
-                      type="date"
-                      value={supplyFormData.expiry_date}
-                      onChange={(e) => handleSupplyFormChange('expiry_date', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Maximum Stock Level</label>
-                    <input
-                      type="number"
-                      value={supplyFormData.maximum_stock_level}
-                      onChange={(e) => handleSupplyFormChange('maximum_stock_level', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Maximum stock level"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Location</label>
-                    <input
-                      type="text"
-                      value={supplyFormData.location}
-                      onChange={(e) => handleSupplyFormChange('location', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Storage location"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Description</label>
-                    <textarea
-                      value={supplyFormData.description}
-                      onChange={(e) => handleSupplyFormChange('description', e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                      placeholder="Supply description"
-                      rows="3"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
-              <button onClick={closeSupplyForm} disabled={isSubmittingSupply} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
-              <button onClick={submitSupply} disabled={isSubmittingSupply} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
-                {isSubmittingSupply ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating Supply...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create Supply</span></>)}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Legacy User Creation Form Popup */}
-      {showLegacyUserForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="border-b border-gray-700 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-white">Legacy User Creation Form</h2>
-                <button onClick={closeLegacyUserForm} className="text-gray-400 hover:text-white">
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-            <div className="px-6 py-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Name *</label>
-                <input
-                  type="text"
-                  value={legacyUserFormData.name}
-                  onChange={(e) => handleLegacyUserFormChange('name', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Enter full name"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Email *</label>
-                <input
-                  type="email"
-                  value={legacyUserFormData.email}
-                  onChange={(e) => handleLegacyUserFormChange('email', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Enter email address"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Address *</label>
-                <textarea
-                  value={legacyUserFormData.address}
-                  onChange={(e) => handleLegacyUserFormChange('address', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Enter full address"
-                  rows="3"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Phone *</label>
-                <input
-                  type="tel"
-                  value={legacyUserFormData.phone}
-                  onChange={(e) => handleLegacyUserFormChange('phone', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Enter phone number"
-                />
-              </div>
-            </div>
-            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
-              <button onClick={closeLegacyUserForm} disabled={isSubmittingLegacyUser} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
-              <button onClick={submitLegacyUser} disabled={isSubmittingLegacyUser} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
-                {isSubmittingLegacyUser ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating Legacy User...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create Legacy User</span></>)}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Equipment Category Creation Form Popup */}
-      {showEquipmentCategoryForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-xl max-h-[90vh] overflow-y-auto">
-            <div className="border-b border-gray-700 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-white">Equipment Category Creation</h2>
-                <button onClick={closeEquipmentCategoryForm} className="text-gray-400 hover:text-white">
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-            <div className="px-6 py-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Category Name *</label>
-                <input
-                  type="text"
-                  value={equipmentCategoryFormData.name}
-                  onChange={(e) => handleEquipmentCategoryFormChange('name', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="e.g., Diagnostic Equipment, Surgical Instruments"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Description (Optional)</label>
-                <textarea
-                  value={equipmentCategoryFormData.description}
-                  onChange={(e) => handleEquipmentCategoryFormChange('description', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Brief description of this category"
-                  rows="3"
-                />
-              </div>
-            </div>
-            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
-              <button onClick={closeEquipmentCategoryForm} disabled={isSubmittingEquipmentCategory} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
-              <button onClick={submitEquipmentCategory} disabled={isSubmittingEquipmentCategory} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
-                {isSubmittingEquipmentCategory ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating Category...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create Category</span></>)}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Equipment Category Creation Form Component */}
+      <EquipmentCategoryCreationForm
+        isOpen={showEquipmentCategoryForm}
+        onClose={closeEquipmentCategoryForm}
+        onSubmit={handleEquipmentCategorySubmit}
+        isSubmitting={isSubmittingEquipmentCategory}
+        aiMcpServiceRef={aiMcpServiceRef}
+        onCategoryCreated={loadDropdownOptions}
+      />
 
       {/* Supply Category Creation Form Popup */}
-      {showSupplyCategoryForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#2a2a2a] rounded-lg w-full max-w-xl max-h-[90vh] overflow-y-auto">
-            <div className="border-b border-gray-700 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-white">Supply Category Creation</h2>
-                <button onClick={closeSupplyCategoryForm} className="text-gray-400 hover:text-white">
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-            <div className="px-6 py-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Category Name *</label>
-                <input
-                  type="text"
-                  value={supplyCategoryFormData.name}
-                  onChange={(e) => handleSupplyCategoryFormChange('name', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="e.g., Medications, Surgical Supplies"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Description (Optional)</label>
-                <textarea
-                  value={supplyCategoryFormData.description}
-                  onChange={(e) => handleSupplyCategoryFormChange('description', e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="Brief description of this category"
-                  rows="3"
-                />
-              </div>
-            </div>
-            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3">
-              <button onClick={closeSupplyCategoryForm} disabled={isSubmittingSupplyCategory} className="px-4 py-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50">Cancel</button>
-              <button onClick={submitSupplyCategory} disabled={isSubmittingSupplyCategory} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2">
-                {isSubmittingSupplyCategory ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /><span>Creating Category...</span></>) : (<><CheckCircle className="w-4 h-4" /><span>Create Category</span></>)}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <SupplyCategoryCreationForm
+        isOpen={showSupplyCategoryForm}
+        onClose={closeSupplyCategoryForm}
+        onCategoryCreated={handleSupplyCategorySubmit}
+        aiMcpServiceRef={aiMcpServiceRef}
+      />
 
       {/* Discharge Workflow Form Popup */}
       {showDischargeForm && (
@@ -5657,7 +3199,7 @@ ${dischargeData.next_steps ? dischargeData.next_steps.map(step => `• ${step}`)
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };
 

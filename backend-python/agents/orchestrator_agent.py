@@ -19,6 +19,7 @@ try:
     from .medical_document_agent import MedicalDocumentAgent
     from .meeting_agent import MeetingAgent  # NEW
     from .discharge_agent import DischargeAgent  # NEW
+    from .patient_supply_usage_agent import PatientSupplyUsageAgent  # NEW
     AGENTS_AVAILABLE = True
 except ImportError:
     AGENTS_AVAILABLE = False
@@ -52,6 +53,7 @@ class OrchestratorAgent(BaseAgent):
                 "medical_document": MedicalDocumentAgent(),
                 "meeting": MeetingAgent(),  # NEW
                 "discharge": DischargeAgent(),  # NEW
+                "patient_supply_usage": PatientSupplyUsageAgent(),  # NEW
             }
             print(f"✅ Initialized {len(self.agents)} specialized agents")
         except Exception as e:
@@ -75,6 +77,62 @@ class OrchestratorAgent(BaseAgent):
             all_tools.extend(agent.get_tools())
         
         return all_tools
+    
+    def get_tools_with_descriptions(self) -> Dict[str, str]:
+        """Return dict of all tools with their descriptions from all agents"""
+        tools_with_descriptions = {
+            "get_system_status": "Get comprehensive system status from all agents",
+            "route_request": "Route a request to the appropriate agent",
+            "execute_workflow": "Execute a complex workflow across multiple agents",
+            "get_agent_info": "Get information about a specific agent"
+        }
+        
+        for agent_name, agent in self.agents.items():
+            for tool_name in agent.get_tools():
+                # Get the method from the agent
+                if hasattr(agent, tool_name):
+                    method = getattr(agent, tool_name)
+                    # Extract description from docstring
+                    description = "Multi-agent tool"
+                    if hasattr(method, '__doc__') and method.__doc__:
+                        # Get first line of docstring as description
+                        doc_lines = method.__doc__.strip().split('\n')
+                        if doc_lines:
+                            description = doc_lines[0].strip()
+                    tools_with_descriptions[tool_name] = description
+                else:
+                    tools_with_descriptions[tool_name] = f"Multi-agent tool: {tool_name}"
+        
+        return tools_with_descriptions
+    
+    def get_tools_with_descriptions(self) -> Dict[str, str]:
+        """Return tools with their descriptions from docstrings"""
+        import inspect
+        tools_with_descriptions = {}
+        
+        # Add orchestrator-specific tools
+        orchestrator_tools = {
+            "get_system_status": "Get comprehensive system status from all agents",
+            "route_request": "Route requests to appropriate agents",
+            "execute_workflow": "Execute multi-step workflows across agents",
+            "get_agent_info": "Get information about available agents"
+        }
+        tools_with_descriptions.update(orchestrator_tools)
+        
+        # Get tools from all agents with their docstrings
+        for agent_name, agent in self.agents.items():
+            for tool_name in agent.get_tools():
+                if hasattr(agent, tool_name):
+                    method = getattr(agent, tool_name)
+                    doc = inspect.getdoc(method)
+                    if doc:
+                        # Extract first line or first paragraph as description
+                        description = doc.split('\n\n')[0].replace('\n', ' ').strip()
+                        tools_with_descriptions[tool_name] = description
+                    else:
+                        tools_with_descriptions[tool_name] = f"{agent_name.title()} agent tool: {tool_name}"
+        
+        return tools_with_descriptions
     
     def get_capabilities(self) -> List[str]:
         """Return list of orchestrator capabilities"""
