@@ -82,7 +82,8 @@ const HospitalChatInterface = ({
         const keyboardHeight = windowHeight - viewportHeight;
         
         setViewportHeight(viewportHeight);
-        setIsKeyboardOpen(keyboardHeight > 150); // Threshold for keyboard detection
+        // Only consider keyboard open if significant height difference AND input is focused
+        setIsKeyboardOpen(keyboardHeight > 200 && inputFocused);
       } else {
         // Fallback for browsers without visualViewport API
         const handleResize = () => {
@@ -91,7 +92,7 @@ const HospitalChatInterface = ({
           const heightDifference = initialHeight - currentHeight;
           
           setViewportHeight(currentHeight);
-          setIsKeyboardOpen(heightDifference > 150);
+          setIsKeyboardOpen(heightDifference > 200 && inputFocused);
         };
         
         window.addEventListener('resize', handleResize);
@@ -106,34 +107,31 @@ const HospitalChatInterface = ({
       window.visualViewport.addEventListener('resize', handleViewportChange);
       return () => window.visualViewport.removeEventListener('resize', handleViewportChange);
     }
-  }, []);
+  }, [inputFocused]); // Add inputFocused as dependency
 
   // Handle input focus for mobile
   const handleInputFocus = () => {
     setInputFocused(true);
     
-    // Small delay to allow keyboard animation
-    setTimeout(() => {
-      // Scroll to bottom to ensure input is visible
-      messagesEndRef.current?.scrollIntoView({ 
-        behavior: 'smooth',
-        block: 'end'
-      });
-    }, 300);
-    
-    // Additional scroll after keyboard fully appears
-    setTimeout(() => {
-      if (window.visualViewport) {
+    // Only adjust on mobile devices
+    if (window.innerWidth <= 768) {
+      // Small delay to allow keyboard animation
+      setTimeout(() => {
+        // Gentle scroll to keep input visible
         messagesEndRef.current?.scrollIntoView({ 
           behavior: 'smooth',
-          block: 'end'
+          block: 'nearest' // Less aggressive scrolling
         });
-      }
-    }, 600);
+      }, 200);
+    }
   };
 
   const handleInputBlur = () => {
     setInputFocused(false);
+    // Reset keyboard state when input loses focus
+    setTimeout(() => {
+      setIsKeyboardOpen(false);
+    }, 100);
   };
 
   // Handle message send to properly manage focus and keyboard
@@ -824,19 +822,30 @@ const HospitalChatInterface = ({
           }
           
           .keyboard-active .keyboard-visible {
-            /* Move input area up when keyboard is visible */
-            transform: translateY(-40vh);
+            /* Move input area up moderately when keyboard is visible */
+            transform: translateY(-25vh);
           }
           
           /* Ensure content can scroll properly */
           .keyboard-active .messages-container {
-            padding-bottom: 50vh;
+            padding-bottom: 35vh;
           }
           
           /* Smooth transitions */
           .keyboard-active,
           .keyboard-visible {
             transition: all 0.3s ease-in-out;
+          }
+        }
+        
+        /* For smaller screens, reduce the movement even more */
+        @media (max-width: 768px) and (max-height: 600px) and (pointer: coarse) {
+          .keyboard-active .keyboard-visible {
+            transform: translateY(-20vh);
+          }
+          
+          .keyboard-active .messages-container {
+            padding-bottom: 25vh;
           }
         }
         
