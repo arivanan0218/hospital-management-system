@@ -139,9 +139,20 @@ const HospitalChatInterface = ({
             <div className="min-w-0 flex-1">
               <h1 className="text-sm font-medium text-white truncate">Hospital Agent</h1>
               {serverInfo && (
-                <p className="text-xs text-gray-400 hidden sm:block">
-                  Connected • {serverInfo.toolCount} tools • {aiMcpServiceRef.current?.getConversationSummary?.()?.messageCount || 0} messages in memory
-                </p>
+                <div className="text-xs text-gray-400">
+                  {/* Desktop version - detailed */}
+                  <div className="hidden sm:block">
+                    <p className="mb-1">
+                      Connected • {serverInfo.toolCount || 0} tools • {serverInfo.agentCount || 0} agents • {aiMcpServiceRef.current?.getConversationSummary?.()?.messageCount || 0} messages in memory
+                    </p>
+                  </div>
+                  {/* Mobile version - compact */}
+                  <div className="block sm:hidden">
+                    <p>
+                      {serverInfo.toolCount || 0} tools • {serverInfo.agentCount || 0} agents
+                    </p>
+                  </div>
+                </div>
               )}
             </div>
           </div>

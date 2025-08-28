@@ -1368,39 +1368,178 @@ Examples:
         return; // Exit early for popup forms
       }
       
+  /**
+   * Get agent information for a specific tool
+   */
+  const getAgentForTool = (toolName) => {
+    if (!aiMcpServiceRef.current?.mcpClient?.getAgents) return null;
+    
+    const agents = aiMcpServiceRef.current.mcpClient.getAgents();
+    
+    // Tool to agent mapping based on the backend multi-agent system
+    const toolToAgentMap = {
+      // User Management Agent tools
+      'create_user': 'User Management Agent',
+      'get_user_by_id': 'User Management Agent',
+      'update_user': 'User Management Agent',
+      'delete_user': 'User Management Agent',
+      'list_users': 'User Management Agent',
+      'search_users': 'User Management Agent',
+      'create_legacy_user': 'User Management Agent',
+      
+      // Department Management Agent tools
+      'create_department': 'Department Management Agent',
+      'get_department_by_id': 'Department Management Agent',
+      'update_department': 'Department Management Agent',
+      'delete_department': 'Department Management Agent',
+      'list_departments': 'Department Management Agent',
+      
+      // Patient Management Agent tools
+      'create_patient': 'Patient Management Agent',
+      'get_patient_by_id': 'Patient Management Agent',
+      'update_patient': 'Patient Management Agent',
+      'delete_patient': 'Patient Management Agent',
+      'list_patients': 'Patient Management Agent',
+      'search_patients': 'Patient Management Agent',
+      'get_patient_by_number': 'Patient Management Agent',
+      
+      // Room & Bed Management Agent tools
+      'create_room': 'Room & Bed Management Agent',
+      'get_room_by_id': 'Room & Bed Management Agent',
+      'update_room': 'Room & Bed Management Agent',
+      'delete_room': 'Room & Bed Management Agent',
+      'list_rooms': 'Room & Bed Management Agent',
+      'create_bed': 'Room & Bed Management Agent',
+      'get_bed_by_id': 'Room & Bed Management Agent',
+      'update_bed': 'Room & Bed Management Agent',
+      'list_beds': 'Room & Bed Management Agent',
+      'assign_bed_to_patient': 'Room & Bed Management Agent',
+      'get_bed_status_with_time_remaining': 'Room & Bed Management Agent',
+      'discharge_patient_complete': 'Room & Bed Management Agent',
+      
+      // Staff Management Agent tools
+      'create_staff': 'Staff Management Agent',
+      'get_staff_by_id': 'Staff Management Agent',
+      'update_staff': 'Staff Management Agent',
+      'delete_staff': 'Staff Management Agent',
+      'list_staff': 'Staff Management Agent',
+      'search_staff': 'Staff Management Agent',
+      'assign_staff_to_patient': 'Staff Management Agent',
+      
+      // Equipment Management Agent tools
+      'create_equipment': 'Equipment Management Agent',
+      'get_equipment_by_id': 'Equipment Management Agent',
+      'update_equipment': 'Equipment Management Agent',
+      'delete_equipment': 'Equipment Management Agent',
+      'list_equipment': 'Equipment Management Agent',
+      'search_equipment': 'Equipment Management Agent',
+      'create_equipment_category': 'Equipment Management Agent',
+      'list_equipment_categories': 'Equipment Management Agent',
+      'add_equipment_usage_by_codes': 'Equipment Management Agent',
+      'list_equipment_usage': 'Equipment Management Agent',
+      
+      // Inventory Management Agent tools
+      'create_supply': 'Inventory Management Agent',
+      'get_supply_by_id': 'Inventory Management Agent',
+      'update_supply': 'Inventory Management Agent',
+      'delete_supply': 'Inventory Management Agent',
+      'list_supplies': 'Inventory Management Agent',
+      'search_supplies': 'Inventory Management Agent',
+      'create_supply_category': 'Inventory Management Agent',
+      'list_supply_categories': 'Inventory Management Agent',
+      'add_supply_usage_by_codes': 'Inventory Management Agent',
+      'list_supply_usage': 'Inventory Management Agent',
+      'update_supply_stock': 'Inventory Management Agent',
+      
+      // Meeting Scheduling Agent tools
+      'schedule_meeting': 'Meeting Scheduling Agent',
+      'list_meetings': 'Meeting Scheduling Agent',
+      'update_meeting': 'Meeting Scheduling Agent',
+      'cancel_meeting': 'Meeting Scheduling Agent',
+      'get_meeting_by_id': 'Meeting Scheduling Agent',
+      'search_meetings': 'Meeting Scheduling Agent',
+      
+      // Medical Document Agent tools
+      'upload_document': 'Medical Document Agent',
+      'get_document_by_id': 'Medical Document Agent',
+      'list_documents': 'Medical Document Agent',
+      'search_documents': 'Medical Document Agent',
+      'update_document': 'Medical Document Agent',
+      'delete_document': 'Medical Document Agent',
+      'extract_medical_entities': 'Medical Document Agent',
+      'summarize_document': 'Medical Document Agent',
+      'get_patient_documents': 'Medical Document Agent',
+      
+      // Discharge Report Agent tools
+      'generate_discharge_report': 'Discharge Report Agent',
+      'get_discharge_report': 'Discharge Report Agent',
+      'list_discharge_reports': 'Discharge Report Agent',
+      'update_discharge_report': 'Discharge Report Agent',
+      'search_discharge_reports': 'Discharge Report Agent',
+      
+      // Patient Supply Usage Agent tools
+      'assign_supplies_to_patient': 'Patient Supply Usage Agent',
+      'get_patient_supply_usage': 'Patient Supply Usage Agent',
+      'list_patient_assignments': 'Patient Supply Usage Agent',
+      'update_patient_assignment': 'Patient Supply Usage Agent'
+    };
+    
+    const agentName = toolToAgentMap[toolName];
+    return agentName ? agents.find(agent => agent.name === agentName) : null;
+  };
+
       if (response.success) {
         // Show tool execution if tools were called
         if (response.functionCalls && response.functionCalls.length > 0) {
           response.functionCalls.forEach((call, index) => {
+            // Get agent information for this tool
+            const agent = getAgentForTool(call.function);
+            const agentPrefix = agent ? `👤 ${agent.name} ➤ ` : '🔧 ';
+            
             // Create contextual thinking message for each tool
             let thinkingText = '';
             switch (call.function) {
               case 'search_patients':
-                thinkingText = `Great! I found a patient named ${call.arguments?.first_name || 'the patient'}.`;
+                thinkingText = `${agentPrefix}Found a patient named ${call.arguments?.first_name || 'the patient'}.`;
                 break;
               case 'list_patients':
-                thinkingText = 'I can see the patient registry with all available patients.';
+                thinkingText = `${agentPrefix}Retrieved patient registry with all available patients.`;
                 break;
               case 'list_beds':
-                thinkingText = "Identified patient's bed assignment and prepared overview.";
+                thinkingText = `${agentPrefix}Checked bed assignments and availability status.`;
                 break;
               case 'list_departments':
-                thinkingText = 'I can see all hospital departments and their information.';
+                thinkingText = `${agentPrefix}Retrieved all hospital departments and their information.`;
                 break;
               case 'list_staff':
-                thinkingText = 'I can see the hospital staff directory.';
+                thinkingText = `${agentPrefix}Retrieved hospital staff directory.`;
                 break;
               case 'get_patient_by_id':
-                thinkingText = `Found detailed information for patient ${call.arguments?.patient_id || 'ID'}.`;
+                thinkingText = `${agentPrefix}Found detailed information for patient ${call.arguments?.patient_id || 'ID'}.`;
                 break;
               case 'get_staff_by_id':
-                thinkingText = `Located staff member ${call.arguments?.staff_id || 'information'}.`;
+                thinkingText = `${agentPrefix}Located staff member ${call.arguments?.staff_id || 'information'}.`;
                 break;
               case 'create_patient':
-                thinkingText = 'Successfully created new patient record.';
+                thinkingText = `${agentPrefix}Successfully created new patient record.`;
+                break;
+              case 'assign_bed_to_patient':
+                thinkingText = `${agentPrefix}Assigned bed to patient successfully.`;
+                break;
+              case 'list_equipment':
+                thinkingText = `${agentPrefix}Retrieved medical equipment inventory.`;
+                break;
+              case 'list_supplies':
+                thinkingText = `${agentPrefix}Retrieved medical supplies inventory.`;
+                break;
+              case 'schedule_meeting':
+                thinkingText = `${agentPrefix}Scheduled meeting successfully.`;
+                break;
+              case 'discharge_patient_complete':
+                thinkingText = `${agentPrefix}Processing complete patient discharge workflow.`;
                 break;
               default:
-                thinkingText = `Executed ${call.function.replace(/_/g, ' ')} successfully.`;
+                thinkingText = `${agentPrefix}Executed ${call.function.replace(/_/g, ' ')} successfully.`;
             }
 
             const toolMessage = {
