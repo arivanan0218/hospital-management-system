@@ -12,6 +12,7 @@ class DirectHttpMCPClient {
     this.isConnected = false;
     this.serverInfo = {};
     this.tools = [];
+    this.agents = [];
     this.pendingRequests = new Map();
     this.requestId = 0;
     
@@ -52,16 +53,22 @@ class DirectHttpMCPClient {
       console.log('2. Loading available tools...');
       await this.loadTools();
       
+      // Load agents
+      console.log('3. Loading available agents...');
+      await this.loadAgents();
+      
       this.serverInfo = {
         name: "hospital-management-system",
         url: this.serverUrl,
         toolCount: this.tools.length,
+        agentCount: this.agents.length,
         version: "1.0.0",
         transport: "http"
       };
       
       console.log('✅ Connected to FastMCP server:', this.serverInfo);
       console.log(`📋 Loaded ${this.tools.length} tools`);
+      console.log(`👥 Loaded ${this.agents.length} agents`);
       
       return true;
       
@@ -811,6 +818,51 @@ class DirectHttpMCPClient {
         }
       ];
     }
+  }
+
+  /**
+   * Load available agents from server
+   */
+  async loadAgents() {
+    try {
+      console.log('👥 Loading agents from backend...');
+      
+      const response = await this.callTool('list_agents', {});
+      console.log('👥 Raw agents response:', response);
+      
+      // Handle MCP response format - response.result.content[0].text contains JSON
+      let agentsData = null;
+      if (response.result && response.result.content && response.result.content[0] && response.result.content[0].text) {
+        try {
+          agentsData = JSON.parse(response.result.content[0].text);
+          console.log('👥 Parsed agents data:', agentsData);
+        } catch (parseError) {
+          console.warn('⚠️ Failed to parse agents JSON:', parseError);
+          agentsData = response;
+        }
+      } else {
+        agentsData = response;
+      }
+      
+      if (agentsData && agentsData.success && agentsData.agents) {
+        this.agents = agentsData.agents;
+        console.log(`✅ Loaded ${this.agents.length} agents from backend:`, this.agents);
+        return this.agents;
+      } else {
+        throw new Error('Invalid agents response format');
+      }
+    } catch (loadError) {
+      console.warn('⚠️ Failed to load agents from backend:', loadError.message);
+      this.agents = [];
+      return [];
+    }
+  }
+
+  /**
+   * Get available agents
+   */
+  getAgents() {
+    return this.agents || [];
   }
 
   /**

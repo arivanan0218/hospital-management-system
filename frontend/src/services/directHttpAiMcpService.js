@@ -271,6 +271,13 @@ class DirectHttpAIMCPService {
   }
 
   /**
+   * Get available agents information
+   */
+  getAgents() {
+    return this.mcpClient.getAgents();
+  }
+
+  /**
    * Expose add_equipment_usage_by_codes for direct tool calls
    */
   async addEquipmentUsageByCodes(args) {
@@ -531,10 +538,20 @@ class DirectHttpAIMCPService {
 
       // Get current status and tools
       const availableTools = this.getToolsForOpenAI();
+      const availableAgents = this.getAgents();
       const serverInfo = this.getServerInfo();
       
       console.log(`📋 Available tools: ${availableTools.length}`);
-      console.log(`💭 Conversation history length: ${this.conversationHistory.length}`);
+      console.log(`� Available agents: ${availableAgents.length}`);
+      console.log(`�💭 Conversation history length: ${this.conversationHistory.length}`);
+      
+      // Log agent details for visibility
+      if (availableAgents.length > 0) {
+        console.log('🤖 Active agents:');
+        availableAgents.forEach(agent => {
+          console.log(`  • ${agent.name} (${agent.tools_count} tools) - ${agent.description}`);
+        });
+      }
       
       // Check for specific emergency/contextual scenarios first (very limited cases)
       console.log('🔍 Checking for emergency scenarios...');
@@ -4196,10 +4213,14 @@ Respond naturally and helpfully based on the user's request and the tool results
       functions = [];
     }
     
+    // Get agent information
+    const availableAgents = this.getAgents();
+    
     // Debug logging
     console.log('🔍 callOpenAI called with:', { 
       userMessage: userMessage?.substring(0, 50) + '...', 
       functionsCount: functions?.length,
+      agentsCount: availableAgents?.length,
       hasServerInfo: !!serverInfo 
     });
     
@@ -4243,7 +4264,15 @@ Respond naturally and helpfully based on the user's request and the tool results
       "🏥 **Hospital System Context:**",
       "- Server: Direct HTTP FastMCP Server", 
       "- Available Tools: " + (functions ? functions.length : 0) + " medical management tools",
+      "- Active Agents: " + (availableAgents ? availableAgents.length : 0) + " specialized agents",
       "- Connection: Direct HTTP communication via MCP protocol",
+      "",
+      "**Specialized Agents:**",
+      availableAgents && availableAgents.length > 0 ? 
+        availableAgents.map(agent => 
+          `- ${agent.name}: ${agent.description} (${agent.tools_count} tools)`
+        ).join('\n') : 
+        "- No agents information available",
       "",
       "**CRITICAL: Form-Based CREATE Operations:**",
       "The system uses a DUAL APPROACH for operations:",
