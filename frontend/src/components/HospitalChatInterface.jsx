@@ -536,10 +536,23 @@ const HospitalChatInterface = ({
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
               onKeyDown={(e) => {
+                // Check if it's a mobile device
+                const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                                (window.innerWidth <= 768) || 
+                                ('ontouchstart' in window);
+                
                 if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSendMessage();
+                  if (isMobile) {
+                    // On mobile: Enter key creates new line, don't send message
+                    // Let the default behavior happen (new line)
+                    return;
+                  } else {
+                    // On desktop: Enter sends message, Shift+Enter creates new line
+                    e.preventDefault();
+                    handleSendMessage();
+                  }
                 }
+                // Shift+Enter always creates new line on both mobile and desktop
               }}
               onFocus={() => setShowActionButtons(true)}
               onBlur={() => {
