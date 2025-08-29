@@ -14,6 +14,62 @@ class DirectHttpAIMCPService {
     return now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   }
 
+  /**
+   * Detect short supply-usage messages and call backend tool directly to persist
+   * Returns the tool response when handled, or null when not applicable
+   */
+  async handleSupplyUsageShortcut(userMessage) {
+    try {
+      const textLower = (userMessage || '').toLowerCase();
+      if (!textLower.includes('record patient supply usage') && !textLower.includes('record patient supply') && !textLower.includes('administered')) {
+        return null;
+      }
+
+      // Simple field extraction using regexes for common fields
+      const getField = (regex) => {
+        const m = userMessage.match(regex);
+        return m ? m[1].trim() : null;
+      };
+
+      const patient_number = getField(/patient\s*(?:id|number)[:\s]+(P[0-9A-Za-z\-]+)/i) || getField(/patient[:\s]+(P[0-9A-Za-z\-]+)/i);
+      const supply_item_code = getField(/supply\s*(?:item\s*)?code[:\s]+([A-Z0-9_\-]+)/i);
+      const quantity_used_raw = getField(/quantity\s*used[:\s]+(\d+)/i);
+      const quantity_used = quantity_used_raw ? parseInt(quantity_used_raw, 10) || 1 : 1;
+      const date_of_usage = getField(/date\s*of\s*usage[:\s]+([0-9\-\/]+)/i);
+      const employee_id = getField(/staff\s*id[:\s]+([A-Z0-9_\-]+)/i) || getField(/employee\s*id[:\s]+([A-Z0-9_\-]+)/i);
+      const notes = getField(/notes[:\s]+(.+)/i) || null;
+
+      if (patient_number && supply_item_code) {
+        const args = {
+          patient_number,
+          supply_item_code,
+          quantity_used,
+          employee_id,
+          date_of_usage,
+          notes
+        };
+
+        // ensure client connected / initialized
+        if (!this.isInitialized) {
+          console.warn('DirectHttpAIMCPService not initialized - cannot call tool directly');
+          return null;
+        }
+
+        try {
+          const resp = await this.callToolDirectly('record_patient_supply_usage_by_code', args);
+          return resp;
+        } catch (err) {
+          console.warn('Error calling record_patient_supply_usage_by_code:', err);
+          return { success: false, error: err && err.message ? err.message : String(err) };
+        }
+      }
+    } catch (err) {
+      console.warn('Supply usage parse error:', err);
+    }
+
+    return null;
+  }
+
   constructor() {
     this.mcpClient = new DirectHttpMCPClient();
     this.openaiApiKey = import.meta.env.VITE_OPENAI_API_KEY; // Get from environment
@@ -518,6 +574,29 @@ class DirectHttpAIMCPService {
     try {
       // Add user message to conversation history
       this.addToConversationHistory('user', userMessage);
+
+      // Quick path: detect and persist supply usage messages without hitting OpenAI
+      try {
+        const supplyShortcutResp = await this.handleSupplyUsageShortcut(userMessage);
+        if (supplyShortcutResp) {
+          const success = supplyShortcutResp && (supplyShortcutResp.success === true || (supplyShortcutResp.result && supplyShortcutResp.result.success === true));
+          const messageText = success ? `✅ Supply usage recorded.` : `⚠️ Failed to record supply usage: ${JSON.stringify(supplyShortcutResp)}`;
+
+          return {
+            success: success,
+            message: messageText,
+            response: messageText,
+            functionCalls: [],
+            toolResults: [supplyShortcutResp],
+            serverInfo: this.getServerInfo(),
+            rawResponse: { choices: [{ message: { content: messageText } }] },
+            conversationLength: this.conversationHistory.length,
+            timing: { openAI: 0, tool: 0, agent: Date.now() - agentStart }
+          };
+        }
+      } catch (err) {
+        console.warn('Supply shortcut handling failed:', err);
+      }
 
       // Check if this is an assignment operation first
       const assignmentResult = await this.handleAssignmentOperations(userMessage, []);
@@ -4728,13 +4807,26 @@ Respond naturally and helpfully based on the user's request and the tool results
       try {
         // Call the actual MCP tool
         const result = await this.mcpClient.callTool(functionName, functionArgs);
-        
+
         console.log(`✅ Function ${functionName} completed:`, result);
+
+        // Try to parse the MCP return (many tools return a JSON string in result.content[0].text)
+        let parsed = null;
+        if (result && result.result && result.result.content && Array.isArray(result.result.content) && result.result.content[0]?.text) {
+          try {
+            parsed = JSON.parse(result.result.content[0].text);
+            console.log(`✅ Parsed tool result for ${functionName}:`, parsed);
+          } catch (parseErr) {
+            console.warn(`⚠️ Could not parse tool result for ${functionName}, returning raw result`, parseErr);
+            parsed = null;
+          }
+        }
 
         results.push({
           function: functionName, // Use the (possibly redirected) function name
           arguments: functionArgs,
           result: result,
+          parsedResult: parsed,
           tool_call_id: toolCall.id
         });
 

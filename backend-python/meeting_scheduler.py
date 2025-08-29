@@ -1008,7 +1008,9 @@ Best regards,
             # Find the meeting
             meeting = None
             if meeting_id:
-                meeting = self.meeting_manager.get_meeting_by_id(meeting_id)
+                # Use our own session to retrieve the meeting to avoid session mismatch
+                from database import Meeting
+                meeting = self.session.query(Meeting).filter(Meeting.id == meeting_id).first()
                 if not meeting:
                     return {
                         "success": False,
