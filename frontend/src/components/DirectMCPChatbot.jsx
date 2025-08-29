@@ -1060,6 +1060,59 @@ Examples:
       setMessages(prev => [...prev, userMsg]);
     }
 
+    // Quick pattern: intercept 'record patient supply usage' messages and call the backend directly
+    // try {
+    //   const textLower = userMessage.toLowerCase();
+    //   if (textLower.includes('record patient supply usage') || textLower.includes('record patient supply') || textLower.includes('administered')) {
+    //     // Simple field extraction using regexes for common fields
+    //     const getField = (regex) => {
+    //       const m = userMessage.match(regex);
+    //       return m ? m[1].trim() : null;
+    //     };
+
+    //     const patient_number = getField(/patient\s*(?:id|number)[:\s]+(P[0-9A-Za-z\-]+)/i) || getField(/patient[:\s]+(P[0-9A-Za-z\-]+)/i);
+    //     const supply_item_code = getField(/supply\s*(?:item\s*)?code[:\s]+([A-Z0-9_\-]+)/i);
+    //     const quantity_used = parseInt(getField(/quantity\s*used[:\s]+(\d+)/i) || '1', 10) || 1;
+    //     const date_of_usage = getField(/date\s*of\s*usage[:\s]+([0-9\-\/]+)/i);
+    //     const employee_id = getField(/staff\s*id[:\s]+([A-Z0-9_\-]+)/i) || getField(/employee\s*id[:\s]+([A-Z0-9_\-]+)/i);
+    //     const notes = getField(/notes[:\s]+(.+)/i) || null;
+
+    //     // If required fields present, call backend tool directly to persist
+    //     if (patient_number && supply_item_code) {
+    //       setIsLoading(true);
+    //       const args = {
+    //         patient_number,
+    //         supply_item_code,
+    //         quantity_used,
+    //         employee_id,
+    //         date_of_usage,
+    //         notes
+    //       };
+
+    //       try {
+    //         const resp = await aiMcpServiceRef.current.callToolDirectly('record_patient_supply_usage_by_code', args);
+    //         // resp may be the raw tool return; format for display
+    //         const success = resp && (resp.success === true || (resp.result && resp.result.success === true));
+    //         const messageText = success ? `✅ Supply usage recorded for ${supply_item_code} (patient ${patient_number})` : `⚠️ Failed to record supply usage: ${JSON.stringify(resp)}`;
+
+    //         const botMsg = { id: Date.now() + 1, text: messageText, sender: 'system', timestamp: new Date().toLocaleTimeString() };
+    //         setMessages(prev => [...prev, botMsg]);
+    //         setIsLoading(false);
+    //         setInputMessage('');
+    //         return; // stop further AI processing
+    //       } catch (err) {
+    //         const botMsg = { id: Date.now() + 1, text: `⚠️ Error recording supply usage: ${err.message || err}`, sender: 'system', timestamp: new Date().toLocaleTimeString() };
+    //         setMessages(prev => [...prev, botMsg]);
+    //         setIsLoading(false);
+    //         return;
+    //       }
+    //     }
+    //   }
+    // } catch (err) {
+    //   // Fall back to normal AI processing on parser errors
+    //   console.warn('Supply usage parse error:', err);
+    // }
+
     // 🤖 INTELLIGENT AI INTENT DETECTION FIRST
     try {
       console.log('🔍 Starting intent detection for:', userMessage);
