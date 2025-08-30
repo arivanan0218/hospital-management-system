@@ -329,8 +329,7 @@ class PatientDischargeReportGenerator:
                 TreatmentRecord.patient_id == patient_id,
                 TreatmentRecord.treatment_type == "medication"
             ).order_by(TreatmentRecord.start_date.desc()).limit(10).all()
-        
-        return [{
+        meds_list = [{
             "medication_name": m.treatment_name,
             "dosage": m.dosage,
             "frequency": m.frequency,
@@ -342,6 +341,38 @@ class PatientDischargeReportGenerator:
             "side_effects": m.side_effects,
             "effectiveness": m.effectiveness
         } for m in medications]
+
+        # Additionally, include medication-like supply usage recorded in PatientSupplyUsage
+        try:
+            from database import PatientSupplyUsage, Supply
+
+            usage_records = self.session.query(PatientSupplyUsage).join(Supply).filter(
+                PatientSupplyUsage.patient_id == patient_id,
+                PatientSupplyUsage.prescribed_date >= extended_start,
+                PatientSupplyUsage.prescribed_date <= extended_end
+            ).all()
+
+            for u in usage_records:
+                # Attempt to classify supply category as medication-like
+                supply_category = (u.supply.category.name.lower() if (getattr(u, 'supply', None) and getattr(u.supply, 'category', None)) else '')
+                if any(k in supply_category for k in ['medication', 'drug', 'pharmaceutical', 'medicine']):
+                    meds_list.append({
+                        "medication_name": u.supply.name if u.supply else 'Unknown',
+                        "dosage": u.dosage or None,
+                        "frequency": u.frequency or None,
+                        "duration": None,
+                        "prescribed_by": (f"{u.prescribed_by.first_name} {u.prescribed_by.last_name}" if getattr(u, 'prescribed_by', None) else None),
+                        "start_date": (u.start_date.isoformat() if getattr(u, 'start_date', None) else (u.prescribed_date.isoformat() if getattr(u, 'prescribed_date', None) else None)),
+                        "end_date": (u.end_date.isoformat() if getattr(u, 'end_date', None) else None),
+                        "status": u.status,
+                        "side_effects": getattr(u, 'side_effects', None),
+                        "effectiveness": getattr(u, 'effectiveness', None)
+                    })
+        except Exception:
+            # If supply models aren't available or join fails, skip silently to avoid breaking report generation
+            pass
+
+        return meds_list
     
     def _get_procedures_summary(self, patient_id, admission_date, discharge_date) -> List[Dict[str, Any]]:
         """Get procedure treatments."""
