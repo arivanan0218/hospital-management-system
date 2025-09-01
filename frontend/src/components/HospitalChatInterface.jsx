@@ -93,69 +93,40 @@ const HospitalChatInterface = ({
   // Special fix for iOS Safari viewport issue with keyboard
   useEffect(() => {
     if (!isIOSDevice) return;
-
-    // Function to position input area at the bottom of the visual viewport
+    
+    // Function to detect iOS Safari and fix visual viewport
     const fixIOSInputPosition = () => {
-      const inputContainer = document.querySelector('.chat-input-container');
-      if (!inputContainer) return;
-
-      if (window.visualViewport && document.activeElement === inputRef.current) {
-        // Calculate the bottom offset for the input area
-        const viewport = window.visualViewport;
-        // Set input area to be absolutely positioned at the bottom of the visual viewport
-        inputContainer.style.position = 'absolute';
-        inputContainer.style.left = '0';
-        inputContainer.style.right = '0';
-        inputContainer.style.bottom = `${window.innerHeight - (viewport.height + viewport.offsetTop)}px`;
-        inputContainer.style.transform = 'none';
-        inputContainer.style.zIndex = '9999';
+      if (document.activeElement === inputRef.current) {
+        // Apply iOS specific adjustment using visual viewport API if available
+        if (window.visualViewport) {
+          const viewport = window.visualViewport;
+          const inputContainer = document.querySelector('.chat-input-container');
+          
+          if (inputContainer) {
+            // Adjust the position based on visual viewport
+            inputContainer.style.transform = `translateY(${-Math.abs(viewport.height - viewport.offsetTop - viewport.offsetHeight)}px)`;
+          }
+        }
       } else {
-        // Reset styles when not focused
-        inputContainer.style.position = 'fixed';
-        inputContainer.style.left = '';
-        inputContainer.style.right = '';
-        inputContainer.style.bottom = '0';
-        inputContainer.style.transform = 'translateZ(0)';
-        inputContainer.style.zIndex = '';
+        // Reset the transform when not focused
+        const inputContainer = document.querySelector('.chat-input-container');
+        if (inputContainer) {
+          inputContainer.style.transform = 'translateZ(0)';
+        }
       }
     };
 
-    // Listen to visual viewport resize and scroll events
+    // Listen to visual viewport resize events (when keyboard appears/disappears)
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', fixIOSInputPosition);
       window.visualViewport.addEventListener('scroll', fixIOSInputPosition);
-    }
-
-    // Also run on focus/blur
-    if (inputRef.current) {
-      inputRef.current.addEventListener('focus', fixIOSInputPosition);
-      inputRef.current.addEventListener('blur', fixIOSInputPosition);
-    }
-
-    // Initial run
-    fixIOSInputPosition();
-
-    // Cleanup
-    return () => {
-      if (window.visualViewport) {
+      
+      // Cleanup
+      return () => {
         window.visualViewport.removeEventListener('resize', fixIOSInputPosition);
         window.visualViewport.removeEventListener('scroll', fixIOSInputPosition);
-      }
-      if (inputRef.current) {
-        inputRef.current.removeEventListener('focus', fixIOSInputPosition);
-        inputRef.current.removeEventListener('blur', fixIOSInputPosition);
-      }
-      // Reset styles
-      const inputContainer = document.querySelector('.chat-input-container');
-      if (inputContainer) {
-        inputContainer.style.position = 'fixed';
-        inputContainer.style.left = '';
-        inputContainer.style.right = '';
-        inputContainer.style.bottom = '0';
-        inputContainer.style.transform = 'translateZ(0)';
-        inputContainer.style.zIndex = '';
-      }
-    };
+      };
+    }
   }, [isIOSDevice, inputRef]);
 
   // Handle mobile viewport height issues with keyboard
