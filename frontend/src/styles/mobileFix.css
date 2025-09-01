@@ -1,27 +1,5 @@
 /* Mobile keyboard fixes for the chat interface */
 
-/* Basic styles for all screen sizes */
-.chat-input-container, 
-.chat-messages-container {
-  -webkit-transform: translateZ(0);
-  transform: translateZ(0);
-  will-change: transform;
-}
-
-/* Special class for smoother transitions when keyboard opens/closes */
-.input-transition-active {
-  transition: none !important; /* Disable transitions when keyboard is active */
-}
-
-/* Prevent input from moving around */
-.keyboard-open.chat-input-container {
-  position: fixed !important;
-  bottom: 0 !important;
-  z-index: 9999 !important;
-  animation: none !important;
-  transition: none !important;
-}
-
 @media (max-width: 768px) {
   /* Prevent content from being hidden behind keyboard */
   .hospital-chat-container {
@@ -39,24 +17,20 @@
     padding-bottom: 80px; /* Ensure enough space at bottom */
   }
   
-  /* Ensure input is always visible and anchored at the bottom */
+  /* Ensure input is always visible */
   .chat-input-container {
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
     background-color: #1a1a1a;
-    /* Remove transition for position to prevent jumping */
-    transition: bottom 0.05s ease-out;
-    z-index: 50 !important; /* Higher z-index to ensure it's always on top */
-    transform: translateZ(0); /* Force hardware acceleration */
+    transition: bottom 0.1s ease-in-out, position 0.1s ease-in-out;
   }
   
-  /* Fix for keyboard open state */
+  /* Fix for duplicate containers when keyboard is open */
   body.no-scroll .chat-input-container {
-    position: fixed !important; /* Keep fixed to maintain consistent positioning */
+    position: absolute !important;
     width: 100%;
-    bottom: 0 !important; /* Always stick to visual viewport bottom */
   }
   
   /* Fix for iOS devices */
@@ -72,61 +46,19 @@
     height: calc(var(--vh, 1vh) * 100);
   }
   
+  /* Force hardware acceleration to prevent visual glitches */
+  .chat-input-container, 
+  .chat-messages-container {
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    will-change: transform;
+  }
+  
   /* Fix for iOS viewport height issues */
   @supports (-webkit-touch-callout: none) {
     .hospital-chat-container {
       height: -webkit-fill-available;
       max-height: -webkit-fill-available;
-    }
-  }
-
-  /* Prevent scrolling when keyboard is open */
-  body.no-scroll {
-    overflow: hidden;
-    position: fixed;
-    width: 100%;
-    height: 100%;
-  }
-  
-  /* Remove any duplicate containers that might be created */
-  .mobile-input-wrapper + .mobile-input-wrapper {
-    display: none !important;
-  }
-  
-  /* Better keyboard handling */
-  .chat-input-container.keyboard-open {
-    position: fixed !important;
-    bottom: 0 !important;
-    left: 0;
-    right: 0;
-    /* Make sure this takes highest precedence */
-    z-index: 9999 !important;
-  }
-  
-  /* Force hardware acceleration to prevent glitches */
-  .chat-input-container {
-    -webkit-backface-visibility: hidden;
-    backface-visibility: hidden;
-    will-change: transform, bottom;
-  }
-  
-  /* Ensure messages container doesn't overlap with input */
-  .chat-messages-container {
-    padding-bottom: 100px !important;
-    margin-bottom: 0;
-  }
-  
-  /* Fix for iOS keyboard issues */
-  @supports (-webkit-touch-callout: none) {
-    .chat-input-container.keyboard-open {
-      /* Use viewport units instead of fixed pixel values */
-      position: fixed !important;
-      bottom: 0 !important;
-    }
-    
-    /* Prevent content from shifting */
-    .hospital-chat-container {
-      overflow-y: auto;
     }
   }
 }
@@ -139,18 +71,27 @@
   }
 }
 
-/* Additional fixes for the input positioning */
-.hospital-chat-container.keyboard-open .chat-messages-container {
-  padding-bottom: 120px !important;
-}
-
-/* Ensure the input stays fixed at the bottom during animations */
-.chat-input-container {
-  transform: translateY(0) translateZ(0);
-}
-
-/* Prevent any animation or transition on the input when keyboard is open */
-.chat-input-container.keyboard-open {
-  transform: none !important;
-  transition: none !important;
+/* Fix for keyboard opening issues */
+@media (max-width: 768px) {
+  /* Prevent duplicate containers when keyboard opens */
+  body.no-scroll {
+    /* Force the container to sit correctly */
+    --mobile-keyboard-height: 0px;
+  }
+  
+  /* Remove any duplicate containers that might be created */
+  .mobile-input-wrapper + .mobile-input-wrapper {
+    display: none !important;
+  }
+  
+  /* Ensure we don't have positioning conflicts */
+  .chat-input-container.keyboard-open {
+    position: absolute !important;
+  }
+  
+  /* Force hardware acceleration to prevent glitches */
+  .chat-input-container {
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+  }
 }
