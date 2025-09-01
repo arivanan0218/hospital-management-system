@@ -124,7 +124,11 @@ const HospitalChatInterface = ({
   }, []);
 
   return (
-    <div className="bg-[#1a1a1a] flex flex-col text-white h-screen overflow-hidden">
+    <div className="bg-[#1a1a1a] flex flex-col text-white relative" style={{ 
+      height: '100vh',
+      maxHeight: '100vh',
+      overflow: 'hidden'
+    }}>
       {/* Claude-style Header - FIXED AT TOP */}
       <div className="flex-shrink-0 border-b border-gray-700 px-3 sm:px-4 py-3 bg-[#1a1a1a] z-30">
         <div className="flex items-center justify-between">
@@ -240,11 +244,12 @@ const HospitalChatInterface = ({
         </div>
       </div>
 
-      {/* Chat Output Area - FLEX GROW SCROLLABLE MIDDLE SECTION */}
+      {/* Chat Output Area - FLEXIBLE MIDDLE SECTION */}
       <div 
-        className="flex-1 bg-[#1a1a1a] overflow-y-auto overflow-x-hidden"
+        className="flex-1 bg-[#1a1a1a] relative overflow-y-auto overflow-x-hidden"
         style={{ 
-          WebkitOverflowScrolling: 'touch'
+          WebkitOverflowScrolling: 'touch',
+          minHeight: 0 // Important for flex child
         }}
       >
         <div className="max-w-4xl mx-auto p-4">
@@ -434,7 +439,7 @@ const HospitalChatInterface = ({
         </div>
       </div>
 
-      {/* Chat Input Area - FLEX SHRINK AT BOTTOM */}
+      {/* Chat Input Area - FLEXIBLE BOTTOM SECTION */}
       <div 
         className="flex-shrink-0 bg-[#1a1a1a] border-t border-gray-700 px-4 py-3" 
         style={{ 
