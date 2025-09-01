@@ -246,17 +246,22 @@ const HospitalChatInterface = ({
 
       {/* Chat Output Area - SCROLLABLE MIDDLE SECTION */}
       <div 
-        className="flex-1 pt-16 bg-[#1a1a1a] relative transition-all duration-300 ease-in-out"
+        className="flex-1 pt-16 bg-[#1a1a1a] relative"
         style={{ 
           overflowY: 'auto',
           overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch',
-          height: 'calc(100vh - 140px)', // Fixed height to prevent keyboard viewport issues
-          maxHeight: 'calc(var(--vh, 1vh) * 100 - 140px)',
-          paddingBottom: showActionButtons ? '120px' : '80px' // Dynamic padding with exact pixel values
+          height: showActionButtons 
+            ? 'calc(100vh - 200px)' // Account for header + input area with buttons
+            : 'calc(100vh - 160px)', // Account for header + input area without buttons
+          maxHeight: showActionButtons 
+            ? 'calc(var(--vh, 1vh) * 100 - 200px)'
+            : 'calc(var(--vh, 1vh) * 100 - 160px)',
+          transition: 'height 300ms ease-in-out, max-height 300ms ease-in-out',
+          marginBottom: '0px' // Remove any bottom margin
         }}
       >
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-4xl mx-auto pb-4">
           {/* Welcome Message */}
           {messages.length === 0 && (
             <div className="px-4 py-8 text-center">
