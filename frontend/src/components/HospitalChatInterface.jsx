@@ -104,12 +104,23 @@ const HospitalChatInterface = ({
         const currentVh = window.visualViewport.height * 0.01;
         document.documentElement.style.setProperty('--vh', `${currentVh}px`);
         
+        // Check if keyboard is likely open (viewport significantly smaller than window)
+        const isKeyboardOpen = window.innerHeight - window.visualViewport.height > 150;
+        
         // Adjust the bottom position of the input area when keyboard is open
         const inputArea = document.querySelector('.chat-input-container');
         if (inputArea) {
-          // Calculate the difference between visual viewport and window height
-          const keyboardHeight = Math.max(0, window.innerHeight - window.visualViewport.height);
-          inputArea.style.bottom = `${keyboardHeight}px`;
+          if (isKeyboardOpen) {
+            // Remove the fixed position when keyboard is open to prevent the extra container
+            inputArea.style.position = 'absolute';
+            // Position at the bottom of the visual viewport
+            const keyboardHeight = Math.max(0, window.innerHeight - window.visualViewport.height);
+            inputArea.style.bottom = `${keyboardHeight}px`;
+          } else {
+            // Restore fixed position when keyboard is closed
+            inputArea.style.position = 'fixed';
+            inputArea.style.bottom = '0';
+          }
         }
       }
     };
@@ -127,6 +138,13 @@ const HospitalChatInterface = ({
     // Prevent body scroll on mobile when keyboard appears
     const handleFocusIn = () => {
       document.body.classList.add('no-scroll');
+      
+      // Add keyboard-open class to help with styling
+      const inputArea = document.querySelector('.chat-input-container');
+      if (inputArea) {
+        inputArea.classList.add('keyboard-open');
+      }
+      
       // Scroll the messages container to bottom when keyboard opens
       setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -134,12 +152,18 @@ const HospitalChatInterface = ({
     };
 
     const handleFocusOut = () => {
-      document.body.classList.remove('no-scroll');
-      // Reset the input container position
-      const inputArea = document.querySelector('.chat-input-container');
-      if (inputArea) {
-        inputArea.style.bottom = '0';
-      }
+      // Small delay to ensure we don't remove classes too early
+      setTimeout(() => {
+        document.body.classList.remove('no-scroll');
+        
+        // Remove keyboard-open class
+        const inputArea = document.querySelector('.chat-input-container');
+        if (inputArea) {
+          inputArea.classList.remove('keyboard-open');
+          inputArea.style.position = 'fixed';
+          inputArea.style.bottom = '0';
+        }
+      }, 100);
     };
 
     // Add event listeners for input focus/blur
@@ -464,18 +488,18 @@ const HospitalChatInterface = ({
 
       {/* Chat Input Area - FIXED AT BOTTOM */}
       <div 
-        className="chat-input-container fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-gray-700 px-4 py-3 z-30" 
+        className="chat-input-container bg-[#1a1a1a] border-t border-gray-700 px-4 py-3 z-30 left-0 right-0" 
         style={{ 
           paddingBottom: 'max(12px, env(safe-area-inset-bottom, 0px))',
           position: 'fixed',
           bottom: '0',
           transform: 'translateZ(0)', // Force hardware acceleration
           willChange: 'transform',
-          transitionProperty: 'bottom',
+          transitionProperty: 'bottom, position',
           transitionDuration: '0.1s'
         }}
       >
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-4xl mx-auto mobile-input-wrapper">
           {/* Action Buttons - Inside Input Container */}
           {showActionButtons && (
             <div className="mb-3 transition-all duration-300 ease-in-out">
@@ -596,6 +620,28 @@ const HospitalChatInterface = ({
               }}
               onFocus={() => {
                 setShowActionButtons(true);
+                
+                // Handle mobile keyboard appearance
+                const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                               (window.innerWidth <= 768) || 
+                               ('ontouchstart' in window);
+                
+                if (isMobile) {
+                  // Add keyboard-open class to help with styling
+                  const inputArea = document.querySelector('.chat-input-container');
+                  if (inputArea) {
+                    inputArea.classList.add('keyboard-open');
+                    // Position adjustments for mobile keyboards
+                    if (window.visualViewport) {
+                      const keyboardHeight = Math.max(0, window.innerHeight - window.visualViewport.height);
+                      if (keyboardHeight > 100) {
+                        inputArea.style.position = 'absolute';
+                        inputArea.style.bottom = `${keyboardHeight}px`;
+                      }
+                    }
+                  }
+                }
+                
                 // Scroll to bottom when keyboard opens on mobile
                 setTimeout(() => {
                   messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -603,7 +649,17 @@ const HospitalChatInterface = ({
               }}
               onBlur={() => {
                 // Hide action buttons when keyboard is dismissed, with small delay
-                setTimeout(() => setShowActionButtons(false), 150);
+                setTimeout(() => {
+                  setShowActionButtons(false);
+                  
+                  // Reset input container position when keyboard closes
+                  const inputArea = document.querySelector('.chat-input-container');
+                  if (inputArea) {
+                    inputArea.classList.remove('keyboard-open');
+                    inputArea.style.position = 'fixed';
+                    inputArea.style.bottom = '0';
+                  }
+                }, 150);
               }}
               placeholder={isConnected ? "Ask about patients, beds, staff, equipment..." : "Connecting..."}
               disabled={!isConnected || isLoading}
