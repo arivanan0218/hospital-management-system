@@ -1,6 +1,10 @@
 """Dashboard Agent - Handles real-time dashboard data and analytics"""
 
-import random
+im            # Staff statistics
+            total_staff = db.query(Staff).filter(Staff.status == "active").count()
+            # Note: availability_status field doesn't exist in Staff model
+            # Using total active staff as approximation for on_duty
+            on_duty_staff = total_staffandom
 from datetime import datetime, date, timedelta
 from typing import Any, Dict, List
 from .base_agent import BaseAgent
@@ -126,50 +130,46 @@ class DashboardAgent(BaseAgent):
         try:
             db = SessionLocal()
             
-            # Get bed occupancy by department using a simpler approach
-            departments = db.query(Department).all()
-            department_data = []
+            # Get bed occupancy by department
+            bed_occupancy = db.query(
+                Department.name.label('department_name'),
+                func.count(Bed.id).label('total_beds'),
+                func.sum(func.case([(Bed.status == 'occupied', 1)], else_=0)).label('occupied_beds'),
+                func.sum(func.case([(Bed.status == 'available', 1)], else_=0)).label('available_beds'),
+                func.sum(func.case([(Bed.status == 'cleaning', 1)], else_=0)).label('cleaning_beds'),
+                func.sum(func.case([(Bed.status == 'maintenance', 1)], else_=0)).label('maintenance_beds')
+            ).join(Room, Department.id == Room.department_id)\
+             .join(Bed, Room.id == Bed.room_id)\
+             .group_by(Department.name)\
+             .all()
             
-            for dept in departments:
-                # Count beds by status for this department
-                dept_beds = db.query(Bed)\
-                    .join(Room, Bed.room_id == Room.id)\
-                    .filter(Room.department_id == dept.id)
+            departments = []
+            for dept in bed_occupancy:
+                total = int(dept.total_beds) if dept.total_beds else 0
+                occupied = int(dept.occupied_beds) if dept.occupied_beds else 0
+                available = int(dept.available_beds) if dept.available_beds else 0
+                cleaning = int(dept.cleaning_beds) if dept.cleaning_beds else 0
+                maintenance = int(dept.maintenance_beds) if dept.maintenance_beds else 0
                 
-                total_beds = dept_beds.count()
-                occupied_beds = dept_beds.filter(Bed.status == 'occupied').count()
-                available_beds = dept_beds.filter(Bed.status == 'available').count()
-                cleaning_beds = dept_beds.filter(Bed.status == 'cleaning').count()
-                maintenance_beds = dept_beds.filter(Bed.status == 'maintenance').count()
+                occupancy_rate = round((occupied / total * 100), 1) if total > 0 else 0
                 
-                if total_beds > 0:  # Only include departments with beds
-                    occupancy_rate = round((occupied_beds / total_beds * 100), 1)
-                    
-                    # Determine status color based on occupancy rate
-                    if occupancy_rate > 90:
-                        status_color = "red"
-                    elif occupancy_rate > 75:
-                        status_color = "orange"
-                    else:
-                        status_color = "green"
-                    
-                    department_data.append({
-                        "name": dept.name,
-                        "total_beds": total_beds,
-                        "occupied": occupied_beds,
-                        "available": available_beds,
-                        "cleaning": cleaning_beds,
-                        "maintenance": maintenance_beds,
-                        "occupancy_rate": occupancy_rate,
-                        "status_color": status_color
-                    })
+                departments.append({
+                    "name": dept.department_name,
+                    "total_beds": total,
+                    "occupied": occupied,
+                    "available": available,
+                    "cleaning": cleaning,
+                    "maintenance": maintenance,
+                    "occupancy_rate": occupancy_rate,
+                    "status_color": "red" if occupancy_rate > 90 else "orange" if occupancy_rate > 75 else "green"
+                })
             
             db.close()
             
             result = {
                 "success": True,
                 "timestamp": datetime.now().isoformat(),
-                "departments": department_data
+                "departments": departments
             }
             
             self.log_interaction("get_live_bed_occupancy", result, "get_live_bed_occupancy")

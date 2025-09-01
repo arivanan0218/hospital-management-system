@@ -17,26 +17,83 @@ export const DashboardProvider = ({ children, mcpClient }) => {
   const [error, setError] = useState(null);
 
   const fetchDashboardData = async () => {
-    if (!mcpClient) return;
-
+    console.log('Fetching dashboard data, mcpClient:', !!mcpClient);
+    
     try {
       setError(null);
+      console.log('Making dashboard API calls...');
       
-      // Fetch all dashboard data concurrently
+      // Use direct HTTP API calls instead of MCP client
+      const baseUrl = 'http://localhost:8000';
+      
+      const makeApiCall = async (toolName, args = {}) => {
+        try {
+          const response = await fetch(`${baseUrl}/tools/call`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              jsonrpc: "2.0",
+              id: 1,
+              params: {
+                name: toolName,
+                arguments: args
+              }
+            })
+          });
+          
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          
+          const result = await response.json();
+          
+          if (result.error) {
+            throw new Error(result.error.message || 'API call failed');
+          }
+          
+          // Handle the nested JSON response format
+          if (result.result && result.result.content && result.result.content[0] && result.result.content[0].text) {
+            try {
+              const parsedData = JSON.parse(result.result.content[0].text);
+              return parsedData.result || parsedData; // Return the actual data
+            } catch (parseError) {
+              console.error('Failed to parse JSON response:', parseError);
+              return { success: false, error: 'Failed to parse response' };
+            }
+          }
+          
+          return result.result || result;
+        } catch (error) {
+          console.error(`API call failed for ${toolName}:`, error);
+          return { success: false, error: error.message };
+        }
+      };
+      
+      // Fetch all dashboard data concurrently using direct HTTP calls
       const [statsResult, bedsResult, alertsResult, activityResult, flowResult] = await Promise.all([
-        mcpClient.callTool('get_dashboard_stats'),
-        mcpClient.callTool('get_live_bed_occupancy'),
-        mcpClient.callTool('get_emergency_alerts'),
-        mcpClient.callTool('get_recent_activity', { limit: 10 }),
-        mcpClient.callTool('get_patient_flow_data', { hours: 24 })
+        makeApiCall('get_dashboard_stats'),
+        makeApiCall('get_live_bed_occupancy'),
+        makeApiCall('get_emergency_alerts'),
+        makeApiCall('get_recent_activity', { limit: 10 }),
+        makeApiCall('get_patient_flow_data', { hours: 24 })
       ]);
 
+      console.log('Dashboard API results:', {
+        stats: statsResult,
+        beds: bedsResult,
+        alerts: alertsResult,
+        activity: activityResult,
+        flow: flowResult
+      });
+
       setDashboardData({
-        stats: statsResult.success ? statsResult : null,
-        beds: bedsResult.success ? bedsResult : null,
-        alerts: alertsResult.success ? alertsResult : null,
-        activity: activityResult.success ? activityResult : null,
-        patientFlow: flowResult.success ? flowResult : null,
+        stats: statsResult.success !== false ? statsResult : null,
+        beds: bedsResult.success !== false ? bedsResult : null,
+        alerts: alertsResult.success !== false ? alertsResult : null,
+        activity: activityResult.success !== false ? activityResult : null,
+        patientFlow: flowResult.success !== false ? flowResult : null,
         lastUpdated: new Date()
       });
       
@@ -54,7 +111,7 @@ export const DashboardProvider = ({ children, mcpClient }) => {
     // Set up auto-refresh every 30 seconds
     const interval = setInterval(fetchDashboardData, 30000);
     return () => clearInterval(interval);
-  }, [mcpClient]);
+  }, []);
 
   return (
     <DashboardContext.Provider value={{ 
@@ -402,6 +459,28 @@ const LastUpdated = () => {
 const RealTimeDashboard = ({ setActiveTab }) => {
   const { isLoading, error, refresh } = useDashboard();
 
+  if (isLoading) {
+    return (
+      <div className="p-6 bg-[#1a1a1a] min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+            <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+          </div>
+          <p className="text-white text-lg font-medium">Loading Dashboard...</p>
+          <p className="text-gray-400 text-sm mt-2">Fetching real-time hospital data</p>
+          {setActiveTab && (
+            <button 
+              onClick={() => setActiveTab('chat')}
+              className="mt-4 text-blue-400 hover:text-blue-300 text-sm underline"
+            >
+              Back to Chat
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (error) {
     return (
       <div className="p-6">
@@ -430,9 +509,9 @@ const RealTimeDashboard = ({ setActiveTab }) => {
   }
 
   return (
-    <div className="p-4 lg:p-6 space-y-6 bg-[#1a1a1a] min-h-screen">
+    <div className="p-4 lg:p-6 space-y-6 bg-[#1a1a1a] min-h-screen max-h-screen overflow-y-auto">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-shrink-0">
         <div className="flex items-center space-x-4">
           {setActiveTab && (
             <button 
@@ -457,38 +536,106 @@ const RealTimeDashboard = ({ setActiveTab }) => {
       </div>
 
       {/* Stats Grid */}
-      <HospitalStatsGrid />
+      <div className="flex-shrink-0">
+        <HospitalStatsGrid />
+      </div>
 
       {/* Charts and Alerts Grid */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 flex-shrink-0">
         <BedOccupancyChart />
         <EmergencyAlertsPanel />
       </div>
 
       {/* Activity Feed */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 flex-shrink-0">
         <RecentActivityPanel />
         <div className="bg-[#2a2a2a] rounded-lg p-6 border border-gray-600">
-          <h3 className="text-lg font-medium text-white mb-4">🎯 Quick Actions</h3>
+          <h3 className="text-lg font-medium text-white mb-4">⚡ Critical Operations</h3>
           <div className="grid grid-cols-2 gap-3">
-            <button className="bg-blue-600 text-white p-4 rounded-lg text-sm hover:bg-blue-700">
-              📋 View All Patients
+            <button 
+              className="bg-gradient-to-r from-red-600 to-red-700 text-white p-4 rounded-lg text-sm hover:from-red-700 hover:to-red-800 transition-all duration-200 flex flex-col items-center space-y-2 shadow-lg"
+              onClick={() => {
+                console.log('ICU Capacity Check');
+                if (setActiveTab) {
+                  setActiveTab('chat');
+                  setTimeout(() => {
+                    const event = new CustomEvent('quickAction', { 
+                      detail: { action: 'icu_status', message: 'Show ICU capacity and critical patient status' }
+                    });
+                    window.dispatchEvent(event);
+                  }, 500);
+                }
+              }}
+            >
+              <span className="text-2xl">🏥</span>
+              <span className="font-medium">ICU Capacity</span>
+              <span className="text-xs opacity-80">Critical Care Status</span>
             </button>
-            <button className="bg-green-600 text-white p-4 rounded-lg text-sm hover:bg-green-700">
-              🛏️ Check Bed Status
+            <button 
+              className="bg-gradient-to-r from-orange-600 to-orange-700 text-white p-4 rounded-lg text-sm hover:from-orange-700 hover:to-orange-800 transition-all duration-200 flex flex-col items-center space-y-2 shadow-lg"
+              onClick={() => {
+                console.log('Surgery Schedule Check');
+                if (setActiveTab) {
+                  setActiveTab('chat');
+                  setTimeout(() => {
+                    const event = new CustomEvent('quickAction', { 
+                      detail: { action: 'surgery_schedule', message: 'Show today\'s surgery schedule and OR availability' }
+                    });
+                    window.dispatchEvent(event);
+                  }, 500);
+                }
+              }}
+            >
+              <span className="text-2xl">⚕️</span>
+              <span className="font-medium">Surgery Schedule</span>
+              <span className="text-xs opacity-80">OR Management</span>
             </button>
-            <button className="bg-purple-600 text-white p-4 rounded-lg text-sm hover:bg-purple-700">
-              📊 Generate Report
+            <button 
+              className="bg-gradient-to-r from-purple-600 to-purple-700 text-white p-4 rounded-lg text-sm hover:from-purple-700 hover:to-purple-800 transition-all duration-200 flex flex-col items-center space-y-2 shadow-lg"
+              onClick={() => {
+                console.log('Discharge Planning');
+                if (setActiveTab) {
+                  setActiveTab('chat');
+                  setTimeout(() => {
+                    const event = new CustomEvent('quickAction', { 
+                      detail: { action: 'discharge_planning', message: 'Show patients ready for discharge and discharge planning status' }
+                    });
+                    window.dispatchEvent(event);
+                  }, 500);
+                }
+              }}
+            >
+              <span className="text-2xl">�</span>
+              <span className="font-medium">Discharge Planning</span>
+              <span className="text-xs opacity-80">Patient Flow</span>
             </button>
-            <button className="bg-orange-600 text-white p-4 rounded-lg text-sm hover:bg-orange-700">
-              🚨 Emergency Protocol
+            <button 
+              className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 rounded-lg text-sm hover:from-blue-700 hover:to-blue-800 transition-all duration-200 flex flex-col items-center space-y-2 shadow-lg"
+              onClick={() => {
+                console.log('Staff Scheduling');
+                if (setActiveTab) {
+                  setActiveTab('chat');
+                  setTimeout(() => {
+                    const event = new CustomEvent('quickAction', { 
+                      detail: { action: 'staff_schedule', message: 'Show current shift schedules and staff availability across departments' }
+                    });
+                    window.dispatchEvent(event);
+                  }, 500);
+                }
+              }}
+            >
+              <span className="text-2xl">👨‍⚕️</span>
+              <span className="font-medium">Staff Scheduling</span>
+              <span className="text-xs opacity-80">Shift Management</span>
             </button>
           </div>
         </div>
       </div>
 
       {/* Footer */}
-      <LastUpdated />
+      <div className="flex-shrink-0">
+        <LastUpdated />
+      </div>
     </div>
   );
 };
