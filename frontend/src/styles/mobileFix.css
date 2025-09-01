@@ -24,7 +24,13 @@
     left: 0;
     right: 0;
     background-color: #1a1a1a;
-    transition: bottom 0.1s ease-in-out;
+    transition: bottom 0.1s ease-in-out, position 0.1s ease-in-out;
+  }
+  
+  /* Fix for duplicate containers when keyboard is open */
+  body.no-scroll .chat-input-container {
+    position: absolute !important;
+    width: 100%;
   }
   
   /* Fix for iOS devices */
@@ -62,5 +68,30 @@
   .chat-input-container {
     position: sticky;
     bottom: 0;
+  }
+}
+
+/* Fix for keyboard opening issues */
+@media (max-width: 768px) {
+  /* Prevent duplicate containers when keyboard opens */
+  body.no-scroll {
+    /* Force the container to sit correctly */
+    --mobile-keyboard-height: 0px;
+  }
+  
+  /* Remove any duplicate containers that might be created */
+  .mobile-input-wrapper + .mobile-input-wrapper {
+    display: none !important;
+  }
+  
+  /* Ensure we don't have positioning conflicts */
+  .chat-input-container.keyboard-open {
+    position: absolute !important;
+  }
+  
+  /* Force hardware acceleration to prevent glitches */
+  .chat-input-container {
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
   }
 }
