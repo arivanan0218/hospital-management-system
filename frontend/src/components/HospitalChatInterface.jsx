@@ -246,15 +246,13 @@ const HospitalChatInterface = ({
 
       {/* Chat Output Area - SCROLLABLE MIDDLE SECTION */}
       <div 
-        className={`flex-1 pt-16 bg-[#1a1a1a] relative transition-all duration-300 ease-in-out ${
-          showActionButtons ? 'pb-32' : 'pb-24'
-        }`}
+        className="absolute top-16 left-0 right-0 bg-[#1a1a1a] transition-all duration-300 ease-in-out"
         style={{ 
           overflowY: 'auto',
           overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch',
-          height: 'calc(100vh - 140px)', // Fixed height to prevent keyboard viewport issues
-          maxHeight: 'calc(var(--vh, 1vh) * 100 - 140px)'
+          bottom: showActionButtons ? '120px' : '80px', // Dynamic bottom position
+          height: 'auto'
         }}
       >
         <div className="max-w-4xl mx-auto">
@@ -446,7 +444,9 @@ const HospitalChatInterface = ({
 
       {/* Chat Input Area - FIXED AT BOTTOM */}
       <div 
-        className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-gray-700 px-4 py-3 z-30" 
+        className={`fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-gray-700 px-4 z-30 transition-all duration-300 ease-in-out ${
+          showActionButtons ? 'py-3' : 'py-2'
+        }`}
         style={{ 
           paddingBottom: 'max(12px, env(safe-area-inset-bottom, 0px))',
           position: 'fixed',
