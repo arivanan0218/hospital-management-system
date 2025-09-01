@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { LogOut, User, Settings, Upload, FileText, History, CheckCircle, Plus, X, Mic, MicOff, VolumeX } from 'lucide-react';
+import { LogOut, User, Settings, Upload, FileText, History, CheckCircle, Plus, X, Mic, MicOff, VolumeX, BarChart3 } from 'lucide-react';
 import EnhancedMedicalDocumentUpload from './EnhancedMedicalDocumentUpload.jsx';
 import MedicalHistoryViewer from './MedicalHistoryViewer.jsx';
 
@@ -177,6 +177,15 @@ const HospitalChatInterface = ({
               {/* Mobile: Show only essential buttons */}
               <div className="flex items-center space-x-1 sm:hidden">
                 <button
+                  onClick={() => setActiveTab('dashboard')}
+                  className={`p-1.5 hover:bg-gray-700 rounded-md transition-colors ${
+                    activeTab === 'dashboard' ? 'text-blue-400' : 'text-gray-400 hover:text-gray-300'
+                  }`}
+                  title="Dashboard"
+                >
+                  <BarChart3 className="w-4 h-4" />
+                </button>
+                <button
                   onClick={onLogout}
                   className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded-md transition-colors"
                   title="Logout"
@@ -207,6 +216,15 @@ const HospitalChatInterface = ({
                   </svg>
                 </button>
                 <button
+                  onClick={() => setActiveTab('dashboard')}
+                  className={`p-2 hover:bg-gray-700 rounded-md transition-colors ${
+                    activeTab === 'dashboard' ? 'text-blue-400' : 'text-gray-400 hover:text-gray-300'
+                  }`}
+                  title="Dashboard"
+                >
+                  <BarChart3 className="w-4 h-4" />
+                </button>
+                <button
                   onClick={() => setShowSetup(true)}
                   className="p-2 text-gray-400 hover:text-gray-300 hover:bg-gray-700 rounded-md transition-colors"
                   title="Settings"
@@ -228,13 +246,14 @@ const HospitalChatInterface = ({
 
       {/* Chat Output Area - SCROLLABLE MIDDLE SECTION */}
       <div 
-        className="flex-1 pt-16 pb-24 bg-[#1a1a1a] relative"
+        className="flex-1 pt-16 bg-[#1a1a1a] relative"
         style={{ 
           overflowY: 'auto',
           overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch',
-          height: 'calc(100vh - 140px)', // Fixed height to prevent keyboard viewport issues
-          maxHeight: 'calc(var(--vh, 1vh) * 100 - 140px)'
+          paddingBottom: showActionButtons ? '180px' : '90px', // Dynamic bottom padding based on action buttons
+          height: 'calc(100vh - 64px)', // Only account for header height
+          maxHeight: 'calc(var(--vh, 1vh) * 100 - 64px)'
         }}
       >
         <div className="max-w-4xl mx-auto">
@@ -426,11 +445,9 @@ const HospitalChatInterface = ({
 
       {/* Chat Input Area - FIXED AT BOTTOM */}
       <div 
-        className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-gray-700 px-4 py-3 z-30" 
+        className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-gray-700 px-4 py-3 z-30 transition-all duration-300 ease-in-out" 
         style={{ 
           paddingBottom: 'max(12px, env(safe-area-inset-bottom, 0px))',
-          position: 'fixed',
-          bottom: '0',
           transform: 'translateZ(0)', // Force hardware acceleration
           willChange: 'transform'
         }}
