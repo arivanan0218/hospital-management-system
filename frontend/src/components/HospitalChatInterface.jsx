@@ -124,13 +124,9 @@ const HospitalChatInterface = ({
   }, []);
 
   return (
-    <div className="bg-[#1a1a1a] flex flex-col text-white relative" style={{ 
-      height: 'calc(var(--vh, 1vh) * 100)',
-      maxHeight: 'calc(var(--vh, 1vh) * 100)',
-      overflow: 'hidden'
-    }}>
+    <div className="bg-[#1a1a1a] flex flex-col text-white relative h-screen max-h-screen overflow-hidden">
       {/* Claude-style Header - FIXED AT TOP */}
-      <div className="fixed top-0 left-0 right-0 border-b border-gray-700 px-3 sm:px-4 py-3 bg-[#1a1a1a] z-30">
+      <div className="flex-shrink-0 border-b border-gray-700 px-3 sm:px-4 py-3 bg-[#1a1a1a] z-30">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2 sm:space-x-3">
             <div className="w-6 h-6 sm:w-7 sm:h-7 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs sm:text-sm font-medium shadow-lg">
@@ -246,19 +242,15 @@ const HospitalChatInterface = ({
 
       {/* Chat Output Area - SCROLLABLE MIDDLE SECTION */}
       <div 
-        className="flex-1 pt-16 bg-[#1a1a1a] relative"
+        className="flex-1 bg-[#1a1a1a] relative"
         style={{ 
           overflowY: 'auto',
           overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch',
-          height: showActionButtons 
-            ? 'calc(100vh - 200px)' // Account for header + input area with buttons
-            : 'calc(100vh - 160px)', // Account for header + input area without buttons
-          maxHeight: showActionButtons 
-            ? 'calc(var(--vh, 1vh) * 100 - 200px)'
-            : 'calc(var(--vh, 1vh) * 100 - 160px)',
-          transition: 'height 300ms ease-in-out, max-height 300ms ease-in-out',
-          marginBottom: '0px' // Remove any bottom margin
+          height: '100%',
+          maxHeight: '100%',
+          marginBottom: '0',
+          paddingBottom: '0'
         }}
       >
         <div className="max-w-4xl mx-auto pb-4">
@@ -450,13 +442,9 @@ const HospitalChatInterface = ({
 
       {/* Chat Input Area - FIXED AT BOTTOM */}
       <div 
-        className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-gray-700 px-4 py-3 z-30" 
+        className="flex-shrink-0 bg-[#1a1a1a] border-t border-gray-700 px-4 py-3 z-30" 
         style={{ 
-          paddingBottom: 'max(12px, env(safe-area-inset-bottom, 0px))',
-          position: 'fixed',
-          bottom: '0',
-          transform: 'translateZ(0)', // Force hardware acceleration
-          willChange: 'transform'
+          paddingBottom: 'max(12px, env(safe-area-inset-bottom, 0px))'
         }}
       >
         <div className="max-w-4xl mx-auto">
