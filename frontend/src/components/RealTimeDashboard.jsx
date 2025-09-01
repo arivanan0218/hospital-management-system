@@ -305,16 +305,38 @@ const AlertItem = ({ alert }) => {
   };
 
   const timeAgo = (timestamp) => {
-    const now = new Date();
-    const alertTime = new Date(timestamp);
-    const diffMs = now - alertTime;
-    const diffMins = Math.floor(diffMs / 60000);
-    
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
-    return `${Math.floor(diffHours / 24)}d ago`;
+    try {
+      const now = new Date();
+      let alertTime;
+      
+      // Handle different timestamp formats
+      if (typeof timestamp === 'string') {
+        alertTime = new Date(timestamp);
+      } else if (timestamp instanceof Date) {
+        alertTime = timestamp;
+      } else {
+        alertTime = new Date(timestamp * 1000);
+      }
+      
+      if (isNaN(alertTime.getTime())) {
+        return 'Unknown time';
+      }
+      
+      const diffMs = now - alertTime;
+      const diffSeconds = Math.floor(diffMs / 1000);
+      const diffMins = Math.floor(diffSeconds / 60);
+      const diffHours = Math.floor(diffMins / 60);
+      const diffDays = Math.floor(diffHours / 24);
+      
+      if (diffSeconds < 30) return 'Just now';
+      if (diffSeconds < 60) return `${diffSeconds}s ago`;
+      if (diffMins < 60) return `${diffMins}m ago`;
+      if (diffHours < 24) return `${diffHours}h ago`;
+      return `${diffDays}d ago`;
+    } catch (error) {
+      console.error('Error calculating alert time ago:', error);
+      return 'Unknown time';
+    }
   };
 
   return (
@@ -391,15 +413,41 @@ const RecentActivityPanel = () => {
   const activityData = dashboardData.activity;
 
   const timeAgo = (timestamp) => {
-    const now = new Date();
-    const activityTime = new Date(timestamp);
-    const diffMs = now - activityTime;
-    const diffMins = Math.floor(diffMs / 60000);
-    
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    const diffHours = Math.floor(diffMins / 60);
-    return `${diffHours}h ago`;
+    try {
+      const now = new Date();
+      let activityTime;
+      
+      // Handle different timestamp formats
+      if (typeof timestamp === 'string') {
+        // Try parsing ISO string or other formats
+        activityTime = new Date(timestamp);
+      } else if (timestamp instanceof Date) {
+        activityTime = timestamp;
+      } else {
+        // If it's a number, treat as Unix timestamp
+        activityTime = new Date(timestamp * 1000);
+      }
+      
+      // Check if the date is valid
+      if (isNaN(activityTime.getTime())) {
+        return 'Unknown time';
+      }
+      
+      const diffMs = now - activityTime;
+      const diffSeconds = Math.floor(diffMs / 1000);
+      const diffMins = Math.floor(diffSeconds / 60);
+      const diffHours = Math.floor(diffMins / 60);
+      const diffDays = Math.floor(diffHours / 24);
+      
+      if (diffSeconds < 30) return 'Just now';
+      if (diffSeconds < 60) return `${diffSeconds}s ago`;
+      if (diffMins < 60) return `${diffMins}m ago`;
+      if (diffHours < 24) return `${diffHours}h ago`;
+      return `${diffDays}d ago`;
+    } catch (error) {
+      console.error('Error calculating time ago:', error);
+      return 'Unknown time';
+    }
   };
 
   if (!activityData) {
