@@ -125,12 +125,12 @@ const HospitalChatInterface = ({
 
   return (
     <div className="bg-[#1a1a1a] flex flex-col text-white relative" style={{ 
-      height: '100vh',
-      maxHeight: '100vh',
+      height: 'calc(var(--vh, 1vh) * 100)',
+      maxHeight: 'calc(var(--vh, 1vh) * 100)',
       overflow: 'hidden'
     }}>
       {/* Claude-style Header - FIXED AT TOP */}
-      <div className="flex-shrink-0 border-b border-gray-700 px-3 sm:px-4 py-3 bg-[#1a1a1a] z-30">
+      <div className="fixed top-0 left-0 right-0 border-b border-gray-700 px-3 sm:px-4 py-3 bg-[#1a1a1a] z-30">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2 sm:space-x-3">
             <div className="w-6 h-6 sm:w-7 sm:h-7 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs sm:text-sm font-medium shadow-lg">
@@ -244,15 +244,20 @@ const HospitalChatInterface = ({
         </div>
       </div>
 
-      {/* Chat Output Area - FLEXIBLE MIDDLE SECTION */}
+      {/* Chat Output Area - SCROLLABLE MIDDLE SECTION */}
       <div 
-        className="flex-1 bg-[#1a1a1a] relative overflow-y-auto overflow-x-hidden"
+        className={`flex-1 pt-16 bg-[#1a1a1a] relative transition-all duration-300 ease-in-out ${
+          showActionButtons ? 'pb-32' : 'pb-20'
+        }`}
         style={{ 
+          overflowY: 'auto',
+          overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch',
-          minHeight: 0 // Important for flex child
+          height: 'calc(100vh - 140px)', // Fixed height to prevent keyboard viewport issues
+          maxHeight: 'calc(var(--vh, 1vh) * 100 - 140px)'
         }}
       >
-        <div className="max-w-4xl mx-auto p-4">
+        <div className="max-w-4xl mx-auto">
           {/* Welcome Message */}
           {messages.length === 0 && (
             <div className="px-4 py-8 text-center">
@@ -439,11 +444,15 @@ const HospitalChatInterface = ({
         </div>
       </div>
 
-      {/* Chat Input Area - FLEXIBLE BOTTOM SECTION */}
+      {/* Chat Input Area - FIXED AT BOTTOM */}
       <div 
-        className="flex-shrink-0 bg-[#1a1a1a] border-t border-gray-700 px-4 py-3" 
+        className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-gray-700 px-4 py-3 z-30" 
         style={{ 
-          paddingBottom: 'max(12px, env(safe-area-inset-bottom, 0px))'
+          paddingBottom: 'max(12px, env(safe-area-inset-bottom, 0px))',
+          position: 'fixed',
+          bottom: '0',
+          transform: 'translateZ(0)', // Force hardware acceleration
+          willChange: 'transform'
         }}
       >
         <div className="max-w-4xl mx-auto">
