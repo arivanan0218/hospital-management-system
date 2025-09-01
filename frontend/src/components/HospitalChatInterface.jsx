@@ -247,7 +247,7 @@ const HospitalChatInterface = ({
       {/* Chat Output Area - SCROLLABLE MIDDLE SECTION */}
       <div 
         className={`flex-1 pt-16 bg-[#1a1a1a] relative transition-all duration-300 ease-in-out ${
-          showActionButtons ? 'pb-32' : 'pb-20'
+          showActionButtons ? 'pb-32' : 'pb-16'
         }`}
         style={{ 
           overflowY: 'auto',
