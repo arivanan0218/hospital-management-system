@@ -1370,7 +1370,17 @@ Respond naturally, conversationally, and contextually based on the conversation 
     // Discharge workflow operations
     if (message.includes('discharge') && message.includes('patient')) {
       const dischargeParams = this.extractDischargeParameters(userMessage);
-      toolsNeeded.push({ name: 'discharge_patient_complete', arguments: dischargeParams });
+      
+      // If we have bed_number, need to convert to bed_id first
+      if (dischargeParams.bed_number) {
+        toolsNeeded.push({ name: 'get_bed_by_number', arguments: { bed_number: dischargeParams.bed_number } });
+        toolsNeeded.push({ name: 'discharge_patient_complete', arguments: { 
+          ...dischargeParams,
+          bed_id: '{{bed_id_from_lookup}}'
+        }});
+      } else {
+        toolsNeeded.push({ name: 'discharge_patient_complete', arguments: dischargeParams });
+      }
     }
     
     if (message.includes('discharge') && message.includes('status')) {
@@ -1611,30 +1621,39 @@ Respond naturally, conversationally, and contextually based on the conversation 
     }
     
     // Assignment operations
-    if (message.includes('assign bed') || message.includes('bed assignment')) {
+    if (message.includes('assign bed') || message.includes('bed assignment') || message.includes('assign patient')) {
       const assignParams = this.extractBedAssignmentParameters(userMessage);
-      // If we have both bed_id and patient_id, we can assign directly
-      if (assignParams.bed_id && assignParams.patient_id) {
-        toolsNeeded.push({ name: 'assign_bed_to_patient', arguments: assignParams });
+      
+      // Check if we have bed_number (need to convert to bed_id) and patient info
+      if (assignParams.bed_number && (assignParams.patient_id || assignParams.patient_name)) {
+        // We need to lookup the bed by number to get the UUID first
+        if (assignParams.patient_id) {
+          // We have patient ID directly
+          toolsNeeded.push({ name: 'get_bed_by_number', arguments: { bed_number: assignParams.bed_number } });
+          toolsNeeded.push({ name: 'assign_bed_to_patient', arguments: { 
+            bed_id: '{{bed_id_from_lookup}}', 
+            patient_id: assignParams.patient_id,
+            admission_date: assignParams.admission_date || new Date().toISOString().split('T')[0]
+          }});
+        } else if (assignParams.patient_name) {
+          // We need to search for patient first, then lookup bed
+          toolsNeeded.push({ name: 'search_patients', arguments: { name: assignParams.patient_name } });
+          toolsNeeded.push({ name: 'get_bed_by_number', arguments: { bed_number: assignParams.bed_number } });
+          toolsNeeded.push({ name: 'assign_bed_to_patient', arguments: { 
+            bed_id: '{{bed_id_from_lookup}}', 
+            patient_id: '{{patient_id_from_search}}',
+            admission_date: assignParams.admission_date || new Date().toISOString().split('T')[0]
+          }});
+        }
       }
-      // If we have bed_id and patient_name but no patient_id, we need to search for the patient first
-      else if (assignParams.bed_id && assignParams.patient_name) {
-        toolsNeeded.push({ name: 'search_patients', arguments: { name: assignParams.patient_name } });
-        // After finding the patient, we'll need to assign the bed
-        toolsNeeded.push({ name: 'assign_bed_to_patient', arguments: { 
-          bed_id: assignParams.bed_id, 
-          patient_id: '{{patient_id_from_search}}', 
-          admission_date: assignParams.admission_date 
-        }});
-      }
-      // If we have patient_name but no bed_id, we need to find an available bed
-      else if (assignParams.patient_name && !assignParams.bed_id) {
+      // If we have patient_name but no bed_number, find an available bed
+      else if (assignParams.patient_name && !assignParams.bed_number) {
         toolsNeeded.push({ name: 'search_patients', arguments: { name: assignParams.patient_name } });
         toolsNeeded.push({ name: 'list_beds', arguments: { status: 'available' } });
         toolsNeeded.push({ name: 'assign_bed_to_patient', arguments: { 
           bed_id: '{{available_bed_id}}', 
           patient_id: '{{patient_id_from_search}}', 
-          admission_date: assignParams.admission_date 
+          admission_date: assignParams.admission_date || new Date().toISOString().split('T')[0]
         }});
       }
     }
@@ -1722,8 +1741,13 @@ Respond naturally, conversationally, and contextually based on the conversation 
     
     if (message.includes('discharge bed') || message.includes('bed discharge')) {
       const dischargeParams = this.extractBedDischargeParameters(userMessage);
-      if (dischargeParams.bed_id) {
-        toolsNeeded.push({ name: 'discharge_bed', arguments: dischargeParams });
+      if (dischargeParams.bed_number) {
+        // Need to lookup bed by number to get UUID first
+        toolsNeeded.push({ name: 'get_bed_by_number', arguments: { bed_number: dischargeParams.bed_number } });
+        toolsNeeded.push({ name: 'discharge_bed', arguments: { 
+          bed_id: '{{bed_id_from_lookup}}',
+          discharge_date: dischargeParams.discharge_date || new Date().toISOString().split('T')[0]
+        }});
       }
     }
     
@@ -3725,15 +3749,22 @@ Respond naturally and helpfully based on the user's request and the tool results
    */
   extractBedAssignmentParameters(message) {
     const params = {};
-    params.bed_id = this.extractId(message, 'bed') || message.match(/bed\s+([A-Z0-9]+)/i)?.[1];
+    
+    // Extract bed number (like "101A") - we'll convert to UUID later
+    const bedNumber = this.extractId(message, 'bed') || message.match(/bed\s+([A-Z0-9]+)/i)?.[1];
+    if (bedNumber) {
+      // Store as bed_number for lookup, not bed_id (which needs to be UUID)
+      params.bed_number = bedNumber;
+    }
+    
+    // Extract patient ID or name
     params.patient_id = this.extractId(message, 'patient') || message.match(/patient\s+([A-Z0-9]+)/i)?.[1];
     
     // Extract patient name if no ID provided
     if (!params.patient_id) {
-      const nameMatch = message.match(/patient\s+([a-zA-Z\s]+)/i) || 
-                       message.match(/([a-zA-Z\s]+)\s+patient/i) ||
-                       message.match(/to\s+([a-zA-Z\s]+)/i) ||
-                       message.match(/assign.*to\s+([a-zA-Z\s]+)/i);
+      const nameMatch = message.match(/(?:patient\s+|assign\s+bed\s+[A-Z0-9]+\s+to\s+(?:patient\s+)?)([A-Za-z]+\s+[A-Za-z]+)(?:\s+(?:to|on|in|any|date)|$)/i) || 
+                       message.match(/assign\s+([A-Za-z]+\s+[A-Za-z]+)\s+to\s+(?:bed|any)/i) ||
+                       message.match(/patient\s+([A-Za-z]+\s+[A-Za-z]+)(?:\s+(?:to|on|in)|$)/i);
       if (nameMatch) {
         params.patient_name = nameMatch[1].trim();
       }
@@ -3751,10 +3782,15 @@ Respond naturally and helpfully based on the user's request and the tool results
     
     // Extract patient identifier (ID, name, or bed)
     params.patient_id = this.extractId(message, 'patient');
-    params.bed_id = this.extractId(message, 'bed') || message.match(/bed\s+([A-Z0-9]+)/i)?.[1];
+    
+    // Extract bed number (not bed_id which is UUID)
+    const bedMatch = message.match(/bed\s+([A-Z0-9]+)/i);
+    if (bedMatch) {
+      params.bed_number = bedMatch[1];
+    }
     
     // Extract patient name if no ID provided
-    if (!params.patient_id && !params.bed_id) {
+    if (!params.patient_id && !params.bed_number) {
       const nameMatch = message.match(/patient\s+([a-zA-Z\s]+)/i) || 
                        message.match(/([a-zA-Z\s]+)\s+patient/i) ||
                        message.match(/discharge\s+([a-zA-Z\s]+)/i);
@@ -3911,6 +3947,28 @@ Respond naturally and helpfully based on the user's request and the tool results
       if (nameMatch) {
         params.patient_name = nameMatch[1].trim();
       }
+    }
+    
+    return params;
+  }
+
+  /**
+   * Extract bed discharge parameters
+   */
+  extractBedDischargeParameters(message) {
+    const params = {};
+    
+    // Extract bed number (not bed_id which is UUID)
+    const bedMatch = message.match(/bed\s+([A-Z0-9]+)/i);
+    if (bedMatch) {
+      params.bed_number = bedMatch[1];
+    }
+    
+    // Extract discharge date if provided
+    const dateMatch = message.match(/date\s*:?\s*(\d{4}-\d{2}-\d{2})/i) ||
+                     message.match(/(\d{4}-\d{2}-\d{2})/);
+    if (dateMatch) {
+      params.discharge_date = dateMatch[1];
     }
     
     return params;
