@@ -24,7 +24,7 @@ def check_patient(patient_number):
         
         if patient:
             print(f"✅ Found patient: {patient.first_name} {patient.last_name}")
-            print(f"   ID: {patient.patient_id}")
+            print(f"   ID: {patient.id}")
             print(f"   Email: {patient.email}")
             print(f"   Phone: {patient.phone}")
             return True

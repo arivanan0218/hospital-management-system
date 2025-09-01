@@ -4,9 +4,8 @@
 
 /* Mobile viewport and keyboard handling */
 html, body {
-  height: 100%;
-  overflow: hidden;
-  position: fixed;
+  height: 100vh;
+  overflow-x: hidden;
   width: 100%;
 }
 

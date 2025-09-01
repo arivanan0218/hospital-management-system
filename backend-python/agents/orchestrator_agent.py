@@ -20,6 +20,7 @@ try:
     from .meeting_agent import MeetingAgent  # NEW
     from .discharge_agent import DischargeAgent  # NEW
     from .patient_supply_usage_agent import PatientSupplyUsageAgent  # NEW
+    from .dashboard_agent import DashboardAgent  # NEW - Real-time dashboard
     AGENTS_AVAILABLE = True
 except ImportError:
     AGENTS_AVAILABLE = False
@@ -54,6 +55,7 @@ class OrchestratorAgent(BaseAgent):
                 "meeting": MeetingAgent(),  # NEW
                 "discharge": DischargeAgent(),  # NEW
                 "patient_supply_usage": PatientSupplyUsageAgent(),  # NEW
+                "dashboard": DashboardAgent(),  # NEW - Real-time dashboard
             }
             print(f"✅ Initialized {len(self.agents)} specialized agents")
         except Exception as e:
