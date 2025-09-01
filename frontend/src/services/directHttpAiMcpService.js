@@ -2174,7 +2174,12 @@ Respond naturally, conversationally, and contextually based on the conversation 
   async callTool(toolName, args) {
     console.log(`🔧 CALLING TOOL: ${toolName} with args:`, args);
     try {
-      const response = await fetch('http://localhost:8000/tools/call', {
+      // Smart URL detection: use localhost:8000 for local dev, relative URL for deployment
+      const baseUrl = window.location.hostname === 'localhost' && window.location.port === '5173' 
+        ? 'http://localhost:8000'  // Local development (Vite dev server)
+        : '';                      // Deployment (through nginx proxy)
+      
+      const response = await fetch(`${baseUrl}/tools/call`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
