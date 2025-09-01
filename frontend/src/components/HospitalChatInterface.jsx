@@ -246,15 +246,14 @@ const HospitalChatInterface = ({
 
       {/* Chat Output Area - SCROLLABLE MIDDLE SECTION */}
       <div 
-        className={`flex-1 pt-16 bg-[#1a1a1a] relative transition-all duration-300 ease-in-out ${
-          showActionButtons ? 'pb-32' : 'pb-20'
-        }`}
+        className="flex-1 pt-16 bg-[#1a1a1a] relative transition-all duration-300 ease-in-out"
         style={{ 
           overflowY: 'auto',
           overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch',
           height: 'calc(100vh - 140px)', // Fixed height to prevent keyboard viewport issues
-          maxHeight: 'calc(var(--vh, 1vh) * 100 - 140px)'
+          maxHeight: 'calc(var(--vh, 1vh) * 100 - 140px)',
+          paddingBottom: showActionButtons ? '120px' : '80px' // Dynamic padding with exact pixel values
         }}
       >
         <div className="max-w-4xl mx-auto">
