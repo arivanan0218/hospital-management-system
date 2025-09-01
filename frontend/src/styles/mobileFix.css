@@ -14,10 +14,10 @@
   
   /* Fix for content when keyboard is open */
   .chat-messages-container {
-    padding-bottom: 80px; /* Ensure enough space at bottom */
+    padding-bottom: 60px; /* Ensure enough space at bottom - reduced */
   }
   
-  /* Ensure input is always visible */
+  /* Ensure input is always visible and compact on mobile */
   .chat-input-container {
     position: fixed;
     bottom: 0;
@@ -25,11 +25,23 @@
     right: 0;
     background-color: #1a1a1a;
     transition: bottom 0.1s ease-in-out;
+    padding: 8px !important;
+  }
+  
+  /* Fix for the input wrapper to be more compact */
+  .mobile-input-wrap {
+    padding: 4px 8px !important;
+    min-height: 38px;
   }
   
   /* Fix for iOS devices */
   .mobile-chat-input {
     font-size: 16px !important; /* Prevent auto zoom on iOS */
+    padding: 4px 6px !important;
+    margin: 0 !important;
+    min-height: 24px !important;
+    line-height: 1.2 !important;
+    margin-bottom: 0 !important;
   }
   
   /* Fix for body scroll issues */
@@ -54,6 +66,33 @@
       height: -webkit-fill-available;
       max-height: -webkit-fill-available;
     }
+    
+    /* iOS-specific input fixes */
+    .mobile-chat-input {
+      padding-top: 6px !important;
+      padding-bottom: 6px !important;
+    }
+    
+    /* Fix for the keyboard padding on iOS */
+    .chat-input-container {
+      padding-bottom: env(safe-area-inset-bottom, 8px) !important;
+    }
+  }
+  
+  /* ChatGPT-like styling for the input area */
+  .chat-input-container {
+    box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.2);
+  }
+  
+  .mobile-input-wrap {
+    border-radius: 12px !important;
+  }
+  
+  /* Ensure buttons are properly sized */
+  .chat-input-container button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 }
 
@@ -62,5 +101,20 @@
   .chat-input-container {
     position: sticky;
     bottom: 0;
+  }
+  
+  /* Make input even more compact in landscape mode */
+  .mobile-input-wrap {
+    padding: 2px 6px !important;
+    min-height: 34px !important;
+  }
+}
+
+/* Fix for devices with notches */
+@media screen and (orientation: portrait) {
+  @supports (padding-bottom: env(safe-area-inset-bottom)) {
+    .chat-input-container {
+      padding-bottom: env(safe-area-inset-bottom) !important;
+    }
   }
 }

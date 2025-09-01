@@ -78,18 +78,38 @@ const HospitalChatInterface = ({
       const textarea = inputRef.current;
       // Reset height to auto to get the correct scrollHeight
       textarea.style.height = 'auto';
+      
+      // Check if it's a mobile device
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                        (window.innerWidth <= 768) || 
+                        ('ontouchstart' in window);
+                        
+      // Set different min/max heights for mobile vs desktop
+      const minHeight = isMobile ? 24 : 40;
+      const maxHeight = isMobile ? 80 : 120;
+      
       // Set height based on scrollHeight, with min and max constraints
-      const newHeight = Math.min(Math.max(textarea.scrollHeight, 40), 120);
+      const newHeight = Math.min(Math.max(textarea.scrollHeight, minHeight), maxHeight);
       textarea.style.height = newHeight + 'px';
+      
+      // Immediately scroll to bottom if input gets taller (like ChatGPT)
+      if (newHeight > minHeight) {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }
     }
-  }, [inputMessage]);
+  }, [inputMessage, inputRef]);
 
   // Reset textarea height when input is cleared (after sending message)
   useEffect(() => {
     if (inputRef.current && inputMessage === '') {
-      inputRef.current.style.height = '40px';
+      // Check if it's a mobile device for appropriate height
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                        (window.innerWidth <= 768) || 
+                        ('ontouchstart' in window);
+      // Use smaller height for mobile
+      inputRef.current.style.height = isMobile ? '30px' : '40px';
     }
-  }, [inputMessage]);
+  }, [inputMessage, inputRef]);
 
   // Handle mobile viewport height issues with keyboard
   useEffect(() => {
@@ -106,10 +126,44 @@ const HospitalChatInterface = ({
         
         // Adjust the bottom position of the input area when keyboard is open
         const inputArea = document.querySelector('.chat-input-container');
+        const messagesContainer = document.querySelector('.chat-messages-container');
+        
         if (inputArea) {
           // Calculate the difference between visual viewport and window height
           const keyboardHeight = Math.max(0, window.innerHeight - window.visualViewport.height);
-          inputArea.style.bottom = `${keyboardHeight}px`;
+          
+          // Detect if we're on iOS (which handles viewport differently)
+          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+          
+          // Position input container properly relative to keyboard
+          if (isIOS) {
+            // iOS handles keyboard differently - position relative to viewport
+            inputArea.style.bottom = `0px`;
+            inputArea.style.position = 'fixed';
+            
+            // Adjust messages container bottom padding to prevent content hiding under keyboard
+            if (messagesContainer) {
+              const inputHeight = inputArea.offsetHeight || 60;
+              messagesContainer.style.paddingBottom = `${inputHeight + 8}px`;
+            }
+          } else {
+            // Android and other devices
+            inputArea.style.bottom = `${keyboardHeight}px`;
+            
+            // Prevent the keyboard from pushing the viewport
+            if (keyboardHeight > 0) {
+              // Keyboard is open - make sure input is visible
+              inputArea.classList.add('keyboard-active');
+              
+              // Scroll to bottom when keyboard opens
+              setTimeout(() => {
+                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+              }, 100);
+            } else {
+              // Keyboard closed
+              inputArea.classList.remove('keyboard-active');
+            }
+          }
         }
       }
     };
@@ -265,13 +319,13 @@ const HospitalChatInterface = ({
 
       {/* Chat Output Area - SCROLLABLE MIDDLE SECTION */}
       <div 
-        className="chat-messages-container flex-1 pt-16 pb-24 bg-[#1a1a1a] relative"
+        className="chat-messages-container flex-1 pt-16 pb-16 bg-[#1a1a1a] relative"
         style={{ 
           overflowY: 'auto',
           overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch',
           height: 'auto', // Remove fixed height to let it adapt
-          maxHeight: 'calc(var(--vh, 1vh) * 100 - 140px)',
+          maxHeight: 'calc(var(--vh, 1vh) * 100 - 110px)', // Adjusted for smaller input area
           flexGrow: 1
         }}
       >
@@ -464,9 +518,9 @@ const HospitalChatInterface = ({
 
       {/* Chat Input Area - FIXED AT BOTTOM */}
       <div 
-        className="chat-input-container fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-gray-700 px-4 py-3 z-30" 
+        className="chat-input-container fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-gray-700 px-2 sm:px-4 py-2 z-30" 
         style={{ 
-          paddingBottom: 'max(12px, env(safe-area-inset-bottom, 0px))',
+          paddingBottom: isIOSDevice ? 'env(safe-area-inset-bottom, 8px)' : '8px',
           position: 'fixed',
           bottom: '0',
           transform: 'translateZ(0)', // Force hardware acceleration
@@ -531,13 +585,13 @@ const HospitalChatInterface = ({
               </div>
             </div>
           )}
-          <div className="flex items-center space-x-2 bg-[#2a2a2a] rounded-lg px-3 py-2 border border-gray-600 focus-within:border-blue-500">
+          <div className="flex items-center space-x-1 sm:space-x-2 bg-[#2a2a2a] rounded-lg px-2 sm:px-3 py-1 sm:py-2 border border-gray-600 focus-within:border-blue-500 mobile-input-wrap">
             {/* Left Side - Plus Menu */}
             <div className="flex items-center">
               <div className="relative" ref={plusMenuRef}>
                 <button
                   onClick={() => setShowPlusMenu(!showPlusMenu)}
-                  className="text-gray-400 hover:text-white transition-colors p-1"
+                  className="text-gray-400 hover:text-white transition-colors p-0.5 sm:p-1"
                   title="Upload documents or view medical history"
                 >
                   <Plus className="w-4 h-4" />
@@ -607,16 +661,20 @@ const HospitalChatInterface = ({
               }}
               placeholder={isConnected ? "Ask about patients, beds, staff, equipment..." : "Connecting..."}
               disabled={!isConnected || isLoading}
-              className="mobile-chat-input flex-1 bg-transparent text-white placeholder-gray-400 focus:outline-none text-sm resize-none overflow-y-auto"
+              className="mobile-chat-input flex-1 bg-transparent text-white placeholder-gray-400 focus:outline-none text-sm resize-none overflow-y-auto p-1"
               style={{
                 WebkitAppearance: 'none',
                 fontSize: isIOSDevice ? '16px' : '14px', // Keep font size 16px for iOS to prevent zoom
-                maxHeight: '120px',
-                height: '40px', // Initial height
+                maxHeight: '80px', // Reduced for mobile
+                minHeight: '24px', // Smaller min height on mobile
+                height: '30px', // Smaller initial height for mobile
                 WebkitTouchCallout: 'none',
                 WebkitUserSelect: 'text',
                 WebkitTapHighlightColor: 'transparent',
-                position: 'relative'
+                position: 'relative',
+                margin: 0,
+                paddingRight: '5px',
+                lineHeight: '1.2'
               }}
               autoComplete="off"
               autoCorrect="off"
@@ -631,7 +689,7 @@ const HospitalChatInterface = ({
               <button
                 onClick={toggleVoiceInput}
                 disabled={!isConnected || isLoading || isProcessingVoice || microphoneAvailable === false}
-                className={`transition-colors duration-200 p-1 ${
+                className={`transition-colors duration-200 p-0.5 sm:p-1 ${
                   microphoneAvailable === false
                     ? "text-gray-500 cursor-not-allowed opacity-50"
                     : isListening || isRecording
@@ -686,13 +744,13 @@ const HospitalChatInterface = ({
                   setShowActionButtons(false); // Hide action buttons after sending
                 }}
                 disabled={!isConnected || isLoading || !inputMessage.trim()}
-                className="w-7 h-7 sm:w-8 sm:h-8 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 text-white rounded-full flex items-center justify-center transition-colors duration-200"
+                className="w-6 h-6 sm:w-8 sm:h-8 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 text-white rounded-full flex items-center justify-center transition-colors duration-200 ml-1"
                 title="Send message"
               >
                 {isLoading ? (
-                  <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
+                  <div className="w-2 h-2 sm:w-3 sm:h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
                 ) : (
-                  <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
                   </svg>
                 )}
