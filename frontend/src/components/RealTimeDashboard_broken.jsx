@@ -663,6 +663,83 @@ const RealTimeDashboard = ({ setActiveTab }) => {
         <HospitalStatusOverview />
       </div>
       {/* Footer */}
+                if (setActiveTab) {
+                  setActiveTab('chat');
+                  setTimeout(() => {
+                    const event = new CustomEvent('quickAction', { 
+                      detail: { action: 'icu_status', message: 'Show ICU capacity and critical patient status' }
+                    });
+                    window.dispatchEvent(event);
+                  }, 500);
+                }
+              }}
+            >
+              <span className="text-2xl">🏥</span>
+              <span className="font-medium">ICU Capacity</span>
+              <span className="text-xs opacity-80">Critical Care Status</span>
+            </button>
+            <button 
+              className="bg-gradient-to-r from-orange-600 to-orange-700 text-white p-4 rounded-lg text-sm hover:from-orange-700 hover:to-orange-800 transition-all duration-200 flex flex-col items-center space-y-2 shadow-lg"
+              onClick={() => {
+                console.log('Surgery Schedule Check');
+                if (setActiveTab) {
+                  setActiveTab('chat');
+                  setTimeout(() => {
+                    const event = new CustomEvent('quickAction', { 
+                      detail: { action: 'surgery_schedule', message: 'Show today\'s surgery schedule and OR availability' }
+                    });
+                    window.dispatchEvent(event);
+                  }, 500);
+                }
+              }}
+            >
+              <span className="text-2xl">⚕️</span>
+              <span className="font-medium">Surgery Schedule</span>
+              <span className="text-xs opacity-80">OR Management</span>
+            </button>
+            <button 
+              className="bg-gradient-to-r from-purple-600 to-purple-700 text-white p-4 rounded-lg text-sm hover:from-purple-700 hover:to-purple-800 transition-all duration-200 flex flex-col items-center space-y-2 shadow-lg"
+              onClick={() => {
+                console.log('Discharge Planning');
+                if (setActiveTab) {
+                  setActiveTab('chat');
+                  setTimeout(() => {
+                    const event = new CustomEvent('quickAction', { 
+                      detail: { action: 'discharge_planning', message: 'Show patients ready for discharge and discharge planning status' }
+                    });
+                    window.dispatchEvent(event);
+                  }, 500);
+                }
+              }}
+            >
+              <span className="text-2xl">�</span>
+              <span className="font-medium">Discharge Planning</span>
+              <span className="text-xs opacity-80">Patient Flow</span>
+            </button>
+            <button 
+              className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 rounded-lg text-sm hover:from-blue-700 hover:to-blue-800 transition-all duration-200 flex flex-col items-center space-y-2 shadow-lg"
+              onClick={() => {
+                console.log('Staff Scheduling');
+                if (setActiveTab) {
+                  setActiveTab('chat');
+                  setTimeout(() => {
+                    const event = new CustomEvent('quickAction', { 
+                      detail: { action: 'staff_schedule', message: 'Show current shift schedules and staff availability across departments' }
+                    });
+                    window.dispatchEvent(event);
+                  }, 500);
+                }
+              }}
+            >
+              <span className="text-2xl">👨‍⚕️</span>
+              <span className="font-medium">Staff Scheduling</span>
+              <span className="text-xs opacity-80">Shift Management</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
       <div className="flex-shrink-0">
         <LastUpdated />
       </div>
