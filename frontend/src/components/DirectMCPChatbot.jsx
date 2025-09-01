@@ -16,6 +16,7 @@ import LegacyUserCreationForm from './LegacyUserCreationForm.jsx';
 import EquipmentCategoryCreationForm from './EquipmentCategoryCreationForm.jsx';
 import SupplyCategoryCreationForm from './SupplyCategoryCreationForm.jsx';
 import HospitalChatInterface from './HospitalChatInterface.jsx';
+import RealTimeDashboard, { DashboardProvider } from './RealTimeDashboard.jsx';
 
 const DirectMCPChatbot = ({ user, onLogout }) => {
   // Mobile-responsive CSS classes for consistent mobile experience (reduced height)
@@ -51,7 +52,7 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   const [microphoneAvailable, setMicrophoneAvailable] = useState(null); // Track microphone availability
   
   // Medical document features
-  const [activeTab, setActiveTab] = useState('chat'); // chat, upload, history
+  const [activeTab, setActiveTab] = useState('chat'); // chat, upload, history, dashboard
   const [selectedPatientId, setSelectedPatientId] = useState(null); // This will store the UUID
   const [selectedPatientNumber, setSelectedPatientNumber] = useState(''); // This will store the patient number (P123456)
   const [searchingPatient, setSearchingPatient] = useState(false);
@@ -3124,69 +3125,78 @@ ${dischargeData.next_steps ? dischargeData.next_steps.map(step => `• ${step}`)
     );
   }
 
-  // Main Chat Interface - Using HospitalChatInterface Component
+  // Main Chat Interface - Using HospitalChatInterface Component or Dashboard
   return (
     <>
-      <HospitalChatInterface
-        // User and server info
-        user={user}
-        serverInfo={serverInfo}
-        onLogout={onLogout}
-        
-        // Chat state
-        messages={messages}
-        isLoading={isLoading}
-        expandedThinking={expandedThinking}
-        setExpandedThinking={setExpandedThinking}
-        
-        // Input handling
-        inputMessage={inputMessage}
-        setInputMessage={setInputMessage}
-        handleSendMessage={handleSendMessage}
-        isConnected={isConnected}
-        
-        // Action buttons
-        showActionButtons={showActionButtons}
-        smartFocusInput={smartFocusInput}
-        
-        // Plus menu
-        showPlusMenu={showPlusMenu}
-        setShowPlusMenu={setShowPlusMenu}
-        plusMenuRef={plusMenuRef}
-        setActiveTab={setActiveTab}
-        
-        // Medical document functionality
-        activeTab={activeTab}
-        selectedPatientId={selectedPatientId}
-        setSelectedPatientId={setSelectedPatientId}
-        selectedPatientNumber={selectedPatientNumber}
-        setSelectedPatientNumber={setSelectedPatientNumber}
-        searchingPatient={searchingPatient}
-        patientSearchResult={patientSearchResult}
-        verifyPatient={verifyPatient}
-        searchPatientByNumber={searchPatientByNumber}
-        
-        // Voice functionality
-        toggleVoiceInput={toggleVoiceInput}
-        isListening={isListening}
-        isRecording={isRecording}
-        isProcessingVoice={isProcessingVoice}
-        isSpeaking={isSpeaking}
-        microphoneAvailable={microphoneAvailable}
-        
-        // Chat functionality
-        aiMcpServiceRef={aiMcpServiceRef}
-        setMessages={setMessages}
-        setShowSetup={setShowSetup}
-        
-        // Formatting functions
-        formatMessageText={formatMessageText}
-        ThinkingDuration={ThinkingDuration}
-        
-        // Mobile responsiveness
-        inputRef={inputFieldRef}
-        isIOSDevice={isIOSDevice()}
-      />
+      {/* Conditional rendering based on active tab */}
+      {activeTab === 'dashboard' ? (
+        // Dashboard View with Provider
+        <DashboardProvider mcpClient={aiMcpServiceRef.current?.mcpClient}>
+          <RealTimeDashboard setActiveTab={setActiveTab} />
+        </DashboardProvider>
+      ) : (
+        // Chat Interface View (existing)
+        <HospitalChatInterface
+          // User and server info
+          user={user}
+          serverInfo={serverInfo}
+          onLogout={onLogout}
+          
+          // Chat state
+          messages={messages}
+          isLoading={isLoading}
+          expandedThinking={expandedThinking}
+          setExpandedThinking={setExpandedThinking}
+          
+          // Input handling
+          inputMessage={inputMessage}
+          setInputMessage={setInputMessage}
+          handleSendMessage={handleSendMessage}
+          isConnected={isConnected}
+          
+          // Action buttons
+          showActionButtons={showActionButtons}
+          smartFocusInput={smartFocusInput}
+          
+          // Plus menu
+          showPlusMenu={showPlusMenu}
+          setShowPlusMenu={setShowPlusMenu}
+          plusMenuRef={plusMenuRef}
+          setActiveTab={setActiveTab}
+          
+          // Medical document functionality
+          activeTab={activeTab}
+          selectedPatientId={selectedPatientId}
+          setSelectedPatientId={setSelectedPatientId}
+          selectedPatientNumber={selectedPatientNumber}
+          setSelectedPatientNumber={setSelectedPatientNumber}
+          searchingPatient={searchingPatient}
+          patientSearchResult={patientSearchResult}
+          verifyPatient={verifyPatient}
+          searchPatientByNumber={searchPatientByNumber}
+          
+          // Voice functionality
+          toggleVoiceInput={toggleVoiceInput}
+          isListening={isListening}
+          isRecording={isRecording}
+          isProcessingVoice={isProcessingVoice}
+          isSpeaking={isSpeaking}
+          microphoneAvailable={microphoneAvailable}
+          
+          // Chat functionality
+          aiMcpServiceRef={aiMcpServiceRef}
+          setMessages={setMessages}
+          setShowSetup={setShowSetup}
+          
+          // Formatting functions
+          formatMessageText={formatMessageText}
+          ThinkingDuration={ThinkingDuration}
+          
+          // Mobile responsiveness
+          inputRef={inputFieldRef}
+          isIOSDevice={isIOSDevice()}
+        />
+      )}
 
       {/* Patient Admission Form Component */}
       <PatientAdmissionForm 
