@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { LogOut, User, Settings, Upload, FileText, History, CheckCircle, Plus, X, Mic, MicOff, VolumeX } from 'lucide-react';
 import EnhancedMedicalDocumentUpload from './EnhancedMedicalDocumentUpload.jsx';
 import MedicalHistoryViewer from './MedicalHistoryViewer.jsx';
+import '../styles/mobileFix.css';
 
 const HospitalChatInterface = ({
   // User and server info
@@ -97,17 +98,48 @@ const HospitalChatInterface = ({
       document.documentElement.style.setProperty('--vh', `${vh}px`);
     };
 
+    const handleVisualViewportResize = () => {
+      // This is crucial for handling mobile keyboard properly
+      if (window.visualViewport) {
+        const currentVh = window.visualViewport.height * 0.01;
+        document.documentElement.style.setProperty('--vh', `${currentVh}px`);
+        
+        // Adjust the bottom position of the input area when keyboard is open
+        const inputArea = document.querySelector('.chat-input-container');
+        if (inputArea) {
+          // Calculate the difference between visual viewport and window height
+          const keyboardHeight = Math.max(0, window.innerHeight - window.visualViewport.height);
+          inputArea.style.bottom = `${keyboardHeight}px`;
+        }
+      }
+    };
+
     setVH();
     window.addEventListener('resize', setVH);
     window.addEventListener('orientationchange', setVH);
+    
+    // Use visualViewport API for better keyboard handling on mobile
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleVisualViewportResize);
+      window.visualViewport.addEventListener('scroll', handleVisualViewportResize);
+    }
 
     // Prevent body scroll on mobile when keyboard appears
     const handleFocusIn = () => {
       document.body.classList.add('no-scroll');
+      // Scroll the messages container to bottom when keyboard opens
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
     };
 
     const handleFocusOut = () => {
       document.body.classList.remove('no-scroll');
+      // Reset the input container position
+      const inputArea = document.querySelector('.chat-input-container');
+      if (inputArea) {
+        inputArea.style.bottom = '0';
+      }
     };
 
     // Add event listeners for input focus/blur
@@ -119,15 +151,20 @@ const HospitalChatInterface = ({
       window.removeEventListener('orientationchange', setVH);
       document.removeEventListener('focusin', handleFocusIn);
       document.removeEventListener('focusout', handleFocusOut);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleVisualViewportResize);
+        window.visualViewport.removeEventListener('scroll', handleVisualViewportResize);
+      }
       document.body.classList.remove('no-scroll');
     };
   }, []);
 
   return (
-    <div className="bg-[#1a1a1a] flex flex-col text-white relative" style={{ 
+    <div className="hospital-chat-container bg-[#1a1a1a] flex flex-col text-white relative" style={{ 
       height: 'calc(var(--vh, 1vh) * 100)',
       maxHeight: 'calc(var(--vh, 1vh) * 100)',
-      overflow: 'hidden'
+      overflow: 'hidden',
+      position: 'relative' 
     }}>
       {/* Claude-style Header - FIXED AT TOP */}
       <div className="fixed top-0 left-0 right-0 border-b border-gray-700 px-3 sm:px-4 py-3 bg-[#1a1a1a] z-30">
@@ -228,13 +265,14 @@ const HospitalChatInterface = ({
 
       {/* Chat Output Area - SCROLLABLE MIDDLE SECTION */}
       <div 
-        className="flex-1 pt-16 pb-24 bg-[#1a1a1a] relative"
+        className="chat-messages-container flex-1 pt-16 pb-24 bg-[#1a1a1a] relative"
         style={{ 
           overflowY: 'auto',
           overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch',
-          height: 'calc(100vh - 140px)', // Fixed height to prevent keyboard viewport issues
-          maxHeight: 'calc(var(--vh, 1vh) * 100 - 140px)'
+          height: 'auto', // Remove fixed height to let it adapt
+          maxHeight: 'calc(var(--vh, 1vh) * 100 - 140px)',
+          flexGrow: 1
         }}
       >
         <div className="max-w-4xl mx-auto">
@@ -426,13 +464,15 @@ const HospitalChatInterface = ({
 
       {/* Chat Input Area - FIXED AT BOTTOM */}
       <div 
-        className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-gray-700 px-4 py-3 z-30" 
+        className="chat-input-container fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-gray-700 px-4 py-3 z-30" 
         style={{ 
           paddingBottom: 'max(12px, env(safe-area-inset-bottom, 0px))',
           position: 'fixed',
           bottom: '0',
           transform: 'translateZ(0)', // Force hardware acceleration
-          willChange: 'transform'
+          willChange: 'transform',
+          transitionProperty: 'bottom',
+          transitionDuration: '0.1s'
         }}
       >
         <div className="max-w-4xl mx-auto">
@@ -554,22 +594,29 @@ const HospitalChatInterface = ({
                 }
                 // Shift+Enter always creates new line on both mobile and desktop
               }}
-              onFocus={() => setShowActionButtons(true)}
+              onFocus={() => {
+                setShowActionButtons(true);
+                // Scroll to bottom when keyboard opens on mobile
+                setTimeout(() => {
+                  messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+                }, 300);
+              }}
               onBlur={() => {
                 // Hide action buttons when keyboard is dismissed, with small delay
                 setTimeout(() => setShowActionButtons(false), 150);
               }}
               placeholder={isConnected ? "Ask about patients, beds, staff, equipment..." : "Connecting..."}
               disabled={!isConnected || isLoading}
-              className="flex-1 bg-transparent text-white placeholder-gray-400 focus:outline-none text-sm resize-none overflow-y-auto"
+              className="mobile-chat-input flex-1 bg-transparent text-white placeholder-gray-400 focus:outline-none text-sm resize-none overflow-y-auto"
               style={{
                 WebkitAppearance: 'none',
-                fontSize: isIOSDevice ? '16px' : '14px',
+                fontSize: isIOSDevice ? '16px' : '14px', // Keep font size 16px for iOS to prevent zoom
                 maxHeight: '120px',
                 height: '40px', // Initial height
                 WebkitTouchCallout: 'none',
                 WebkitUserSelect: 'text',
-                WebkitTapHighlightColor: 'transparent'
+                WebkitTapHighlightColor: 'transparent',
+                position: 'relative'
               }}
               autoComplete="off"
               autoCorrect="off"
