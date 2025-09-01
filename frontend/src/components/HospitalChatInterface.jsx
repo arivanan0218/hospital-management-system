@@ -251,7 +251,7 @@ const HospitalChatInterface = ({
           overflowY: 'auto',
           overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch',
-          bottom: showActionButtons ? '120px' : '80px', // Dynamic bottom position
+          bottom: showActionButtons ? '100px' : '70px', // Much closer to input area
           height: 'auto'
         }}
       >
@@ -445,10 +445,10 @@ const HospitalChatInterface = ({
       {/* Chat Input Area - FIXED AT BOTTOM */}
       <div 
         className={`fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-gray-700 px-4 z-30 transition-all duration-300 ease-in-out ${
-          showActionButtons ? 'py-3' : 'py-2'
+          showActionButtons ? 'py-2' : 'py-1'
         }`}
         style={{ 
-          paddingBottom: 'max(12px, env(safe-area-inset-bottom, 0px))',
+          paddingBottom: 'max(8px, env(safe-area-inset-bottom, 0px))',
           position: 'fixed',
           bottom: '0',
           transform: 'translateZ(0)', // Force hardware acceleration
