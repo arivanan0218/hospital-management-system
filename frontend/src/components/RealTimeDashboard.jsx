@@ -24,7 +24,10 @@ export const DashboardProvider = ({ children, mcpClient }) => {
       console.log('Making dashboard API calls...');
       
       // Use direct HTTP API calls instead of MCP client
-      const baseUrl = 'http://localhost:8000';
+      // Smart URL detection: use localhost:8000 for local dev, relative URL for deployment
+      const baseUrl = window.location.hostname === 'localhost' && window.location.port === '5173' 
+        ? 'http://localhost:8000'  // Local development (Vite dev server)
+        : '';                      // Deployment (through nginx proxy)
       
       const makeApiCall = async (toolName, args = {}) => {
         try {

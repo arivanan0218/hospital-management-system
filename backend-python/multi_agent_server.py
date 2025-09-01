@@ -2769,7 +2769,10 @@ if __name__ == "__main__":
             CORSMiddleware,
             allow_origins=[
                 "http://localhost:3000", "http://127.0.0.1:3000",
-                "http://localhost:5173", "http://127.0.0.1:5173"
+                "http://localhost:5173", "http://127.0.0.1:5173",
+                "http://54.85.118.65", "http://54.85.118.65:80",
+                "http://54.85.118.65:3000", "http://54.85.118.65:5173",
+                "*"  # Allow all origins for deployment flexibility
             ],
             allow_credentials=True,
             allow_methods=["*"],
