@@ -89,45 +89,6 @@ const HospitalChatInterface = ({
       inputRef.current.style.height = '40px';
     }
   }, [inputMessage]);
-  
-  // Special fix for iOS Safari viewport issue with keyboard
-  useEffect(() => {
-    if (!isIOSDevice) return;
-    
-    // Function to detect iOS Safari and fix visual viewport
-    const fixIOSInputPosition = () => {
-      if (document.activeElement === inputRef.current) {
-        // Apply iOS specific adjustment using visual viewport API if available
-        if (window.visualViewport) {
-          const viewport = window.visualViewport;
-          const inputContainer = document.querySelector('.chat-input-container');
-          
-          if (inputContainer) {
-            // Adjust the position based on visual viewport
-            inputContainer.style.transform = `translateY(${-Math.abs(viewport.height - viewport.offsetTop - viewport.offsetHeight)}px)`;
-          }
-        }
-      } else {
-        // Reset the transform when not focused
-        const inputContainer = document.querySelector('.chat-input-container');
-        if (inputContainer) {
-          inputContainer.style.transform = 'translateZ(0)';
-        }
-      }
-    };
-
-    // Listen to visual viewport resize events (when keyboard appears/disappears)
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', fixIOSInputPosition);
-      window.visualViewport.addEventListener('scroll', fixIOSInputPosition);
-      
-      // Cleanup
-      return () => {
-        window.visualViewport.removeEventListener('resize', fixIOSInputPosition);
-        window.visualViewport.removeEventListener('scroll', fixIOSInputPosition);
-      };
-    }
-  }, [isIOSDevice, inputRef]);
 
   // Handle mobile viewport height issues with keyboard
   useEffect(() => {
@@ -141,43 +102,12 @@ const HospitalChatInterface = ({
     window.addEventListener('orientationchange', setVH);
 
     // Prevent body scroll on mobile when keyboard appears
-    const handleFocusIn = (e) => {
+    const handleFocusIn = () => {
       document.body.classList.add('no-scroll');
-      
-      // Special handling for iOS devices to fix keyboard input positioning
-      if (isIOSDevice && inputRef.current && (e.target === inputRef.current)) {
-        // Scroll to the input element after a short delay to let the keyboard appear
-        setTimeout(() => {
-          // Get the input area
-          const inputArea = document.querySelector('.chat-input-container');
-          if (inputArea) {
-            // Apply iOS specific styles when keyboard is open
-            inputArea.style.position = 'absolute';
-            inputArea.style.bottom = '0';
-            inputArea.style.left = '0';
-            inputArea.style.right = '0';
-            
-            // Scroll to the input with enough delay for the keyboard to appear
-            window.scrollTo(0, document.body.scrollHeight);
-            inputRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
-          }
-        }, 300);
-      }
     };
 
     const handleFocusOut = () => {
       document.body.classList.remove('no-scroll');
-      
-      // Reset iOS specific styles
-      if (isIOSDevice) {
-        const inputArea = document.querySelector('.chat-input-container');
-        if (inputArea) {
-          // Reset positioning
-          setTimeout(() => {
-            inputArea.style.position = 'fixed';
-          }, 100);
-        }
-      }
     };
 
     // Add event listeners for input focus/blur
@@ -191,7 +121,7 @@ const HospitalChatInterface = ({
       document.removeEventListener('focusout', handleFocusOut);
       document.body.classList.remove('no-scroll');
     };
-  }, [isIOSDevice, inputRef]);
+  }, []);
 
   return (
     <div className="bg-[#1a1a1a] flex flex-col text-white relative" style={{ 
@@ -316,14 +246,15 @@ const HospitalChatInterface = ({
 
       {/* Chat Output Area - SCROLLABLE MIDDLE SECTION */}
       <div 
-        className="flex-1 pt-16 pb-24 bg-[#1a1a1a] relative messages-area"
+        className={`flex-1 pt-16 bg-[#1a1a1a] relative transition-all duration-300 ease-in-out ${
+          showActionButtons ? 'pb-32' : 'pb-20'
+        }`}
         style={{ 
           overflowY: 'auto',
           overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch',
-          paddingBottom: showActionButtons ? '180px' : '90px', // Dynamic bottom padding based on action buttons
-          height: 'calc(100vh - 64px)', // Only account for header height
-          maxHeight: 'calc(var(--vh, 1vh) * 100 - 64px)'
+          height: 'calc(100vh - 140px)', // Fixed height to prevent keyboard viewport issues
+          maxHeight: 'calc(var(--vh, 1vh) * 100 - 140px)'
         }}
       >
         <div className="max-w-4xl mx-auto">
@@ -515,9 +446,11 @@ const HospitalChatInterface = ({
 
       {/* Chat Input Area - FIXED AT BOTTOM */}
       <div 
-        className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-gray-700 px-4 py-3 z-30 chat-input-container"
+        className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-gray-700 px-4 py-3 z-30" 
         style={{ 
           paddingBottom: 'max(12px, env(safe-area-inset-bottom, 0px))',
+          position: 'fixed',
+          bottom: '0',
           transform: 'translateZ(0)', // Force hardware acceleration
           willChange: 'transform'
         }}
@@ -641,49 +574,10 @@ const HospitalChatInterface = ({
                 }
                 // Shift+Enter always creates new line on both mobile and desktop
               }}
-              onFocus={() => {
-                setShowActionButtons(true);
-                
-                // iOS specific focus handling for better keyboard interaction
-                if (isIOSDevice) {
-                  // Small delay to let the keyboard appear
-                  setTimeout(() => {
-                    // Ensure the input is visible with the keyboard
-                    if (window.visualViewport) {
-                      // Calculate the visible area with keyboard
-                      const visibleHeight = window.visualViewport.height;
-                      const windowHeight = window.innerHeight;
-                      
-                      // If there's a significant difference, keyboard is likely visible
-                      if (windowHeight - visibleHeight > 100) {
-                        // Scroll to make sure input is visible
-                        window.scrollTo(0, document.body.scrollHeight);
-                        
-                        // Disable scrolling on the messages area to prevent bounce effects
-                        const messagesArea = document.querySelector('.messages-area');
-                        if (messagesArea) {
-                          messagesArea.style.overflow = 'hidden';
-                        }
-                      }
-                    }
-                  }, 300);
-                }
-              }}
+              onFocus={() => setShowActionButtons(true)}
               onBlur={() => {
                 // Hide action buttons when keyboard is dismissed, with small delay
                 setTimeout(() => setShowActionButtons(false), 150);
-                
-                // iOS specific blur handling
-                if (isIOSDevice) {
-                  // Re-enable scrolling on the messages area
-                  const messagesArea = document.querySelector('.messages-area');
-                  if (messagesArea) {
-                    messagesArea.style.overflow = 'auto';
-                  }
-                  
-                  // Scroll back to normal position
-                  window.scrollTo(0, 0);
-                }
               }}
               placeholder={isConnected ? "Ask about patients, beds, staff, equipment..." : "Connecting..."}
               disabled={!isConnected || isLoading}
@@ -695,9 +589,7 @@ const HospitalChatInterface = ({
                 height: '40px', // Initial height
                 WebkitTouchCallout: 'none',
                 WebkitUserSelect: 'text',
-                WebkitTapHighlightColor: 'transparent',
-                position: 'relative',
-                zIndex: 40
+                WebkitTapHighlightColor: 'transparent'
               }}
               autoComplete="off"
               autoCorrect="off"
