@@ -124,7 +124,7 @@ const HospitalChatInterface = ({
   }, []);
 
   return (
-    <div className="bg-[#1a1a1a] flex flex-col text-white relative h-screen max-h-screen overflow-hidden">
+    <div className="bg-[#1a1a1a] flex flex-col text-white h-screen overflow-hidden">
       {/* Claude-style Header - FIXED AT TOP */}
       <div className="flex-shrink-0 border-b border-gray-700 px-3 sm:px-4 py-3 bg-[#1a1a1a] z-30">
         <div className="flex items-center justify-between">
@@ -240,20 +240,14 @@ const HospitalChatInterface = ({
         </div>
       </div>
 
-      {/* Chat Output Area - SCROLLABLE MIDDLE SECTION */}
+      {/* Chat Output Area - FLEX GROW SCROLLABLE MIDDLE SECTION */}
       <div 
-        className="flex-1 bg-[#1a1a1a] relative"
+        className="flex-1 bg-[#1a1a1a] overflow-y-auto overflow-x-hidden"
         style={{ 
-          overflowY: 'auto',
-          overflowX: 'hidden',
-          WebkitOverflowScrolling: 'touch',
-          height: '100%',
-          maxHeight: '100%',
-          marginBottom: '0',
-          paddingBottom: '0'
+          WebkitOverflowScrolling: 'touch'
         }}
       >
-        <div className="max-w-4xl mx-auto pb-4">
+        <div className="max-w-4xl mx-auto p-4">
           {/* Welcome Message */}
           {messages.length === 0 && (
             <div className="px-4 py-8 text-center">
@@ -440,9 +434,9 @@ const HospitalChatInterface = ({
         </div>
       </div>
 
-      {/* Chat Input Area - FIXED AT BOTTOM */}
+      {/* Chat Input Area - FLEX SHRINK AT BOTTOM */}
       <div 
-        className="flex-shrink-0 bg-[#1a1a1a] border-t border-gray-700 px-4 py-3 z-30" 
+        className="flex-shrink-0 bg-[#1a1a1a] border-t border-gray-700 px-4 py-3" 
         style={{ 
           paddingBottom: 'max(12px, env(safe-area-inset-bottom, 0px))'
         }}
