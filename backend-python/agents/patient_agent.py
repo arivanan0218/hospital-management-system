@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, date
 from typing import Any, Dict, List, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import or_, and_
 from .base_agent import BaseAgent
 
 try:
@@ -230,7 +230,7 @@ class PatientAgent(BaseAgent):
             
             # Apply filters
             if filters:
-                query = query.filter(or_(*filters))
+                query = query.filter(and_(*filters))
             
             patients = query.all()
             result = [self.serialize_model(patient) for patient in patients]
