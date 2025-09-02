@@ -52,7 +52,15 @@ class PatientDischargeReportGenerator:
                 return {"success": False, "message": "Patient not found"}
             
             discharge_date = discharge_date or datetime.now()
-            admission_date = bed.admission_date or datetime.now() - timedelta(days=1)
+            
+            # If no admission date is set, use a reasonable default that includes historical data
+            if bed.admission_date:
+                admission_date = bed.admission_date
+            else:
+                # Default to 30 days ago to include recent supply usage and treatments
+                admission_date = datetime.now() - timedelta(days=30)
+                print(f"⚠️ No admission date set for bed {bed.bed_number}, using default: {admission_date}")
+            
             length_of_stay = (discharge_date - admission_date).days
             
             # Generate report sections
@@ -71,7 +79,7 @@ class PatientDischargeReportGenerator:
             report_number = f"DR-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
             
             # Use Admin User as default if no user provided
-            default_user_id = "6756128d-1f7e-4f2f-abc5-91efc1a6e1a5"  # Admin User
+            default_user_id = "e89313e0-a3ff-4dc6-b163-983a96161e8f"  # Stephanie Smith (Admin)
             generated_by_id = uuid.UUID(generated_by_user_id) if generated_by_user_id else uuid.UUID(default_user_id)
             
             discharge_report = DischargeReport(
@@ -107,7 +115,8 @@ class PatientDischargeReportGenerator:
                 "report_number": report_number,
                 "patient_name": f"{patient.first_name} {patient.last_name}",
                 "formatted_report": formatted_report,
-                "raw_data": report_data
+                "raw_data": report_data,
+                "supply_usage": report_data["supply_usage"]  # Include supply usage in main response
             }
             
         except Exception as e:
@@ -253,6 +262,12 @@ class PatientDischargeReportGenerator:
             total_cost = 0
             
             for usage in usage_records:
+                # Debug logging
+                print(f"🔍 Processing usage record: {usage.id}")
+                print(f"  Supply object: {usage.supply}")
+                print(f"  Supply name: {getattr(usage.supply, 'name', 'No name attribute') if usage.supply else 'No supply object'}")
+                print(f"  Supply category: {getattr(usage.supply, 'category', 'No category attribute') if usage.supply else 'No supply object'}")
+                
                 # Build usage data
                 usage_data = {
                     "item_name": usage.supply.name if usage.supply else "Unknown",
@@ -283,14 +298,22 @@ class PatientDischargeReportGenerator:
                 # Categorize as medication or supply
                 if usage.supply and usage.supply.category:
                     category_name = usage.supply.category.name.lower()
+                    print(f"  Category: {category_name}")
+                    
                     if any(med_keyword in category_name for med_keyword in ['medication', 'drug', 'pharmaceutical', 'medicine']):
+                        print(f"  → Categorized as MEDICATION")
                         medications.append(usage_data)
                     else:
+                        print(f"  → Categorized as MEDICAL SUPPLY")
                         medical_supplies.append(usage_data)
                 else:
+                    print(f"  → Categorized as MEDICAL SUPPLY (no category)")
                     medical_supplies.append(usage_data)
+                
+                print(f"  Medications count: {len(medications)}")
+                print(f"  Medical supplies count: {len(medical_supplies)}")
             
-            return {
+            result = {
                 "medications": medications,
                 "medical_supplies": medical_supplies,
                 "total_cost": round(total_cost, 2),
@@ -301,6 +324,14 @@ class PatientDischargeReportGenerator:
                     "total_cost": round(total_cost, 2)
                 }
             }
+            
+            print(f"🔍 Final result:")
+            print(f"  Medications: {len(result['medications'])}")
+            print(f"  Medical supplies: {len(result['medical_supplies'])}")
+            print(f"  Total cost: ${result['total_cost']}")
+            print(f"  Summary: {result['summary']}")
+            
+            return result
             
         except Exception as e:
             # Fallback to empty data if PatientSupplyUsage is not available
