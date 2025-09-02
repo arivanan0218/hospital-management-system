@@ -68,10 +68,15 @@ const DischargeReportManager = ({ aiMcpService }) => {
 
       console.log('🏥 Generating discharge report for bed:', selectedBed);
       
-      const result = await aiMcpService.generateAndDownloadDischargeReport(
-        selectedBed,
-        dischargeData
-      );
+      // Call the generate_discharge_report tool directly through MCP service
+      const result = await aiMcpService.callToolDirectly('generate_discharge_report', {
+        bed_id: selectedBed,
+        discharge_date: new Date().toISOString(),
+        discharge_condition: dischargeData.discharge_condition || 'stable',
+        discharge_destination: dischargeData.discharge_destination || 'home',
+        discharge_instructions: dischargeData.discharge_instructions || 'Continue medications as prescribed. Follow up with primary care in 2 weeks.',
+        follow_up_required: dischargeData.follow_up_required || 'Primary care follow-up in 2 weeks'
+      });
 
       if (result.success) {
         console.log('✅ Report generated:', result.reportNumber);
