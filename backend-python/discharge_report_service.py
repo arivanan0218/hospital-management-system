@@ -116,7 +116,8 @@ class PatientDischargeReportGenerator:
                 "patient_name": f"{patient.first_name} {patient.last_name}",
                 "formatted_report": formatted_report,
                 "raw_data": report_data,
-                "supply_usage": report_data["supply_usage"]  # Include supply usage in main response
+                "supply_usage": report_data["supply_usage"],  # Include supply usage in main response
+                "equipment_usage": report_data["equipment_summary"]  # Include equipment usage in main response
             }
             
         except Exception as e:
@@ -186,6 +187,7 @@ class PatientDischargeReportGenerator:
             "end_time": eu.end_time.isoformat() if eu.end_time else None,
             "duration_minutes": eu.duration_minutes,
             "operated_by": f"{eu.staff.user.first_name} {eu.staff.user.last_name}" if eu.staff and eu.staff.user else "Unknown",
+            "status": eu.status,
             "readings": eu.readings,
             "notes": eu.notes
         } for eu in equipment_usage]
