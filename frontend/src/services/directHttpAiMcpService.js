@@ -1637,7 +1637,8 @@ Respond naturally, conversationally, and contextually based on the conversation 
           }});
         } else if (assignParams.patient_name) {
           // We need to search for patient first, then lookup bed
-          toolsNeeded.push({ name: 'search_patients', arguments: { name: assignParams.patient_name } });
+          const searchParams = this.parsePatientNameForSearch(assignParams.patient_name);
+          toolsNeeded.push({ name: 'search_patients', arguments: searchParams });
           toolsNeeded.push({ name: 'get_bed_by_number', arguments: { bed_number: assignParams.bed_number } });
           toolsNeeded.push({ name: 'assign_bed_to_patient', arguments: { 
             bed_id: '{{bed_id_from_lookup}}', 
@@ -1648,7 +1649,8 @@ Respond naturally, conversationally, and contextually based on the conversation 
       }
       // If we have patient_name but no bed_number, find an available bed
       else if (assignParams.patient_name && !assignParams.bed_number) {
-        toolsNeeded.push({ name: 'search_patients', arguments: { name: assignParams.patient_name } });
+        const searchParams = this.parsePatientNameForSearch(assignParams.patient_name);
+        toolsNeeded.push({ name: 'search_patients', arguments: searchParams });
         toolsNeeded.push({ name: 'list_beds', arguments: { status: 'available' } });
         toolsNeeded.push({ name: 'assign_bed_to_patient', arguments: { 
           bed_id: '{{available_bed_id}}', 
@@ -1676,7 +1678,8 @@ Respond naturally, conversationally, and contextually based on the conversation 
       // If we have staff_id and patient_name, we need to search for patient first
       else if (staffAssignParams.staff_id && staffAssignParams.patient_name) {
         // First search for the patient
-        toolsNeeded.push({ name: 'search_patients', arguments: { name: staffAssignParams.patient_name } });
+        const searchParams = this.parsePatientNameForSearch(staffAssignParams.patient_name);
+        toolsNeeded.push({ name: 'search_patients', arguments: searchParams });
         // Note: The actual assignment will need to be done after patient search results
       }
     }
@@ -1700,7 +1703,8 @@ Respond naturally, conversationally, and contextually based on the conversation 
       // If we have equipment_name and patient_name, we need to search for both
       else if (equipAssignParams.equipment_name && equipAssignParams.patient_name) {
         // First search for the patient and equipment
-        toolsNeeded.push({ name: 'search_patients', arguments: { name: equipAssignParams.patient_name } });
+        const searchParams = this.parsePatientNameForSearch(equipAssignParams.patient_name);
+        toolsNeeded.push({ name: 'search_patients', arguments: searchParams });
         toolsNeeded.push({ name: 'list_equipment', arguments: {} });
         // Note: The actual assignment will need to be done after search results
       }
@@ -1725,7 +1729,8 @@ Respond naturally, conversationally, and contextually based on the conversation 
       }
       // If we have supply_name and patient_name, search for both
       else if (supplyAssignParams.supply_name && supplyAssignParams.patient_name) {
-        toolsNeeded.push({ name: 'search_patients', arguments: { name: supplyAssignParams.patient_name } });
+        const searchParams = this.parsePatientNameForSearch(supplyAssignParams.patient_name);
+        toolsNeeded.push({ name: 'search_patients', arguments: searchParams });
         toolsNeeded.push({ name: 'list_supplies', arguments: {} });
         toolsNeeded.push({ 
           name: 'update_supply_stock', 
@@ -1886,7 +1891,8 @@ Respond naturally, conversationally, and contextually based on the conversation 
     
     try {
       // First, find the patient
-      const patientResponse = await this.callTool('search_patients', { name: assignment.patientName });
+      const searchParams = this.parsePatientNameForSearch(assignment.patientName);
+      const patientResponse = await this.callTool('search_patients', searchParams);
       if (!patientResponse.success || !patientResponse.result?.data?.[0]) {
         return {
           type: assignment.type,
@@ -3742,6 +3748,39 @@ Respond naturally and helpfully based on the user's request and the tool results
   isValidUUID(str) {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     return uuidRegex.test(str);
+  }
+
+  /**
+   * Parse full name into first_name and last_name for search_patients
+   */
+  parsePatientNameForSearch(fullName) {
+    if (!fullName || typeof fullName !== 'string') {
+      return {};
+    }
+    
+    const nameParts = fullName.trim().split(/\s+/);
+    
+    if (nameParts.length === 1) {
+      // Single name - could be first or last name, search both
+      return {
+        first_name: nameParts[0],
+        last_name: nameParts[0]
+      };
+    } else if (nameParts.length === 2) {
+      // "First Last"
+      return {
+        first_name: nameParts[0],
+        last_name: nameParts[1]
+      };
+    } else if (nameParts.length > 2) {
+      // "First Middle Last" - use first and last
+      return {
+        first_name: nameParts[0],
+        last_name: nameParts[nameParts.length - 1]
+      };
+    }
+    
+    return {};
   }
 
   /**
