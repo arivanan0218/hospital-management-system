@@ -1325,15 +1325,17 @@ def discharge_patient_complete(
     patient_id: str = None,
     bed_id: str = None,
     patient_name: str = None,
+    patient_number: str = None,
     discharge_condition: str = "stable",
     discharge_destination: str = "home"
 ) -> Dict[str, Any]:
     """Complete comprehensive patient discharge workflow including bed turnover.
     
     Args:
-        patient_id: The ID of the patient to discharge (optional if bed_id or patient_name provided)
-        bed_id: The bed ID where the patient is located (optional if patient_id or patient_name provided)
-        patient_name: The name of the patient to discharge (optional if patient_id or bed_id provided)
+        patient_id: The ID of the patient to discharge (optional if bed_id, patient_name, or patient_number provided)
+        bed_id: The bed ID where the patient is located (optional if patient_id, patient_name, or patient_number provided)
+        patient_name: The name of the patient to discharge (optional if patient_id, bed_id, or patient_number provided)
+        patient_number: The patient number (e.g., P1025) to discharge (optional if patient_id, bed_id, or patient_name provided)
         discharge_condition: Condition of patient at discharge (default: stable)
         discharge_destination: Where patient is going (default: home)
     """
@@ -1342,6 +1344,7 @@ def discharge_patient_complete(
                                            patient_id=patient_id,
                                            bed_id=bed_id,
                                            patient_name=patient_name,
+                                           patient_number=patient_number,
                                            discharge_condition=discharge_condition,
                                            discharge_destination=discharge_destination)
         return result.get("result", result)
