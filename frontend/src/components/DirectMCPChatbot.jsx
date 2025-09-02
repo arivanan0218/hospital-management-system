@@ -855,6 +855,13 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
         console.log('✅ Fallback detected: create_staff');
         return 'create_staff';
       }
+      
+      // DISCHARGE operations that should trigger popup forms
+      if (message.includes('discharge') && (message.includes('patient') || message.includes('discharge'))) {
+        console.log('✅ Fallback detected: discharge_patient');
+        return 'discharge_patient';
+      }
+      
       // Check for equipment usage first (before equipment creation)
       if (message.includes('equipment') && (message.includes('usage') || message.includes('assign') || message.includes('used by') || message.includes('patient id') || message.includes('inventory') || message.includes('tracking'))) {
         console.log('🤖 Equipment usage/inventory detected - using AI processing');
@@ -901,7 +908,7 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
               role: 'system',
               content: `You are an intelligent intent detection system for a hospital management application with multi-agent backend tools. 
 
-POPUP FORM TRIGGERS (Only these EXACT 11 CREATE tools should show popup forms):
+POPUP FORM TRIGGERS (Only these EXACT 12 tools should show popup forms):
 1. create_user: User creation popup form
 2. create_patient: Patient admission popup form  
 3. create_legacy_user: Legacy user creation popup form
@@ -913,6 +920,7 @@ POPUP FORM TRIGGERS (Only these EXACT 11 CREATE tools should show popup forms):
 9. create_supply: Supply creation popup form (ONLY for NEW supply registration)
 10. create_equipment_category: Equipment category creation popup form
 11. create_supply_category: Supply category creation popup form
+12. discharge_patient: Patient discharge workflow form
 
 CRITICAL USAGE vs CREATION DISTINCTION:
 - "add equipment usage" or "equipment usage" → ai_processing (add_equipment_usage tool)
@@ -926,12 +934,14 @@ IMPORTANT KEYWORDS FOR AI PROCESSING (NOT popup forms):
 - Any message containing "usage", "assign", "assignment", "used by", "patient id", "inventory", "tracking", "consumption" should use ai_processing
 - Equipment/supply USAGE, INVENTORY, TRACKING = ai_processing
 - Equipment/supply CREATION = popup forms
+- Patient DISCHARGE = discharge_patient popup form
 
 RULES:
-1. Only the exact 11 CREATE tools above trigger popup forms
+1. Only the exact 12 tools above trigger popup forms
 2. All USAGE, ASSIGNMENT, TRACKING, INVENTORY operations use AI processing
 3. All listing, searching, updating, deleting operations use AI processing
 4. Staff meetings = AI processing (schedule_meeting tool)
+5. Patient discharge = discharge_patient popup form
 
 Return ONLY one of these values:
 - "create_user" for system user creation
@@ -945,6 +955,7 @@ Return ONLY one of these values:
 - "create_supply" for NEW supply registration (not usage/inventory)
 - "create_equipment_category" for equipment category creation
 - "create_supply_category" for supply category creation
+- "discharge_patient" for patient discharge workflow
 - "ai_processing" for everything else (including equipment/supply usage, inventory, assignments, updates, searches, etc.)
 
 Examples:

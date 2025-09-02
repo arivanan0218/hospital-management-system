@@ -983,7 +983,7 @@ class DischargeAgent(BaseAgent):
     # ---- Comprehensive Discharge Workflow ----
 
     def discharge_patient_complete(self, patient_id: str = None, bed_id: str = None, patient_name: str = None, 
-                                 discharge_condition: str = "stable", discharge_destination: str = "home") -> Dict[str, Any]:
+                                 patient_number: str = None, discharge_condition: str = "stable", discharge_destination: str = "home") -> Dict[str, Any]:
         """Complete comprehensive patient discharge workflow including bed turnover."""
         if not DISCHARGE_DEPS:
             return {"success": False, "message": "Discharge dependencies not available"}
@@ -996,8 +996,15 @@ class DischargeAgent(BaseAgent):
             patient = None
             bed = None
             
-            if patient_id:
-                patient = db.query(Patient).filter(Patient.id == uuid.UUID(patient_id)).first()
+            if patient_id and patient_id not in [None, "", "undefined", "null"]:
+                try:
+                    patient = db.query(Patient).filter(Patient.id == uuid.UUID(patient_id)).first()
+                except (ValueError, TypeError):
+                    # If patient_id is not a valid UUID, skip this check
+                    patient = None
+            elif patient_number:
+                # Search by patient number (e.g., P1025)
+                patient = db.query(Patient).filter(Patient.patient_number == patient_number).first()
             elif bed_id:
                 bed = db.query(Bed).filter(Bed.id == uuid.UUID(bed_id)).first()
                 if bed and bed.patient_id:

@@ -759,35 +759,43 @@ class DirectHttpAIMCPService {
     console.log('🤖 determineRequiredToolsWithAI called with:', userMessage);
     
     // 🛏️ CRITICAL BED STATUS FIX - Check this FIRST before AI processing!
-    const bedStatusPatterns = [
-      /check\s+bed\s+(\w+)\s+status/i,
-      /bed\s+(\w+)\s+status/i, 
-      /status\s+of\s+bed\s+(\w+)/i,
-      /is\s+bed\s+(\w+)\s+ready/i,
-      /bed\s+(\w+)\s+ready/i,
-      /check\s+bed\s+(\w+)/i
-    ];
-    
-    for (const pattern of bedStatusPatterns) {
-      const match = userMessage.match(pattern);
-      if (match) {
-        console.log(`🎯 BED STATUS OVERRIDE: "${userMessage}" -> Forcing get_bed_status_with_time_remaining for bed ${match[1]}`);
-        return [{
-          name: 'get_bed_status_with_time_remaining',
-          arguments: { bed_id: match[1] }
-        }];
+    // BUT: Skip this override for discharge messages to allow discharge workflow
+    if (userMessage.toLowerCase().includes('discharge') && userMessage.toLowerCase().includes('patient')) {
+      console.log('🚨 DISCHARGE MESSAGE DETECTED: Skipping bed status override to allow discharge workflow');
+    } else {
+      const bedStatusPatterns = [
+        /check\s+bed\s+(\w+)\s+status/i,
+        /bed\s+(\w+)\s+status/i, 
+        /status\s+of\s+bed\s+(\w+)/i,
+        /is\s+bed\s+(\w+)\s+ready/i,
+        /bed\s+(\w+)\s+ready/i,
+        /check\s+bed\s+(\w+)/i
+      ];
+      
+      for (const pattern of bedStatusPatterns) {
+        const match = userMessage.match(pattern);
+        if (match) {
+          console.log(`🎯 BED STATUS OVERRIDE: "${userMessage}" -> Forcing get_bed_status_with_time_remaining for bed ${match[1]}`);
+          return [{
+            name: 'get_bed_status_with_time_remaining',
+            arguments: { bed_id: match[1] }
+          }];
+        }
       }
     }
     
     // Additional bed status keyword detection  
-    if ((userMessage.includes('bed') && userMessage.includes('status')) ||
-        (userMessage.includes('check') && userMessage.includes('bed'))) {
-      console.log('🎯 BED STATUS KEYWORD OVERRIDE: Forcing get_bed_status_with_time_remaining');
-      const bedParams = this.extractBedStatusParameters(userMessage);
-      return [{
-        name: 'get_bed_status_with_time_remaining',
-        arguments: bedParams
-      }];
+    // BUT: Skip this override for discharge messages to allow discharge workflow
+    if (!userMessage.toLowerCase().includes('discharge') || !userMessage.toLowerCase().includes('patient')) {
+      if ((userMessage.includes('bed') && userMessage.includes('status')) ||
+          (userMessage.includes('check') && userMessage.includes('bed'))) {
+        console.log('🎯 BED STATUS KEYWORD OVERRIDE: Forcing get_bed_status_with_time_remaining');
+        const bedParams = this.extractBedStatusParameters(userMessage);
+        return [{
+          name: 'get_bed_status_with_time_remaining',
+          arguments: bedParams
+        }];
+      }
     }
     
     // Check conversation context for ongoing operations
@@ -848,37 +856,40 @@ class DirectHttpAIMCPService {
     const message = userMessage.toLowerCase();
     
     // Priority: Check bed status after discharge operations
-    if ((message.includes('bed') && (message.includes('status') || message.includes('check'))) ||
-        (message.includes('bed') && message.includes('cleaning')) ||
-        (message.includes('availability') && message.includes('bed'))) {
-      
-      // Look for recent discharge operations in conversation history
-      let hasRecentDischarge = false;
-      for (const entry of recentHistory) {
-        if (entry && entry.content && typeof entry.content === 'string') {
-          if (entry.content.includes('discharge') || entry.content.includes('DISCHARGE') ||
-              entry.content.includes('discharged') || entry.content.includes('DISCHARGED')) {
-            hasRecentDischarge = true;
-            break;
+    // BUT: Skip this override for discharge messages to allow discharge workflow
+    if (!message.includes('discharge') || !message.includes('patient')) {
+      if ((message.includes('bed') && (message.includes('status') || message.includes('check'))) ||
+          (message.includes('bed') && message.includes('cleaning')) ||
+          (message.includes('availability') && message.includes('bed'))) {
+        
+        // Look for recent discharge operations in conversation history
+        let hasRecentDischarge = false;
+        for (const entry of recentHistory) {
+          if (entry && entry.content && typeof entry.content === 'string') {
+            if (entry.content.includes('discharge') || entry.content.includes('DISCHARGE') ||
+                entry.content.includes('discharged') || entry.content.includes('DISCHARGED')) {
+              hasRecentDischarge = true;
+              break;
+            }
           }
         }
-      }
-      
-      // If recent discharge detected or explicit bed status query, prioritize the time-remaining tool
-      if (hasRecentDischarge || message.includes('time') || message.includes('cleaning') || 
-          message.includes('ready') || message.includes('available')) {
-        console.log('🛏️ Bed status priority: Using get_bed_status_with_time_remaining after discharge context');
         
-        // Extract bed number if provided
-        const bedNumberMatch = userMessage.match(/bed\s+([A-Z0-9]+)/i) || 
-                              userMessage.match(/([A-Z]+\d+[A-Z]?)/i) ||
-                              userMessage.match(/(\d+[A-Z])/i);
-        const bedNumber = bedNumberMatch ? bedNumberMatch[1] : '';
-        
-        return [{ 
-          name: 'get_bed_status_with_time_remaining', 
-          arguments: bedNumber ? { bed_number: bedNumber } : {} 
-        }];
+        // If recent discharge detected or explicit bed status query, prioritize the time-remaining tool
+        if (hasRecentDischarge || message.includes('time') || message.includes('cleaning') || 
+            message.includes('ready') || message.includes('available')) {
+          console.log('🛏️ Bed status priority: Using get_bed_status_with_time_remaining after discharge context');
+          
+          // Extract bed number if provided
+          const bedNumberMatch = userMessage.match(/bed\s+([A-Z0-9]+)/i) || 
+                                userMessage.match(/([A-Z]+\d+[A-Z]?)/i) ||
+                                userMessage.match(/(\d+[A-Z])/i);
+          const bedNumber = bedNumberMatch ? bedNumberMatch[1] : '';
+          
+          return [{ 
+            name: 'get_bed_status_with_time_remaining', 
+            arguments: bedNumber ? { bed_number: bedNumber } : {} 
+          }];
+        }
       }
     }
     
@@ -1378,7 +1389,25 @@ Respond naturally, conversationally, and contextually based on the conversation 
           ...dischargeParams,
           bed_id: '{{bed_id_from_lookup}}'
         }});
+      } else if (dischargeParams.patient_id && dischargeParams.patient_id.startsWith('P')) {
+        // If we have a patient number (P1025), use patient_number parameter
+        // The backend tool now supports patient_number directly
+        // IMPORTANT: Clear patient_id to avoid UUID conversion errors
+        toolsNeeded.push({ name: 'discharge_patient_complete', arguments: { 
+          patient_number: dischargeParams.patient_id, // Use patient number directly
+          patient_id: undefined, // Clear this to avoid UUID conversion errors
+          discharge_condition: dischargeParams.discharge_condition || 'stable',
+          discharge_destination: dischargeParams.discharge_destination || 'home'
+        }});
+      } else if (dischargeParams.patient_name) {
+        // If we have a patient name, use it directly
+        toolsNeeded.push({ name: 'discharge_patient_complete', arguments: { 
+          patient_name: dischargeParams.patient_name,
+          discharge_condition: dischargeParams.discharge_condition || 'stable',
+          discharge_destination: dischargeParams.discharge_destination || 'home'
+        }});
       } else {
+        // Fallback: try to use the extracted parameters as-is
         toolsNeeded.push({ name: 'discharge_patient_complete', arguments: dischargeParams });
       }
     }
@@ -1440,21 +1469,24 @@ Respond naturally, conversationally, and contextually based on the conversation 
     }
     
     // Bed operations - prioritize bed status after discharge scenarios
-    console.log('🔍 DEBUGGING BED STATUS DETECTION for message:', message);
-    console.log('🔍 message.includes("bed"):', message.includes('bed'));
-    console.log('🔍 message.includes("status"):', message.includes('status'));
-    console.log('🔍 message.includes("check"):', message.includes('check'));
-    console.log('🔍 (message.includes("check") && message.includes("bed")):', (message.includes('check') && message.includes('bed')));
-    
-    if ((message.includes('bed') && (message.includes('status') || message.includes('cleaning') || 
-         message.includes('turnover') || message.includes('remaining') || message.includes('time'))) ||
-        (message.includes('bed') && (message.includes('ready') || message.includes('available'))) ||
-        (message.includes('check') && message.includes('bed'))) {
-      console.log('🎯 BED STATUS CHECK TRIGGERED!');
-      const bedParams = this.extractBedStatusParameters(userMessage);
-      console.log('🔍 Detected bed status query, parameters:', bedParams);
-      toolsNeeded.push({ name: 'get_bed_status_with_time_remaining', arguments: bedParams });
-      console.log('✅ Added get_bed_status_with_time_remaining to toolsNeeded');
+    // BUT: Skip this override for discharge messages to allow discharge workflow
+    if (!message.includes('discharge') || !message.includes('patient')) {
+      console.log('🔍 DEBUGGING BED STATUS DETECTION for message:', message);
+      console.log('🔍 message.includes("bed"):', message.includes('bed'));
+      console.log('🔍 message.includes("status"):', message.includes('status'));
+      console.log('🔍 message.includes("check"):', message.includes('check'));
+      console.log('🔍 (message.includes("check") && message.includes("bed")):', (message.includes('check') && message.includes('bed')));
+      
+      if ((message.includes('bed') && (message.includes('status') || message.includes('cleaning') || 
+           message.includes('turnover') || message.includes('remaining') || message.includes('time'))) ||
+          (message.includes('bed') && (message.includes('ready') || message.includes('available'))) ||
+          (message.includes('check') && message.includes('bed'))) {
+        console.log('🎯 BED STATUS CHECK TRIGGERED!');
+        const bedParams = this.extractBedStatusParameters(userMessage);
+        console.log('🔍 Detected bed status query, parameters:', bedParams);
+        toolsNeeded.push({ name: 'get_bed_status_with_time_remaining', arguments: bedParams });
+        console.log('✅ Added get_bed_status_with_time_remaining to toolsNeeded');
+      }
     }
     // Generic bed listing - avoid conflicts with specific bed queries
     else if (message.includes('list beds') || message.includes('show all beds') || message.includes('all beds') || 
@@ -1744,6 +1776,7 @@ Respond naturally, conversationally, and contextually based on the conversation 
       }
     }
     
+    // Handle bed discharge (different from patient discharge workflow)
     if (message.includes('discharge bed') || message.includes('bed discharge')) {
       const dischargeParams = this.extractBedDischargeParameters(userMessage);
       if (dischargeParams.bed_number) {
@@ -3819,8 +3852,15 @@ Respond naturally and helpfully based on the user's request and the tool results
   extractDischargeParameters(message) {
     const params = {};
     
-    // Extract patient identifier (ID, name, or bed)
-    params.patient_id = this.extractId(message, 'patient');
+    // Extract patient identifier - prioritize patient number (P1025) over UUID
+    const patientNumberMatch = message.match(/patient\s+(P[A-Z0-9]+)/i) || 
+                              message.match(/(P[A-Z0-9]+)/i);
+    if (patientNumberMatch) {
+      params.patient_id = patientNumberMatch[1];
+    } else {
+      // Fallback to UUID extraction
+      params.patient_id = this.extractId(message, 'patient');
+    }
     
     // Extract bed number (not bed_id which is UUID)
     const bedMatch = message.match(/bed\s+([A-Z0-9]+)/i);
@@ -3837,6 +3877,9 @@ Respond naturally and helpfully based on the user's request and the tool results
         params.patient_name = nameMatch[1].trim();
       }
     }
+    
+    // Note: patient_id that starts with 'P' (like P1025) will be used directly as patient_number
+    // No need to set patient_name since we're using patient_number parameter
     
     // Extract discharge condition
     const conditionMatch = message.match(/condition\s*:?\s*(stable|improved|critical|deceased)/i) ||
@@ -4421,17 +4464,23 @@ Respond naturally and helpfully based on the user's request and the tool results
     const todayDate = getCurrentDate();
     console.log('✅ Using date for system prompt:', todayDate);
     
-    // Create system prompt without complex template literals - COMPLETE VERSION WITH ALL PROMPTS
-    const systemPrompt = [
-      "🛏️ **CRITICAL BED STATUS TOOL SELECTION OVERRIDE:**",
-      "For ANY bed status queries (check bed X status, bed X status, is bed X ready, etc.), ALWAYS use 'get_bed_status_with_time_remaining' - NEVER use list_beds!",
-      "This tool shows cleaning time remaining, occupancy status, and patient assignments.",
-      "Examples:",
-      "- 'check bed 302A status' → use get_bed_status_with_time_remaining with bed_id: '302A'",
-      "- 'bed 101 ready?' → use get_bed_status_with_time_remaining with bed_id: '101'", 
-      "- 'status of bed 205B' → use get_bed_status_with_time_remaining with bed_id: '205B'",
-      "",
-      "📊 **LIST vs STATUS TOOLS - CRITICAL DIFFERENCE:**",
+          // Create system prompt without complex template literals - COMPLETE VERSION WITH ALL PROMPTS
+      const systemPrompt = [
+        "🛏️ **CRITICAL BED STATUS TOOL SELECTION OVERRIDE:**",
+        "For ANY bed status queries (check bed X status, bed X status, is bed X ready, etc.), ALWAYS use 'get_bed_status_with_time_remaining' - NEVER use list_beds!",
+        "**EXCEPTION: Patient discharge messages (discharge patient X, discharge patient from bed Y) should use discharge workflow tools, NOT bed status tools.**",
+        "This tool shows cleaning time remaining, occupancy status, and patient assignments.",
+        "Examples:",
+        "- 'check bed 302A status' → use get_bed_status_with_time_remaining with bed_id: '302A'",
+        "- 'bed 101 ready?' → use get_bed_status_with_time_remaining with bed_id: '101'", 
+        "- 'status of bed 205B' → use get_bed_status_with_time_remaining with bed_id: '205B'",
+                "- 'discharge patient P1025' → use discharge workflow tools (NOT bed status tools)",
+        "",
+        "🚨 **DISCHARGE WORKFLOW PRIORITY:**",
+        "When a user message contains 'discharge' and 'patient', ALWAYS prioritize discharge workflow tools over bed status tools.",
+        "Discharge messages should use: discharge_bed, generate_discharge_report, or discharge_patient_complete tools.",
+        "",
+        "📊 **LIST vs STATUS TOOLS - CRITICAL DIFFERENCE:**",
       "- list_beds = Shows ALL beds overview (use for 'show all beds', 'list beds', 'bed inventory')",
       "- get_bed_status_with_time_remaining = Shows SPECIFIC bed detail with cleaning timers (use for 'check bed X', 'bed X status')",
       "",
