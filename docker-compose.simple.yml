@@ -36,6 +36,9 @@ services:
     networks:
       - hospital_network
     restart: unless-stopped
+    volumes:
+      - pdf_uploads:/app/uploads
+      - medical_knowledge_db:/app/medical_knowledge_db
 
   # Frontend React Application
   frontend:
@@ -59,6 +62,10 @@ services:
 
 volumes:
   postgres_data:
+    driver: local
+  pdf_uploads:
+    driver: local
+  medical_knowledge_db:
     driver: local
 
 networks:

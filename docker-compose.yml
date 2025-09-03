@@ -46,6 +46,7 @@ services:
     volumes:
       - ./backend-python:/app
       - pdf_uploads:/app/uploads  # Dedicated volume for PDF files
+      - medical_knowledge_db:/app/medical_knowledge_db  # Volume for ChromaDB
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -92,6 +93,8 @@ volumes:
   postgres_data:
     driver: local
   pdf_uploads:
+    driver: local
+  medical_knowledge_db:
     driver: local
 
 networks:

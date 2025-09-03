@@ -23,11 +23,16 @@ COPY . .
 # Create uploads directory for PDF files
 RUN mkdir -p uploads && chmod 755 uploads
 
+# Create medical knowledge database directory
+RUN mkdir -p medical_knowledge_db && chmod 755 medical_knowledge_db
+
 # Make startup script executable
 RUN chmod +x start.sh
 
-# Create non-root user
-RUN groupadd -r appuser && useradd -r -g appuser appuser
+# Create non-root user with home directory
+RUN groupadd -r appuser && useradd -r -g appuser -m appuser
+# Create and set permissions for appuser home directory
+RUN mkdir -p /home/appuser && chown -R appuser:appuser /home/appuser && chmod 755 /home/appuser
 RUN chown -R appuser:appuser /app
 USER appuser
 
