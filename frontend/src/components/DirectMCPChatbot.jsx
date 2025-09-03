@@ -3149,7 +3149,10 @@ ${dischargeData.next_steps ? dischargeData.next_steps.map(step => `• ${step}`)
       ) : activeTab === 'ai-clinical' ? (
         // AI Clinical Assistant View
         <div className="h-screen">
-          <AIClinicalChatbot aiService={aiMcpServiceRef.current} />
+          <AIClinicalChatbot 
+            aiService={aiMcpServiceRef.current} 
+            onBackToMainChat={() => setActiveTab('chat')}
+          />
         </div>
       ) : (
         // Chat Interface View (existing)
