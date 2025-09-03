@@ -336,10 +336,17 @@ jobs:
         
         # Start new backend container
         echo "🔄 Starting new backend container..."
+        
+        # Create directory for ChromaDB persistence
+        sudo mkdir -p /var/lib/hospital-chromadb
+        sudo chmod 777 /var/lib/hospital-chromadb
+        echo "📂 Created ChromaDB data directory"
+        
         sudo docker run -d \
           --name hospital-backend \
           --network hospital-network \
           --restart unless-stopped \
+          -v /var/lib/hospital-chromadb:/app/medical_knowledge_db \
           -e DATABASE_URL="postgresql://postgres:postgres@postgres:5432/hospital_db" \
           -e SMTP_SERVER="smtp.gmail.com" \
           -e SMTP_PORT="587" \
@@ -555,10 +562,26 @@ jobs:
             if api_key and api_key.startswith('sk-'):
                 print('✅ OpenAI API key is properly configured')
                 
+                # Check ChromaDB directory permissions
+                chromadb_path = '/app/medical_knowledge_db'
+                if os.path.exists(chromadb_path):
+                    if os.access(chromadb_path, os.W_OK):
+                        print(f'✅ ChromaDB directory writable: {chromadb_path}')
+                    else:
+                        print(f'⚠️ ChromaDB directory not writable: {chromadb_path}')
+                else:
+                    print(f'⚠️ ChromaDB directory not found: {chromadb_path}')
+                
                 # Test AI Clinical Assistant initialization
                 from agents.ai_clinical_assistant_agent import AIClinicalAssistantAgent
                 agent = AIClinicalAssistantAgent()
                 print('✅ AI Clinical Assistant initialized successfully')
+                
+                # Check if ChromaDB was properly initialized
+                if hasattr(agent, 'chroma_client') and agent.chroma_client:
+                    print('✅ ChromaDB client initialized successfully')
+                else:
+                    print('⚠️ ChromaDB client not initialized - using fallback mode')
                 
                 # Quick test of functionality
                 result = agent.ai_clinical_assistant('Test clinical query for deployment verification')

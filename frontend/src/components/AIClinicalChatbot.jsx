@@ -4,14 +4,14 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageCircle, Brain, Activity, Pill, FileText, AlertTriangle, Send, Bot, User, Stethoscope } from 'lucide-react';
+import { MessageCircle, Brain, Activity, Pill, FileText, AlertTriangle, Send, Bot, User, Stethoscope, ArrowLeft } from 'lucide-react';
 
-const AIClinicalChatbot = ({ aiService }) => {
+const AIClinicalChatbot = ({ aiService, onBackToMainChat }) => {
   const [messages, setMessages] = useState([
     {
       id: 1,
       type: 'assistant',
-      content: '🏥 Hello! I\'m your AI Clinical Assistant. I can help with:\n\n• 🧠 Clinical decision support\n• 💊 Drug interaction checking\n• 📊 Vital signs analysis\n• 🔍 Differential diagnosis\n• 📝 Clinical note processing\n\nHow can I assist you today?',
+      content: '🏥 Hello! I\'m your AI Clinical Assistant. I can help with:\n\n• 🧠 Clinical decision support\n• 💊 Drug interaction checking\n• 📊 Vital signs analysis\n• 🔍 Differential diagnosis\n• 📝 Clinical note processing\n\n' + (onBackToMainChat ? '← Use the back button to return to your main chatbot\n\n' : '') + 'How can I assist you today?',
       timestamp: new Date(),
       isAI: true,
       category: 'welcome'
@@ -575,6 +575,17 @@ const AIClinicalChatbot = ({ aiService }) => {
       <div className="fixed top-0 left-0 right-0 border-b border-gray-700 px-3 sm:px-4 py-3 bg-[#1a1a1a] z-30">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2 sm:space-x-3">
+            {/* Back Button */}
+            {onBackToMainChat && (
+              <button
+                onClick={onBackToMainChat}
+                className="p-1.5 sm:p-2 rounded-md text-gray-400 hover:text-gray-300 hover:bg-gray-700 transition-colors"
+                title="Back to Main Chatbot"
+              >
+                <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
+            )}
+            
             <div className="w-6 h-6 sm:w-7 sm:h-7 bg-green-600 rounded-full flex items-center justify-center text-white text-xs sm:text-sm font-medium shadow-lg">
               <Stethoscope className="w-3 h-3 sm:w-4 sm:h-4" />
             </div>
@@ -660,6 +671,11 @@ const AIClinicalChatbot = ({ aiService }) => {
                 <p className="text-sm text-gray-400 mb-4">
                   I'm your intelligent clinical decision support assistant. I can help with drug interactions, vital signs analysis, differential diagnosis, and clinical note processing.
                 </p>
+                {onBackToMainChat && (
+                  <p className="text-xs text-gray-500 mb-4">
+                    💡 Tip: Use the ← back button in the header to return to your main chatbot anytime
+                  </p>
+                )}
               </div>
             </div>
           )}
