@@ -22,8 +22,10 @@ const AIClinicalChatbot = ({ aiService, onBackToMainChat }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedClinicalMode, setSelectedClinicalMode] = useState('general');
   const [showActionButtons, setShowActionButtons] = useState(true); // Hide after first input
+  const [showMobileModeDropdown, setShowMobileModeDropdown] = useState(false); // Mobile mode selector
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const modeDropdownRef = useRef(null);
 
   // Clinical AI modes
   const clinicalModes = {
@@ -98,6 +100,20 @@ const AIClinicalChatbot = ({ aiService, onBackToMainChat }) => {
     return () => {
       window.removeEventListener('resize', setVH);
       window.removeEventListener('orientationchange', setVH);
+    };
+  }, []);
+
+  // Close mobile dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (modeDropdownRef.current && !modeDropdownRef.current.contains(event.target)) {
+        setShowMobileModeDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
 
@@ -604,16 +620,46 @@ const AIClinicalChatbot = ({ aiService, onBackToMainChat }) => {
             </div>
           </div>
           
-          {/* Clinical Mode Selector - Mobile: Show only active mode, Desktop: Show all */}
+          {/* Clinical Mode Selector - Mobile: Dropdown, Desktop: Show all */}
           <div className="flex space-x-1">
-            {/* Mobile: Show only active mode */}
-            <div className="sm:hidden">
+            {/* Mobile: Dropdown mode selector */}
+            <div className="sm:hidden relative" ref={modeDropdownRef}>
               <button
-                className="p-1.5 rounded-md bg-green-600 text-white shadow-lg"
+                onClick={() => setShowMobileModeDropdown(!showMobileModeDropdown)}
+                className="p-1.5 rounded-md bg-green-600 text-white shadow-lg flex items-center space-x-1"
                 title={clinicalModes[selectedClinicalMode].label}
               >
                 {React.createElement(clinicalModes[selectedClinicalMode].icon, { className: "w-3 h-3" })}
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
               </button>
+              
+              {/* Mobile Dropdown Menu */}
+              {showMobileModeDropdown && (
+                <div className="absolute top-full right-0 mt-1 bg-gray-800 border border-gray-600 rounded-md shadow-lg z-50 min-w-48">
+                  {Object.entries(clinicalModes).map(([key, mode]) => {
+                    const IconComponent = mode.icon;
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => {
+                          setSelectedClinicalMode(key);
+                          setShowMobileModeDropdown(false);
+                        }}
+                        className={`w-full flex items-center space-x-2 px-3 py-2 text-left hover:bg-gray-700 transition-colors ${
+                          selectedClinicalMode === key
+                            ? 'bg-green-600 text-white'
+                            : 'text-gray-300'
+                        }`}
+                      >
+                        <IconComponent className="w-4 h-4" />
+                        <span className="text-sm">{mode.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
             
             {/* Desktop: Show all modes */}
@@ -650,8 +696,9 @@ const AIClinicalChatbot = ({ aiService, onBackToMainChat }) => {
 
       {/* Chat Output Area - SCROLLABLE MIDDLE SECTION (matching original layout) */}
       <div 
-        className="absolute top-16 left-0 right-0 bg-[#1a1a1a] transition-all duration-300 ease-in-out"
+        className="absolute left-0 right-0 bg-[#1a1a1a] transition-all duration-300 ease-in-out"
         style={{ 
+          top: '100px', // Increased from 16 to account for header + mode indicator
           overflowY: 'auto',
           overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch',
@@ -764,16 +811,16 @@ const AIClinicalChatbot = ({ aiService, onBackToMainChat }) => {
           {showActionButtons && (
             <div className="mb-3 transition-all duration-300 ease-in-out">
               {/* Desktop: 1 row 4 columns, Mobile: 2 rows 2 columns */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2">
                 {quickActions.map((action, index) => (
                   <button
                     key={index}
                     onClick={() => handleQuickAction(action)}
-                    className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-2 py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500"
+                    className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-1.5 sm:px-2 py-1.5 sm:py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500 min-h-[40px] sm:min-h-[44px]"
                     title={action.text}
                   >
                     <action.icon className="w-3 h-3 mr-1 flex-shrink-0" />
-                    <span className="font-medium truncate">{action.text}</span>
+                    <span className="font-medium truncate text-xs sm:text-sm">{action.text}</span>
                   </button>
                 ))}
               </div>
