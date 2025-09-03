@@ -111,17 +111,29 @@ class AIClinicalAssistantAgent(BaseAgent):
         if self.rag_available:
             try:
                 # Determine the best path for ChromaDB storage
-                # Check if we're in a Docker container
-                is_docker = os.path.exists('/.dockerenv') or os.environ.get('HOSTNAME', '').startswith('hospital-backend')
+                # Enhanced Docker detection
+                is_docker = (
+                    os.path.exists('/.dockerenv') or 
+                    os.environ.get('HOSTNAME', '').startswith('hospital-backend') or
+                    os.path.exists('/proc/self/cgroup') and 'docker' in open('/proc/self/cgroup').read()
+                )
                 
                 if is_docker:
-                    # In Docker, prefer mounted volume
-                    db_paths = ["/app/medical_knowledge_db"]
+                    # In Docker, prefer mounted volume with fallback to /tmp
+                    db_paths = [
+                        "/app/medical_knowledge_db",
+                        "/tmp/medical_knowledge_db",
+                        "/app/tmp_medical_db"
+                    ]
                 else:
                     # In local development, prefer current directory then temp
                     import tempfile
                     temp_path = os.path.join(tempfile.gettempdir(), "medical_knowledge_db")
-                    db_paths = ["./medical_knowledge_db", temp_path]
+                    db_paths = [
+                        "./medical_knowledge_db", 
+                        temp_path,
+                        "/tmp/medical_knowledge_db"  # Additional fallback
+                    ]
                 
                 db_path = None
                 for path in db_paths:
@@ -133,6 +145,7 @@ class AIClinicalAssistantAgent(BaseAgent):
                             f.write("test")
                         os.remove(test_file)
                         db_path = path
+                        print(f"✅ ChromaDB directory writable: {path}")
                         break
                     except (OSError, PermissionError) as e:
                         print(f"⚠️ Cannot use path {path}: {e}")

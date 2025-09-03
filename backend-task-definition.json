@@ -61,6 +61,13 @@
           "awslogs-stream-prefix": "ecs"
         }
       },
+      "mountPoints": [
+        {
+          "sourceVolume": "medical-knowledge-storage",
+          "containerPath": "/app/medical_knowledge_db",
+          "readOnly": false
+        }
+      ],
       "healthCheck": {
         "command": [
           "CMD-SHELL",
@@ -71,6 +78,12 @@
         "retries": 3,
         "startPeriod": 60
       }
+    }
+  ],
+  "volumes": [
+    {
+      "name": "medical-knowledge-storage",
+      "host": {}
     }
   ]
 }
