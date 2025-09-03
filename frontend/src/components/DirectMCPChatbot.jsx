@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LogOut, User, Settings, Upload, FileText, History, CheckCircle, Plus, X, Mic, MicOff, VolumeX } from 'lucide-react';
+import { LogOut, User, Settings, Upload, FileText, History, CheckCircle, Plus, X, Mic, MicOff, VolumeX, Brain, Stethoscope, Activity, Pill } from 'lucide-react';
 import DirectHttpAIMCPService from '../services/directHttpAiMcpService.js';
 //import MedicalDocumentUpload from './MedicalDocumentUpload.jsx';
 //import EnhancedMedicalDocumentUpload from './EnhancedMedicalDocumentUpload.jsx';
@@ -17,6 +17,7 @@ import EquipmentCategoryCreationForm from './EquipmentCategoryCreationForm.jsx';
 import SupplyCategoryCreationForm from './SupplyCategoryCreationForm.jsx';
 import HospitalChatInterface from './HospitalChatInterface.jsx';
 import RealTimeDashboard, { DashboardProvider } from './RealTimeDashboard.jsx';
+import AIClinicalChatbot from './AIClinicalChatbot.jsx';
 
 const DirectMCPChatbot = ({ user, onLogout }) => {
   // Mobile-responsive CSS classes for consistent mobile experience (reduced height)
@@ -52,7 +53,7 @@ const DirectMCPChatbot = ({ user, onLogout }) => {
   const [microphoneAvailable, setMicrophoneAvailable] = useState(null); // Track microphone availability
   
   // Medical document features
-  const [activeTab, setActiveTab] = useState('chat'); // chat, upload, history, dashboard
+  const [activeTab, setActiveTab] = useState('chat'); // chat, upload, history, dashboard, ai-clinical
   const [selectedPatientId, setSelectedPatientId] = useState(null); // This will store the UUID
   const [selectedPatientNumber, setSelectedPatientNumber] = useState(''); // This will store the patient number (P123456)
   const [searchingPatient, setSearchingPatient] = useState(false);
@@ -3145,6 +3146,11 @@ ${dischargeData.next_steps ? dischargeData.next_steps.map(step => `• ${step}`)
         <DashboardProvider mcpClient={aiMcpServiceRef.current?.mcpClient}>
           <RealTimeDashboard setActiveTab={setActiveTab} />
         </DashboardProvider>
+      ) : activeTab === 'ai-clinical' ? (
+        // AI Clinical Assistant View
+        <div className="h-screen">
+          <AIClinicalChatbot aiService={aiMcpServiceRef.current} />
+        </div>
       ) : (
         // Chat Interface View (existing)
         <HospitalChatInterface
