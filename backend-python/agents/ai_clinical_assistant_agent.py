@@ -110,9 +110,42 @@ class AIClinicalAssistantAgent(BaseAgent):
         # Initialize ChromaDB for RAG
         if self.rag_available:
             try:
-                self.chroma_client = chromadb.PersistentClient(
-                    path="./medical_knowledge_db"
-                )
+                # Determine the best path for ChromaDB storage
+                # Check if we're in a Docker container
+                is_docker = os.path.exists('/.dockerenv') or os.environ.get('HOSTNAME', '').startswith('hospital-backend')
+                
+                if is_docker:
+                    # In Docker, prefer mounted volume
+                    db_paths = ["/app/medical_knowledge_db"]
+                else:
+                    # In local development, prefer current directory then temp
+                    import tempfile
+                    temp_path = os.path.join(tempfile.gettempdir(), "medical_knowledge_db")
+                    db_paths = ["./medical_knowledge_db", temp_path]
+                
+                db_path = None
+                for path in db_paths:
+                    try:
+                        os.makedirs(path, exist_ok=True)
+                        # Test write permission
+                        test_file = os.path.join(path, "test_write.tmp")
+                        with open(test_file, 'w') as f:
+                            f.write("test")
+                        os.remove(test_file)
+                        db_path = path
+                        break
+                    except (OSError, PermissionError) as e:
+                        print(f"⚠️ Cannot use path {path}: {e}")
+                        continue
+                
+                if not db_path:
+                    # Final fallback - use memory-only ChromaDB
+                    print("⚠️ No writable path found, using in-memory ChromaDB")
+                    self.chroma_client = chromadb.Client()
+                else:
+                    print(f"📂 Using ChromaDB path: {db_path}")
+                    self.chroma_client = chromadb.PersistentClient(path=db_path)
+                
                 # Get or create collection for medical knowledge
                 self.knowledge_collection = self.chroma_client.get_or_create_collection(
                     name="medical_knowledge",
