@@ -74,7 +74,7 @@ const AIClinicalChatbot = ({ aiService, onBackToMainChat }) => {
     if (inputRef.current) {
       const textarea = inputRef.current;
       textarea.style.height = 'auto';
-      const newHeight = Math.min(Math.max(textarea.scrollHeight, 40), 120);
+      const newHeight = Math.min(Math.max(textarea.scrollHeight, 36), 100); // Adjusted for mobile
       textarea.style.height = newHeight + 'px';
     }
   }, [inputValue]);
@@ -82,7 +82,7 @@ const AIClinicalChatbot = ({ aiService, onBackToMainChat }) => {
   // Reset textarea height when input is cleared
   useEffect(() => {
     if (inputRef.current && inputValue === '') {
-      inputRef.current.style.height = '40px';
+      inputRef.current.style.height = '36px'; // Reduced from 40px
     }
   }, [inputValue]);
 
@@ -698,11 +698,11 @@ const AIClinicalChatbot = ({ aiService, onBackToMainChat }) => {
       <div 
         className="absolute left-0 right-0 bg-[#1a1a1a] transition-all duration-300 ease-in-out"
         style={{ 
-          top: '100px', // Increased from 16 to account for header + mode indicator
+          top: '100px', // Header + mode indicator space
           overflowY: 'auto',
           overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch',
-          bottom: showActionButtons ? '100px' : '70px', // Same as original
+          bottom: showActionButtons ? '85px' : '60px', // Reduced from 100px/70px for more output space
           height: 'auto'
         }}
       >
@@ -795,11 +795,11 @@ const AIClinicalChatbot = ({ aiService, onBackToMainChat }) => {
 
       {/* Chat Input Area - FIXED AT BOTTOM (matching original layout exactly) */}
       <div 
-        className={`fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-gray-700 px-4 z-30 transition-all duration-300 ease-in-out ${
-          showActionButtons ? 'py-2' : 'py-1'
+        className={`fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-gray-700 px-3 sm:px-4 z-30 transition-all duration-300 ease-in-out ${
+          showActionButtons ? 'py-1.5 sm:py-2' : 'py-1'
         }`}
         style={{ 
-          paddingBottom: 'max(8px, env(safe-area-inset-bottom, 0px))',
+          paddingBottom: 'max(6px, env(safe-area-inset-bottom, 0px))', // Reduced from 8px
           position: 'fixed',
           bottom: '0',
           transform: 'translateZ(0)',
@@ -809,14 +809,14 @@ const AIClinicalChatbot = ({ aiService, onBackToMainChat }) => {
         <div className="max-w-4xl mx-auto">
           {/* Action Buttons - Inside Input Container (matching original) */}
           {showActionButtons && (
-            <div className="mb-3 transition-all duration-300 ease-in-out">
+            <div className="mb-2 sm:mb-3 transition-all duration-300 ease-in-out">
               {/* Desktop: 1 row 4 columns, Mobile: 2 rows 2 columns */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2">
                 {quickActions.map((action, index) => (
                   <button
                     key={index}
                     onClick={() => handleQuickAction(action)}
-                    className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-1.5 sm:px-2 py-1.5 sm:py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500 min-h-[40px] sm:min-h-[44px]"
+                    className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-1.5 sm:px-2 py-1.5 sm:py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500 min-h-[36px] sm:min-h-[44px]"
                     title={action.text}
                   >
                     <action.icon className="w-3 h-3 mr-1 flex-shrink-0" />
@@ -828,8 +828,8 @@ const AIClinicalChatbot = ({ aiService, onBackToMainChat }) => {
           )}
 
           {/* Input Section (matching original layout exactly) */}
-          <div className="pb-2">
-            <div className="bg-[#2a2a2a] rounded-lg border border-gray-600 focus-within:ring-2 focus-within:ring-green-500 focus-within:border-transparent flex items-end p-2 space-x-2">
+          <div className="pb-1.5 sm:pb-2">
+            <div className="bg-[#2a2a2a] rounded-lg border border-gray-600 focus-within:ring-2 focus-within:ring-green-500 focus-within:border-transparent flex items-end p-1.5 sm:p-2 space-x-2">
               {/* Left Side - Textarea */}
               <textarea
                 ref={inputRef}
@@ -842,8 +842,8 @@ const AIClinicalChatbot = ({ aiService, onBackToMainChat }) => {
                 style={{
                   WebkitAppearance: 'none',
                   fontSize: '14px',
-                  maxHeight: '120px',
-                  height: '40px',
+                  maxHeight: '100px', // Reduced from 120px for mobile
+                  height: '36px', // Reduced from 40px for mobile
                   WebkitTouchCallout: 'none',
                   WebkitUserSelect: 'text',
                   WebkitTapHighlightColor: 'transparent'
