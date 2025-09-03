@@ -588,7 +588,7 @@ const AIClinicalChatbot = ({ aiService, onBackToMainChat }) => {
       overflow: 'hidden'
     }}>
       {/* Header - FIXED AT TOP (matching original chatbot exactly) */}
-      <div className="fixed top-0 left-0 right-0 border-b border-gray-700 px-3 sm:px-4 py-3 bg-[#1a1a1a] z-30">
+      <div className="fixed top-0 left-0 right-0 border-b border-gray-700 px-3 sm:px-4 py-2 bg-[#1a1a1a] z-30">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2 sm:space-x-3">
             {/* Back Button */}
@@ -686,8 +686,8 @@ const AIClinicalChatbot = ({ aiService, onBackToMainChat }) => {
         </div>
         
         {/* Active Mode Indicator */}
-        <div className="mt-2">
-          <div className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-700 text-gray-300">
+        <div className="mt-1">
+          <div className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-700 text-gray-300">
             {React.createElement(clinicalModes[selectedClinicalMode].icon, { className: "w-3 h-3 mr-1" })}
             {clinicalModes[selectedClinicalMode].label}
           </div>
@@ -698,11 +698,11 @@ const AIClinicalChatbot = ({ aiService, onBackToMainChat }) => {
       <div 
         className="absolute left-0 right-0 bg-[#1a1a1a] transition-all duration-300 ease-in-out"
         style={{ 
-          top: '100px', // Increased from 16 to account for header + mode indicator
+          top: '85px', // Reduced from 100px to give more space to chat area
           overflowY: 'auto',
           overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch',
-          bottom: showActionButtons ? '100px' : '70px', // Same as original
+          bottom: showActionButtons ? '85px' : '60px', // Reduced from 100px/70px to give more chat space
           height: 'auto'
         }}
       >
@@ -796,10 +796,10 @@ const AIClinicalChatbot = ({ aiService, onBackToMainChat }) => {
       {/* Chat Input Area - FIXED AT BOTTOM (matching original layout exactly) */}
       <div 
         className={`fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-gray-700 px-4 z-30 transition-all duration-300 ease-in-out ${
-          showActionButtons ? 'py-2' : 'py-1'
+          showActionButtons ? 'py-1.5' : 'py-1'
         }`}
         style={{ 
-          paddingBottom: 'max(8px, env(safe-area-inset-bottom, 0px))',
+          paddingBottom: 'max(6px, env(safe-area-inset-bottom, 0px))',
           position: 'fixed',
           bottom: '0',
           transform: 'translateZ(0)',
@@ -809,14 +809,14 @@ const AIClinicalChatbot = ({ aiService, onBackToMainChat }) => {
         <div className="max-w-4xl mx-auto">
           {/* Action Buttons - Inside Input Container (matching original) */}
           {showActionButtons && (
-            <div className="mb-3 transition-all duration-300 ease-in-out">
+            <div className="mb-2 transition-all duration-300 ease-in-out">
               {/* Desktop: 1 row 4 columns, Mobile: 2 rows 2 columns */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2">
                 {quickActions.map((action, index) => (
                   <button
                     key={index}
                     onClick={() => handleQuickAction(action)}
-                    className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-1.5 sm:px-2 py-1.5 sm:py-2 transition-colors text-xs border border-gray-600 hover:border-gray-500 min-h-[40px] sm:min-h-[44px]"
+                    className="flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] text-white rounded-md sm:rounded-lg px-1.5 sm:px-2 py-1 sm:py-1.5 transition-colors text-xs border border-gray-600 hover:border-gray-500 min-h-[36px] sm:min-h-[40px]"
                     title={action.text}
                   >
                     <action.icon className="w-3 h-3 mr-1 flex-shrink-0" />
@@ -828,8 +828,8 @@ const AIClinicalChatbot = ({ aiService, onBackToMainChat }) => {
           )}
 
           {/* Input Section (matching original layout exactly) */}
-          <div className="pb-2">
-            <div className="bg-[#2a2a2a] rounded-lg border border-gray-600 focus-within:ring-2 focus-within:ring-green-500 focus-within:border-transparent flex items-end p-2 space-x-2">
+          <div className="pb-1">
+            <div className="bg-[#2a2a2a] rounded-lg border border-gray-600 focus-within:ring-2 focus-within:ring-green-500 focus-within:border-transparent flex items-end p-1.5 space-x-2">
               {/* Left Side - Textarea */}
               <textarea
                 ref={inputRef}
