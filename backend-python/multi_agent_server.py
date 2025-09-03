@@ -12,6 +12,14 @@ from decimal import Decimal
 from typing import Any, Dict, List, Optional
 import uvicorn
 
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+    print("✅ Environment variables loaded from .env file")
+except ImportError:
+    print("⚠️ python-dotenv not available, using system environment variables only")
+
 from sqlalchemy.orm import Session
 from sqlalchemy import Date, text
 from mcp.server.fastmcp import FastMCP
@@ -2513,6 +2521,99 @@ def archive_old_discharge_reports(days_old: int = 30) -> Dict[str, Any]:
         return result
     except Exception as e:
         return {"success": False, "error": str(e), "message": f"Failed to archive reports: {str(e)}"}
+
+# ================================
+# AI CLINICAL ASSISTANT TOOLS
+# ================================
+
+@mcp.tool()
+def ai_clinical_assistant(query: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
+    """AI assistant for clinical decision support and medical recommendations.
+    
+    Args:
+        query: Clinical question or scenario needing assistance
+        context: Optional context (patient_id, medical_history, etc.)
+    """
+    if not MULTI_AGENT_AVAILABLE or not orchestrator:
+        return {"error": "Multi-agent system not available"}
+    
+    try:
+        result = orchestrator.route_request("ai_clinical_assistant", query=query, context=context)
+        return result.get("result", result)
+    except Exception as e:
+        return {"success": False, "error": f"AI clinical assistant error: {str(e)}"}
+
+@mcp.tool()
+def process_clinical_notes(document_text: str, extract_type: str = "comprehensive") -> Dict[str, Any]:
+    """Extract structured data from clinical notes using NLP.
+    
+    Args:
+        document_text: Raw clinical notes text
+        extract_type: Type of extraction (symptoms, diagnosis, treatment, medications, comprehensive)
+    """
+    if not MULTI_AGENT_AVAILABLE or not orchestrator:
+        return {"error": "Multi-agent system not available"}
+    
+    try:
+        result = orchestrator.route_request("process_clinical_notes", 
+                                          document_text=document_text, extract_type=extract_type)
+        return result.get("result", result)
+    except Exception as e:
+        return {"success": False, "error": f"Clinical note processing error: {str(e)}"}
+
+@mcp.tool()
+def get_drug_interactions(medications: List[str], patient_context: Dict[str, Any] = None) -> Dict[str, Any]:
+    """Check for drug interactions and contraindications.
+    
+    Args:
+        medications: List of medication names to check
+        patient_context: Patient information (allergies, conditions, etc.)
+    """
+    if not MULTI_AGENT_AVAILABLE or not orchestrator:
+        return {"error": "Multi-agent system not available"}
+    
+    try:
+        result = orchestrator.route_request("get_drug_interactions", 
+                                          medications=medications, patient_context=patient_context)
+        return result.get("result", result)
+    except Exception as e:
+        return {"success": False, "error": f"Drug interaction check error: {str(e)}"}
+
+@mcp.tool()
+def analyze_vital_signs(vital_signs: Dict[str, float], patient_age: int = None) -> Dict[str, Any]:
+    """Analyze vital signs and provide clinical insights.
+    
+    Args:
+        vital_signs: Dict of vital sign measurements (heart_rate, blood_pressure, etc.)
+        patient_age: Patient age for age-appropriate normal ranges
+    """
+    if not MULTI_AGENT_AVAILABLE or not orchestrator:
+        return {"error": "Multi-agent system not available"}
+    
+    try:
+        result = orchestrator.route_request("analyze_vital_signs", 
+                                          vital_signs=vital_signs, patient_age=patient_age)
+        return result.get("result", result)
+    except Exception as e:
+        return {"success": False, "error": f"Vital signs analysis error: {str(e)}"}
+
+@mcp.tool()
+def generate_differential_diagnosis(symptoms: List[str], patient_context: Dict[str, Any] = None) -> Dict[str, Any]:
+    """Generate differential diagnosis based on symptoms.
+    
+    Args:
+        symptoms: List of patient symptoms
+        patient_context: Patient demographics and medical history
+    """
+    if not MULTI_AGENT_AVAILABLE or not orchestrator:
+        return {"error": "Multi-agent system not available"}
+    
+    try:
+        result = orchestrator.route_request("generate_differential_diagnosis", 
+                                          symptoms=symptoms, patient_context=patient_context)
+        return result.get("result", result)
+    except Exception as e:
+        return {"success": False, "error": f"Differential diagnosis error: {str(e)}"}
 
 # ================================
 # HTTP ENDPOINTS FOR FRONTEND
