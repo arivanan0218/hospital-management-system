@@ -110,28 +110,16 @@ class AIClinicalAssistantAgent(BaseAgent):
         # Initialize ChromaDB for RAG
         if self.rag_available:
             try:
-                # Set environment variables to control ChromaDB behavior
-                import tempfile
-                
+                # Determine the best path for ChromaDB storage
                 # Check if we're in a Docker container
                 is_docker = os.path.exists('/.dockerenv') or os.environ.get('HOSTNAME', '').startswith('hospital-backend')
                 
-                # Set ChromaDB environment variables to avoid home directory access
-                if is_docker:
-                    # Force ChromaDB to use our specified directory and avoid user home
-                    os.environ['CHROMADB_DATA_PATH'] = '/app/medical_knowledge_db'
-                    os.environ['HOME'] = '/app'  # Override HOME to a writable location
-                    os.environ['TMPDIR'] = '/tmp'
-                    os.environ['XDG_DATA_HOME'] = '/app/.local/share'
-                    os.environ['XDG_CONFIG_HOME'] = '/app/.config'
-                    os.environ['XDG_CACHE_HOME'] = '/app/.cache'
-                
-                # Determine the best path for ChromaDB storage
                 if is_docker:
                     # In Docker, prefer mounted volume
                     db_paths = ["/app/medical_knowledge_db"]
                 else:
                     # In local development, prefer current directory then temp
+                    import tempfile
                     temp_path = os.path.join(tempfile.gettempdir(), "medical_knowledge_db")
                     db_paths = ["./medical_knowledge_db", temp_path]
                 
@@ -156,14 +144,7 @@ class AIClinicalAssistantAgent(BaseAgent):
                     self.chroma_client = chromadb.Client()
                 else:
                     print(f"📂 Using ChromaDB path: {db_path}")
-                    # Use PersistentClient with explicit settings
-                    self.chroma_client = chromadb.PersistentClient(
-                        path=db_path,
-                        settings=chromadb.Settings(
-                            anonymized_telemetry=False,  # Disable telemetry to avoid home directory access
-                            allow_reset=True
-                        )
-                    )
+                    self.chroma_client = chromadb.PersistentClient(path=db_path)
                 
                 # Get or create collection for medical knowledge
                 self.knowledge_collection = self.chroma_client.get_or_create_collection(
