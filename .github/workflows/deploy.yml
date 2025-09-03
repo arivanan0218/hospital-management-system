@@ -337,25 +337,16 @@ jobs:
         # Start new backend container
         echo "🔄 Starting new backend container..."
         
-        # Create directories for ChromaDB persistence and app data
+        # Create directory for ChromaDB persistence
         sudo mkdir -p /var/lib/hospital-chromadb
-        sudo mkdir -p /var/lib/hospital-app-data/{.local/share,.config,.cache}
-        sudo chmod -R 777 /var/lib/hospital-chromadb
-        sudo chmod -R 777 /var/lib/hospital-app-data
-        echo "📂 Created ChromaDB and app data directories"
+        sudo chmod 777 /var/lib/hospital-chromadb
+        echo "📂 Created ChromaDB data directory"
         
         sudo docker run -d \
           --name hospital-backend \
           --network hospital-network \
           --restart unless-stopped \
           -v /var/lib/hospital-chromadb:/app/medical_knowledge_db \
-          -v /var/lib/hospital-app-data:/app \
-          -e HOME="/app" \
-          -e TMPDIR="/tmp" \
-          -e XDG_DATA_HOME="/app/.local/share" \
-          -e XDG_CONFIG_HOME="/app/.config" \
-          -e XDG_CACHE_HOME="/app/.cache" \
-          -e CHROMADB_DATA_PATH="/app/medical_knowledge_db" \
           -e DATABASE_URL="postgresql://postgres:postgres@postgres:5432/hospital_db" \
           -e SMTP_SERVER="smtp.gmail.com" \
           -e SMTP_PORT="587" \
@@ -581,21 +572,6 @@ jobs:
                 else:
                     print(f'⚠️ ChromaDB directory not found: {chromadb_path}')
                 
-                # Check environment variables for ChromaDB
-                env_vars = ['HOME', 'XDG_DATA_HOME', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'CHROMADB_DATA_PATH']
-                for var in env_vars:
-                    value = os.getenv(var)
-                    if value:
-                        print(f'✅ {var}: {value}')
-                        # Check if the directory is writable
-                        if os.path.exists(value) and os.path.isdir(value):
-                            if os.access(value, os.W_OK):
-                                print(f'  ✅ {value} is writable')
-                            else:
-                                print(f'  ⚠️ {value} is not writable')
-                    else:
-                        print(f'⚠️ {var} not set')
-                
                 # Test AI Clinical Assistant initialization
                 from agents.ai_clinical_assistant_agent import AIClinicalAssistantAgent
                 agent = AIClinicalAssistantAgent()
@@ -604,16 +580,6 @@ jobs:
                 # Check if ChromaDB was properly initialized
                 if hasattr(agent, 'chroma_client') and agent.chroma_client:
                     print('✅ ChromaDB client initialized successfully')
-                    
-                    # Test ChromaDB functionality
-                    try:
-                        if hasattr(agent, 'knowledge_collection'):
-                            count = agent.knowledge_collection.count()
-                            print(f'✅ ChromaDB collection accessible with {count} entries')
-                        else:
-                            print('⚠️ ChromaDB collection not available')
-                    except Exception as e:
-                        print(f'⚠️ ChromaDB collection error: {e}')
                 else:
                     print('⚠️ ChromaDB client not initialized - using fallback mode')
                 
