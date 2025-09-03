@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { LogOut, User, Settings, Upload, FileText, History, CheckCircle, Plus, X, Mic, MicOff, VolumeX, BarChart3 } from 'lucide-react';
+import { LogOut, User, Settings, Upload, FileText, History, CheckCircle, Plus, X, Mic, MicOff, VolumeX, BarChart3, Brain, Stethoscope } from 'lucide-react';
 import EnhancedMedicalDocumentUpload from './EnhancedMedicalDocumentUpload.jsx';
 import MedicalHistoryViewer from './MedicalHistoryViewer.jsx';
 
@@ -186,6 +186,15 @@ const HospitalChatInterface = ({
                   <BarChart3 className="w-4 h-4" />
                 </button>
                 <button
+                  onClick={() => setActiveTab('ai-clinical')}
+                  className={`p-1.5 hover:bg-gray-700 rounded-md transition-colors ${
+                    activeTab === 'ai-clinical' ? 'text-green-400' : 'text-gray-400 hover:text-gray-300'
+                  }`}
+                  title="AI Clinical Assistant"
+                >
+                  <Stethoscope className="w-4 h-4" />
+                </button>
+                <button
                   onClick={onLogout}
                   className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded-md transition-colors"
                   title="Logout"
@@ -223,6 +232,15 @@ const HospitalChatInterface = ({
                   title="Dashboard"
                 >
                   <BarChart3 className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setActiveTab('ai-clinical')}
+                  className={`p-2 hover:bg-gray-700 rounded-md transition-colors ${
+                    activeTab === 'ai-clinical' ? 'text-green-400' : 'text-gray-400 hover:text-gray-300'
+                  }`}
+                  title="AI Clinical Assistant"
+                >
+                  <Stethoscope className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setShowSetup(true)}

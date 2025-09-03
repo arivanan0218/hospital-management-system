@@ -21,6 +21,7 @@ try:
     from .discharge_agent import DischargeAgent  # NEW
     from .patient_supply_usage_agent import PatientSupplyUsageAgent  # NEW
     from .dashboard_agent import DashboardAgent  # NEW - Real-time dashboard
+    from .ai_clinical_assistant_agent import AIClinicalAssistantAgent  # NEW - AI Clinical Assistant
     AGENTS_AVAILABLE = True
 except ImportError:
     AGENTS_AVAILABLE = False
@@ -56,6 +57,7 @@ class OrchestratorAgent(BaseAgent):
                 "discharge": DischargeAgent(),  # NEW
                 "patient_supply_usage": PatientSupplyUsageAgent(),  # NEW
                 "dashboard": DashboardAgent(),  # NEW - Real-time dashboard
+                "ai_clinical": AIClinicalAssistantAgent(),  # NEW - AI Clinical Assistant
             }
             print(f"✅ Initialized {len(self.agents)} specialized agents")
         except Exception as e:
