@@ -702,7 +702,7 @@ const AIClinicalChatbot = ({ aiService, onBackToMainChat }) => {
           overflowY: 'auto',
           overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch',
-          bottom: showActionButtons ? '100px' : '70px', // Same as original
+          bottom: showActionButtons ? '80px' : '60px', // Reduced from 100px/70px to give more space to chat area
           height: 'auto'
         }}
       >
