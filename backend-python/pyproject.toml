@@ -36,6 +36,12 @@ dependencies = [
     "pypdf>=4.0.0",
     # Vector Database for RAG
     "chromadb>=0.4.0",
+    # LangChain and LangGraph Integration
+    "langchain>=0.1.0",
+    "langchain-community>=0.1.0",
+    "langchain-openai>=0.1.0",
+    "langgraph>=0.1.0",
+    "langsmith>=0.1.0",
     # Temporarily commented out for deployment - large model dependencies
     # "sentence-transformers>=2.2.0",
     # AI/ML Processing

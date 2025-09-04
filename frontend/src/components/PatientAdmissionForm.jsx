@@ -83,8 +83,52 @@ const PatientAdmissionForm = ({
       console.log('Patient admission response:', JSON.stringify(response, null, 2));
 
       if (response && response.success) {
-        // Call the parent's onSubmit callback with the response
-        onSubmit(response);
+        // OPTION 1: Automatic LangGraph Workflow Integration
+        console.log('🚀 Starting enhanced admission workflow with LangGraph...');
+        
+        try {
+          // Trigger LangGraph admission workflow automatically
+          const workflowResponse = await aiMcpServiceRef.current.callToolDirectly(
+            'execute_langraph_patient_admission', 
+            { 
+              patient_data: {
+                first_name: formData.first_name,
+                last_name: formData.last_name,
+                date_of_birth: formData.date_of_birth,
+                gender: formData.gender,
+                phone: formData.phone,
+                email: formData.email,
+                address: formData.address,
+                emergency_contact_name: formData.emergency_contact_name,
+                emergency_contact_phone: formData.emergency_contact_phone,
+                blood_type: formData.blood_type,
+                allergies: formData.allergies,
+                medical_history: formData.medical_history
+              }
+            }
+          );
+          
+          console.log('🧠 LangGraph workflow response:', JSON.stringify(workflowResponse, null, 2));
+          
+          // Enhanced success callback with both patient creation and workflow results
+          onSubmit({
+            patient: response,
+            workflow: workflowResponse,
+            enhanced: true,
+            success: true
+          });
+          
+        } catch (workflowError) {
+          console.warn('⚠️ LangGraph workflow failed, using standard admission:', workflowError);
+          
+          // Fallback to standard success if LangGraph fails
+          onSubmit({
+            patient: response,
+            workflow: { success: false, error: workflowError.message },
+            enhanced: false,
+            success: true
+          });
+        }
         
         // Reset form
         setFormData({

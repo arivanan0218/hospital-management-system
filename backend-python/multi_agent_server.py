@@ -179,6 +179,148 @@ def execute_workflow(workflow_name: str, workflow_params: Dict[str, Any]) -> Dic
         return {"error": f"Failed to execute workflow: {str(e)}"}
 
 # ================================
+# LANGRAPH WORKFLOW TOOLS
+# ================================
+
+@mcp.tool()
+def execute_langraph_patient_admission(patient_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Execute patient admission using LangGraph workflow with intelligent state management."""
+    if not MULTI_AGENT_AVAILABLE or not orchestrator:
+        return {"error": "Multi-agent system not available"}
+    
+    try:
+        if hasattr(orchestrator, 'execute_langraph_patient_admission'):
+            return orchestrator.execute_langraph_patient_admission(patient_data)
+        else:
+            return {"error": "LangGraph patient admission not available"}
+    except Exception as e:
+        return {"error": f"Failed to execute LangGraph patient admission: {str(e)}"}
+
+@mcp.tool()
+def execute_langraph_clinical_decision(query: str, patient_context: Dict[str, Any] = None) -> Dict[str, Any]:
+    """Execute clinical decision support using LangGraph workflow with multi-step reasoning."""
+    if not MULTI_AGENT_AVAILABLE or not orchestrator:
+        return {"error": "Multi-agent system not available"}
+    
+    try:
+        if hasattr(orchestrator, 'execute_langraph_clinical_decision'):
+            return orchestrator.execute_langraph_clinical_decision(query, patient_context)
+        else:
+            return {"error": "LangGraph clinical decision not available"}
+    except Exception as e:
+        return {"error": f"Failed to execute LangGraph clinical decision: {str(e)}"}
+
+@mcp.tool()
+def get_langraph_workflow_status() -> Dict[str, Any]:
+    """Get status of LangGraph workflows and integration."""
+    if not MULTI_AGENT_AVAILABLE or not orchestrator:
+        return {"error": "Multi-agent system not available"}
+    
+    try:
+        if hasattr(orchestrator, 'get_langraph_workflow_status'):
+            return orchestrator.get_langraph_workflow_status()
+        else:
+            return {"error": "LangGraph workflow status not available"}
+    except Exception as e:
+        return {"error": f"Failed to get LangGraph workflow status: {str(e)}"}
+
+@mcp.tool()
+def route_to_langraph_workflow(workflow_type: str, workflow_params: Dict[str, Any]) -> Dict[str, Any]:
+    """Intelligent routing between LangGraph and legacy workflows."""
+    if not MULTI_AGENT_AVAILABLE or not orchestrator:
+        return {"error": "Multi-agent system not available"}
+    
+    try:
+        if hasattr(orchestrator, 'route_to_langraph_or_legacy'):
+            return orchestrator.route_to_langraph_or_legacy(workflow_type, **workflow_params)
+        else:
+            return {"error": "LangGraph workflow routing not available"}
+    except Exception as e:
+        return {"error": f"Failed to route workflow: {str(e)}"}
+
+# ================================
+# ENHANCED AI CLINICAL TOOLS
+# ================================
+
+@mcp.tool()
+def enhanced_symptom_analysis(symptoms: str, patient_history: str = "") -> Dict[str, Any]:
+    """Analyze symptoms using enhanced LangChain-powered clinical reasoning."""
+    try:
+        from agents.enhanced_ai_clinical import enhanced_clinical_assistant
+        
+        if enhanced_clinical_assistant:
+            return enhanced_clinical_assistant.analyze_symptoms(symptoms, patient_history)
+        else:
+            return {"error": "Enhanced AI Clinical Assistant not available"}
+    except Exception as e:
+        return {"error": f"Enhanced symptom analysis failed: {str(e)}"}
+
+@mcp.tool()
+def enhanced_differential_diagnosis(clinical_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Generate differential diagnosis using LangChain multi-step reasoning."""
+    try:
+        from agents.enhanced_ai_clinical import enhanced_clinical_assistant
+        
+        if enhanced_clinical_assistant:
+            return enhanced_clinical_assistant.generate_differential_diagnosis(clinical_data)
+        else:
+            return {"error": "Enhanced AI Clinical Assistant not available"}
+    except Exception as e:
+        return {"error": f"Enhanced differential diagnosis failed: {str(e)}"}
+
+@mcp.tool()
+def enhanced_treatment_recommendations(treatment_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Recommend treatment using evidence-based LangChain reasoning."""
+    try:
+        from agents.enhanced_ai_clinical import enhanced_clinical_assistant
+        
+        if enhanced_clinical_assistant:
+            return enhanced_clinical_assistant.recommend_treatment(treatment_data)
+        else:
+            return {"error": "Enhanced AI Clinical Assistant not available"}
+    except Exception as e:
+        return {"error": f"Enhanced treatment recommendations failed: {str(e)}"}
+
+@mcp.tool()
+def enhanced_drug_interaction_analysis(medication_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Analyze drug interactions using comprehensive LangChain analysis."""
+    try:
+        from agents.enhanced_ai_clinical import enhanced_clinical_assistant
+        
+        if enhanced_clinical_assistant:
+            return enhanced_clinical_assistant.analyze_drug_interactions(medication_data)
+        else:
+            return {"error": "Enhanced AI Clinical Assistant not available"}
+    except Exception as e:
+        return {"error": f"Enhanced drug interaction analysis failed: {str(e)}"}
+
+@mcp.tool()
+def enhanced_vital_signs_analysis(vitals_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Analyze vital signs using intelligent LangChain interpretation."""
+    try:
+        from agents.enhanced_ai_clinical import enhanced_clinical_assistant
+        
+        if enhanced_clinical_assistant:
+            return enhanced_clinical_assistant.analyze_vital_signs(vitals_data)
+        else:
+            return {"error": "Enhanced AI Clinical Assistant not available"}
+    except Exception as e:
+        return {"error": f"Enhanced vital signs analysis failed: {str(e)}"}
+
+@mcp.tool()
+def enhanced_clinical_risk_assessment(risk_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Assess clinical risk using comprehensive LangChain risk stratification."""
+    try:
+        from agents.enhanced_ai_clinical import enhanced_clinical_assistant
+        
+        if enhanced_clinical_assistant:
+            return enhanced_clinical_assistant.assess_clinical_risk(risk_data)
+        else:
+            return {"error": "Enhanced AI Clinical Assistant not available"}
+    except Exception as e:
+        return {"error": f"Enhanced clinical risk assessment failed: {str(e)}"}
+
+# ================================
 # USER MANAGEMENT TOOLS
 # ================================
 
