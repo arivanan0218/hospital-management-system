@@ -82,23 +82,50 @@ class PatientSupplyUsageAgent(BaseAgent):
                                   bed_id: str = None, administration_route: str = "oral", 
                                   indication: str = None, start_date: str = None, 
                                   end_date: str = None, notes: str = None) -> Dict[str, Any]:
-        """Record medication or supply usage for a patient."""
+        """
+        Record medication or supply usage for a patient.
+        
+        Enhanced to automatically handle Employee IDs (e.g., 'EMP1005') for staff identification.
+        
+        Args:
+            patient_id: Patient UUID or patient_number for patient identification
+            patient_number: Patient number (e.g., 'P1009') 
+            supply_id: Supply UUID or supply_item_code for supply identification
+            supply_item_code: Supply item code (e.g., 'SUP00006')
+            staff_id: Staff identifier - supports both Employee IDs (e.g., 'EMP1005') and User UUIDs
+            prescribed_by_id: Prescribing staff - supports Employee IDs and User UUIDs
+            administered_by_id: Administering staff - supports Employee IDs and User UUIDs
+            employee_id: Alternative parameter for Employee ID
+            
+        Returns:
+            Dict with success status and usage record details
+        """
         if not DATABASE_AVAILABLE:
             return {"success": False, "message": "Database not available"}
 
         try:
             db = self.get_db_session()
             
+            # Debug: Print incoming parameters
+            print(f"🔍 SUPPLY USAGE DEBUG: Recording supply usage")
+            print(f"  - patient_id: {patient_id} (type: {type(patient_id)})")
+            print(f"  - patient_number: {patient_number}")
+            print(f"  - supply_id: {supply_id}")
+            print(f"  - staff_id: {staff_id}")
+            
             # Find patient by ID or patient number
             patient = None
             if patient_id:
                 try:
                     patient = db.query(Patient).filter(Patient.id == uuid.UUID(patient_id)).first()
+                    print(f"🔍 SUPPLY USAGE DEBUG: Found patient by ID: {patient.id if patient else 'None'}")
                 except ValueError:
+                    print(f"❌ SUPPLY USAGE DEBUG: Invalid patient ID format: {patient_id}")
                     db.close()
                     return {"success": False, "message": "Invalid patient ID format"}
             elif patient_number:
                 patient = db.query(Patient).filter(Patient.patient_number == patient_number).first()
+                print(f"🔍 SUPPLY USAGE DEBUG: Found patient by number: {patient.id if patient else 'None'}")
             else:
                 db.close()
                 return {"success": False, "message": "Either patient_id or patient_number must be provided"}
@@ -106,6 +133,8 @@ class PatientSupplyUsageAgent(BaseAgent):
             if not patient:
                 db.close()
                 return {"success": False, "message": f"Patient not found with {'ID: ' + patient_id if patient_id else 'number: ' + patient_number}"}
+            
+            print(f"✅ SUPPLY USAGE DEBUG: Using patient UUID: {patient.id} for {patient.first_name} {patient.last_name}")
             
             # Find supply by ID or item code
             supply = None
@@ -136,11 +165,19 @@ class PatientSupplyUsageAgent(BaseAgent):
                     db.close()
                     return {"success": False, "message": "Invalid administered_by_id format"}
             elif staff_id:
+                # Enhanced staff_id handling: support both Employee IDs and User UUIDs
                 try:
+                    # First, try to parse as UUID (User ID)
                     administered_by_uuid = uuid.UUID(staff_id)
                 except ValueError:
-                    db.close()
-                    return {"success": False, "message": "Invalid staff_id format"}
+                    # If UUID parsing fails, treat as Employee ID and look up staff
+                    from database import Staff
+                    staff = db.query(Staff).filter(Staff.employee_id == staff_id).first()
+                    if staff:
+                        administered_by_uuid = staff.user_id  # Staff references User table
+                    else:
+                        db.close()
+                        return {"success": False, "message": f"Staff not found with employee ID: {staff_id}"}
             elif employee_id:
                 # Look up staff by employee_id
                 from database import Staff
@@ -151,14 +188,21 @@ class PatientSupplyUsageAgent(BaseAgent):
                     db.close()
                     return {"success": False, "message": f"Staff not found with employee ID: {employee_id}"}
             
-            # Resolve prescribed_by if provided
+            # Resolve prescribed_by if provided (Enhanced to handle Employee IDs)
             prescribed_by_uuid = None
             if prescribed_by_id:
                 try:
+                    # First, try to parse as UUID (User ID)
                     prescribed_by_uuid = uuid.UUID(prescribed_by_id)
                 except ValueError:
-                    db.close()
-                    return {"success": False, "message": "Invalid prescribed_by_id format"}
+                    # If UUID parsing fails, treat as Employee ID and look up staff
+                    from database import Staff
+                    staff = db.query(Staff).filter(Staff.employee_id == prescribed_by_id).first()
+                    if staff:
+                        prescribed_by_uuid = staff.user_id  # Staff references User table
+                    else:
+                        db.close()
+                        return {"success": False, "message": f"Prescribing staff not found with employee ID: {prescribed_by_id}"}
             
             # Calculate costs
             unit_cost = supply.unit_cost or 0
@@ -167,6 +211,12 @@ class PatientSupplyUsageAgent(BaseAgent):
             # Parse dates
             start_date_obj = datetime.fromisoformat(start_date).date() if start_date else date.today()
             end_date_obj = datetime.fromisoformat(end_date).date() if end_date else None
+            
+            # Debug: Print what we're about to record
+            print(f"📝 SUPPLY USAGE DEBUG: Creating usage record")
+            print(f"  - patient.id: {patient.id} (type: {type(patient.id)})")
+            print(f"  - supply.id: {supply.id}")
+            print(f"  - quantity_used: {quantity_used}")
             
             # Create usage record
             usage = PatientSupplyUsage(
@@ -191,6 +241,8 @@ class PatientSupplyUsageAgent(BaseAgent):
             db.add(usage)
             db.commit()
             db.refresh(usage)
+            
+            print(f"✅ SUPPLY USAGE DEBUG: Record created with ID: {usage.id}, patient_id: {usage.patient_id}")
             
             # Update supply inventory
             supply.current_stock -= quantity_used
