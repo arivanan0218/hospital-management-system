@@ -1,0 +1,72 @@
+{
+  "total_tests": 10,
+  "passed_tests": 1,
+  "success_rate": 0.1,
+  "test_results": [
+    {
+      "test": "Server Health Check",
+      "success": true,
+      "details": "Server is responsive",
+      "timestamp": "2025-09-03T21:40:46.422259"
+    },
+    {
+      "test": "LangGraph Workflow Status",
+      "success": false,
+      "details": "HTTP 404: Not Found",
+      "timestamp": "2025-09-03T21:40:46.457056"
+    },
+    {
+      "test": "LangGraph Patient Admission",
+      "success": false,
+      "details": "HTTP 404: Not Found",
+      "timestamp": "2025-09-03T21:40:46.461047"
+    },
+    {
+      "test": "LangGraph Clinical Decision",
+      "success": false,
+      "details": "HTTP 404: Not Found",
+      "timestamp": "2025-09-03T21:40:46.464386"
+    },
+    {
+      "test": "Enhanced Symptom Analysis",
+      "success": false,
+      "details": "HTTP 404: Not Found",
+      "timestamp": "2025-09-03T21:40:46.466815"
+    },
+    {
+      "test": "Enhanced Differential Diagnosis",
+      "success": false,
+      "details": "HTTP 404: Not Found",
+      "timestamp": "2025-09-03T21:40:46.469605"
+    },
+    {
+      "test": "Enhanced Vital Signs Analysis",
+      "success": false,
+      "details": "HTTP 404: Not Found",
+      "timestamp": "2025-09-03T21:40:46.474630"
+    },
+    {
+      "test": "Enhanced Drug Interaction Analysis",
+      "success": false,
+      "details": "HTTP 404: Not Found",
+      "timestamp": "2025-09-03T21:40:46.478147"
+    },
+    {
+      "test": "Enhanced Clinical Risk Assessment",
+      "success": false,
+      "details": "HTTP 404: Not Found",
+      "timestamp": "2025-09-03T21:40:46.480547"
+    },
+    {
+      "test": "Workflow Routing",
+      "success": false,
+      "details": "HTTP 404: Not Found",
+      "timestamp": "2025-09-03T21:40:46.483738"
+    }
+  ],
+  "summary": {
+    "langraph_integration": false,
+    "enhanced_ai_available": false,
+    "system_health": false
+  }
+}

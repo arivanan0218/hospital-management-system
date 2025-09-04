@@ -7,6 +7,14 @@ import re
 from datetime import datetime, date
 from .base_agent import BaseAgent
 
+# Import LangGraph workflows
+try:
+    from .langraph_workflows import LangGraphWorkflowManager
+    LANGRAPH_AVAILABLE = True
+except ImportError:
+    LANGRAPH_AVAILABLE = False
+    print("⚠️ LangGraph workflows not available")
+
 # Import all specialized agents
 try:
     from .user_agent import UserAgent
@@ -34,6 +42,18 @@ class OrchestratorAgent(BaseAgent):
         super().__init__("Orchestrator Agent", "orchestrator_agent")
         self.agents = {}
         self.agent_routing = {}
+        
+        # Initialize LangGraph workflow manager
+        if LANGRAPH_AVAILABLE:
+            try:
+                self.workflow_manager = LangGraphWorkflowManager()
+                print("✅ LangGraph workflow manager integrated")
+            except Exception as e:
+                print(f"⚠️ Failed to initialize LangGraph workflows: {e}")
+                self.workflow_manager = None
+        else:
+            self.workflow_manager = None
+        
         self.initialize_agents()
         self.setup_routing()
     
@@ -76,6 +96,14 @@ class OrchestratorAgent(BaseAgent):
     def get_tools(self) -> List[str]:
         """Return list of all tools from all agents plus orchestrator-specific tools"""
         all_tools = ["get_system_status", "route_request", "execute_workflow", "get_agent_info"]
+        
+        # Add LangGraph workflow tools
+        if self.workflow_manager:
+            all_tools.extend([
+                "execute_langraph_patient_admission",
+                "execute_langraph_clinical_decision", 
+                "get_langraph_workflow_status"
+            ])
         
         for agent in self.agents.values():
             all_tools.extend(agent.get_tools())
@@ -154,6 +182,101 @@ class OrchestratorAgent(BaseAgent):
         import inspect
         
         try:
+            # Handle LangGraph workflow tools directly in orchestrator
+            if tool_name in ["execute_langraph_patient_admission", "execute_langraph_clinical_decision", "get_langraph_workflow_status", "route_to_langraph_workflow"]:
+                if hasattr(self, tool_name):
+                    method = getattr(self, tool_name)
+                    
+                    # Filter parameters to only include what the method expects
+                    method_signature = inspect.signature(method)
+                    filtered_kwargs = {}
+                    
+                    for param_name in method_signature.parameters:
+                        if param_name in kwargs:
+                            filtered_kwargs[param_name] = kwargs[param_name]
+                    
+                    # Execute method with filtered parameters
+                    result = method(**filtered_kwargs)
+                    
+                    # Log the routing
+                    self.log_interaction(
+                        query=f"Execute LangGraph tool: {tool_name}",
+                        response=f"Successfully executed {tool_name}",
+                        tool_used="route_request",
+                        metadata={"target": "orchestrator_langraph", "tool": tool_name}
+                    )
+                    
+                    return {"success": True, "agent": "orchestrator_langraph", "result": result}
+                else:
+                    return {"success": False, "message": f"LangGraph method {tool_name} not available in orchestrator"}
+            
+            # Handle Enhanced AI clinical tools - route to AI Clinical Assistant agent
+            if tool_name.startswith("enhanced_"):
+                ai_agent = self.agents.get("ai_clinical_assistant")
+                if ai_agent and hasattr(ai_agent, tool_name):
+                    method = getattr(ai_agent, tool_name)
+                    
+                    # Filter parameters to only include what the method expects
+                    method_signature = inspect.signature(method)
+                    filtered_kwargs = {}
+                    
+                    for param_name in method_signature.parameters:
+                        if param_name in kwargs:
+                            filtered_kwargs[param_name] = kwargs[param_name]
+                    
+                    # Execute method with filtered parameters
+                    result = method(**filtered_kwargs)
+                    
+                    # Log the routing
+                    self.log_interaction(
+                        query=f"Execute Enhanced AI tool: {tool_name}",
+                        response=f"Successfully executed {tool_name}",
+                        tool_used="route_request",
+                        metadata={"target": "ai_clinical_assistant", "tool": tool_name}
+                    )
+                    
+                    return {"success": True, "agent": "ai_clinical_assistant", "result": result}
+                else:
+                    # Try to handle enhanced tools directly if no AI agent
+                    try:
+                        from agents.enhanced_ai_clinical import enhanced_clinical_assistant
+                        
+                        if tool_name == "enhanced_symptom_analysis" and enhanced_clinical_assistant:
+                            result = enhanced_clinical_assistant.analyze_symptoms(
+                                kwargs.get("symptoms", ""),
+                                kwargs.get("patient_history", "")
+                            )
+                            return {"success": True, "agent": "enhanced_ai_direct", "result": result}
+                        elif tool_name == "enhanced_differential_diagnosis" and enhanced_clinical_assistant:
+                            result = enhanced_clinical_assistant.generate_differential_diagnosis(
+                                kwargs.get("clinical_data", {})
+                            )
+                            return {"success": True, "agent": "enhanced_ai_direct", "result": result}
+                        elif tool_name == "enhanced_treatment_recommendations" and enhanced_clinical_assistant:
+                            result = enhanced_clinical_assistant.recommend_treatment(
+                                kwargs.get("treatment_data", {})
+                            )
+                            return {"success": True, "agent": "enhanced_ai_direct", "result": result}
+                        elif tool_name == "enhanced_drug_interaction_analysis" and enhanced_clinical_assistant:
+                            result = enhanced_clinical_assistant.analyze_drug_interactions(
+                                kwargs.get("medication_data", {})
+                            )
+                            return {"success": True, "agent": "enhanced_ai_direct", "result": result}
+                        elif tool_name == "enhanced_vital_signs_analysis" and enhanced_clinical_assistant:
+                            result = enhanced_clinical_assistant.analyze_vital_signs(
+                                kwargs.get("vitals_data", {})
+                            )
+                            return {"success": True, "agent": "enhanced_ai_direct", "result": result}
+                        elif tool_name == "enhanced_clinical_risk_assessment" and enhanced_clinical_assistant:
+                            result = enhanced_clinical_assistant.assess_clinical_risk(
+                                kwargs.get("risk_data", {})
+                            )
+                            return {"success": True, "agent": "enhanced_ai_direct", "result": result}
+                        else:
+                            return {"success": False, "message": f"Enhanced AI tool {tool_name} not available"}
+                    except Exception as e:
+                        return {"success": False, "message": f"Enhanced AI tool error: {str(e)}"}
+            
             # Intercept structured update_meeting_status calls that contain
             # natural language cancel/reschedule phrasing and route them
             # to the richer `update_meeting` handler which sends notifications.
@@ -471,3 +594,150 @@ class OrchestratorAgent(BaseAgent):
             return {"success": True, "message": "Staff scheduling completed", "details": results}
         except Exception as e:
             return {"success": False, "message": f"Staff scheduling workflow failed: {str(e)}"}
+
+    # ================================
+    # LANGRAPH WORKFLOW INTEGRATION
+    # ================================
+    
+    def execute_langraph_patient_admission(self, patient_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute patient admission using LangGraph workflow"""
+        if not self.workflow_manager:
+            return {
+                "success": False,
+                "message": "LangGraph workflow manager not available",
+                "fallback": "Using legacy workflow"
+            }
+        
+        try:
+            # Log the interaction
+            self.log_interaction(
+                query=f"Execute LangGraph patient admission for {patient_data.get('first_name', 'Unknown')}",
+                response="Starting LangGraph admission workflow",
+                tool_used="execute_langraph_patient_admission"
+            )
+            
+            # Execute LangGraph workflow
+            result = self.workflow_manager.execute_patient_admission(patient_data)
+            
+            # Log completion
+            self.log_interaction(
+                query=f"LangGraph admission workflow completed",
+                response=f"Status: {result.get('status', 'unknown')}",
+                tool_used="execute_langraph_patient_admission",
+                metadata={"patient_id": result.get("patient_id"), "bed_id": result.get("bed_id")}
+            )
+            
+            return result
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"LangGraph admission workflow failed: {str(e)}",
+                "error": str(e)
+            }
+    
+    def execute_langraph_clinical_decision(self, query: str, patient_context: Optional[Dict] = None) -> Dict[str, Any]:
+        """Execute clinical decision support using LangGraph workflow"""
+        if not self.workflow_manager:
+            return {
+                "success": False,
+                "message": "LangGraph workflow manager not available",
+                "fallback": "Using legacy AI clinical assistant"
+            }
+        
+        try:
+            # Log the interaction
+            self.log_interaction(
+                query=f"Execute LangGraph clinical decision: {query}",
+                response="Starting LangGraph clinical workflow",
+                tool_used="execute_langraph_clinical_decision"
+            )
+            
+            # Execute LangGraph workflow
+            result = self.workflow_manager.execute_clinical_decision(query, patient_context)
+            
+            # Log completion
+            self.log_interaction(
+                query=f"LangGraph clinical workflow completed",
+                response=f"Generated {len(result.get('recommendations', []))} recommendations",
+                tool_used="execute_langraph_clinical_decision",
+                metadata={
+                    "symptoms_count": len(result.get("symptoms", [])),
+                    "diagnoses_count": len(result.get("differential_diagnoses", [])),
+                    "confidence": result.get("confidence_score", 0)
+                }
+            )
+            
+            return result
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"LangGraph clinical workflow failed: {str(e)}",
+                "error": str(e)
+            }
+    
+    def get_langraph_workflow_status(self) -> Dict[str, Any]:
+        """Get status of LangGraph workflows"""
+        if not self.workflow_manager:
+            return {
+                "success": False,
+                "message": "LangGraph workflow manager not available",
+                "status": {
+                    "langraph_available": False,
+                    "workflow_manager": False,
+                    "available_workflows": []
+                }
+            }
+        
+        try:
+            status = self.workflow_manager.get_workflow_status()
+            
+            # Log the interaction
+            self.log_interaction(
+                query="Get LangGraph workflow status",
+                response=f"Retrieved status for {len(status.get('available_workflows', []))} workflows",
+                tool_used="get_langraph_workflow_status"
+            )
+            
+            return {
+                "success": True,
+                "status": status,
+                "available_workflows": status.get("available_workflows", []),
+                "integration_status": "active" if status.get("langchain_available") else "disabled"
+            }
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"Failed to get LangGraph status: {str(e)}",
+                "error": str(e)
+            }
+    
+    def route_to_langraph_or_legacy(self, workflow_type: str, **kwargs) -> Dict[str, Any]:
+        """Intelligent routing between LangGraph and legacy workflows"""
+        try:
+            # Check if LangGraph is available and workflow is supported
+            if self.workflow_manager and workflow_type in self.workflow_manager.get_available_workflows():
+                
+                if workflow_type == "patient_admission":
+                    return self.execute_langraph_patient_admission(kwargs.get("patient_data", {}))
+                elif workflow_type == "clinical_decision":
+                    return self.execute_langraph_clinical_decision(
+                        kwargs.get("query", ""),
+                        kwargs.get("patient_context")
+                    )
+                else:
+                    # Fall back to legacy workflow
+                    return self.execute_workflow(workflow_type, kwargs)
+            else:
+                # Use legacy workflow system
+                return self.execute_workflow(workflow_type, kwargs)
+                
+        except Exception as e:
+            # Ultimate fallback to legacy system
+            return {
+                "success": False,
+                "message": f"Workflow routing failed: {str(e)}",
+                "fallback": "Legacy workflow system"
+            }
