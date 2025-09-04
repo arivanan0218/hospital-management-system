@@ -127,6 +127,7 @@ class PatientDischargeReportGenerator:
                 patient_summary=json.dumps(report_data["patient_summary"]),
                 treatment_summary=json.dumps(report_data["treatment_summary"]),
                 equipment_summary=json.dumps(report_data["equipment_summary"]),
+                supply_usage=json.dumps(report_data["supply_usage_summary"]),  # Added missing supply usage field
                 staff_summary=json.dumps(report_data["staff_summary"]),
                 medications=json.dumps(report_data["medications"]),
                 procedures=json.dumps(report_data["procedures"]),
@@ -292,43 +293,67 @@ class PatientDischargeReportGenerator:
     
     def _get_supply_usage_summary(self, patient_id: str, admission_date: datetime, discharge_date: datetime) -> dict:
         """Get supply usage summary."""
+        # Debug: Print patient_id and its type
+        print(f"🔍 DEBUG: Looking for supply usage for patient_id: {patient_id} (type: {type(patient_id)})")
+        
+        # Convert patient_id to UUID if it's a string
+        try:
+            if isinstance(patient_id, str):
+                patient_uuid = uuid.UUID(patient_id)
+            else:
+                patient_uuid = patient_id
+            print(f"🔍 DEBUG: Converted to UUID: {patient_uuid}")
+        except ValueError:
+            print(f"❌ DEBUG: Invalid UUID format: {patient_id}")
+            return {"total_supplies_used": 0, "supply_details": []}
+        
         # Make date filtering more inclusive - look for supply usage within a reasonable window
         extended_start = admission_date - timedelta(days=1) if admission_date else datetime.now() - timedelta(days=30)
         extended_end = discharge_date + timedelta(days=1) if discharge_date else datetime.now()
         
+        print(f"🔍 DEBUG: Date range: {extended_start} to {extended_end}")
+        
         # Primary query: supply usage within the stay period
         supply_usage = self.session.query(PatientSupplyUsage).filter(
-            PatientSupplyUsage.patient_id == patient_id,
+            PatientSupplyUsage.patient_id == patient_uuid,
             PatientSupplyUsage.prescribed_date >= extended_start,
             PatientSupplyUsage.prescribed_date <= extended_end
         ).all()
         
+        print(f"🔍 DEBUG: Found {len(supply_usage)} supply usage records with date filter")
+        
         # Fallback: if no supply usage found with date filtering, get recent usage for this patient
         if not supply_usage:
             supply_usage = self.session.query(PatientSupplyUsage).filter(
-                PatientSupplyUsage.patient_id == patient_id
+                PatientSupplyUsage.patient_id == patient_uuid
             ).order_by(PatientSupplyUsage.prescribed_date.desc()).limit(10).all()
+            print(f"🔍 DEBUG: Fallback query found {len(supply_usage)} supply usage records")
         
         if not supply_usage:
+            print(f"❌ DEBUG: No supply usage found for patient {patient_uuid}")
             return {"total_supplies_used": 0, "supply_details": []}
         
         supply_details = []
         for usage in supply_usage:
             supply = self.session.query(Supply).filter(Supply.id == usage.supply_id).first()
             admin_date = usage.administration_date or usage.prescribed_date
-            supply_details.append({
+            supply_detail = {
                 "supply_name": supply.name if supply else "Unknown Supply",
                 "supply_code": supply.item_code if supply else "Unknown",
                 "quantity_used": usage.quantity_used,
                 "date_used": admin_date.strftime("%Y-%m-%d") if admin_date else "N/A",
-                "administered_by": usage.administered_by_id or "N/A",
+                "administered_by": str(usage.administered_by_id) if usage.administered_by_id else "N/A",
                 "notes": usage.notes or "N/A"
-            })
+            }
+            supply_details.append(supply_detail)
+            print(f"🔍 DEBUG: Added supply: {supply_detail}")
         
-        return {
+        result = {
             "total_supplies_used": len(supply_usage),
             "supply_details": supply_details
         }
+        print(f"✅ DEBUG: Returning supply summary: {result}")
+        return result
 
     def _get_staff_summary(self, patient_id, admission_date, discharge_date) -> List[Dict[str, Any]]:
         """Get all staff assignments during the stay."""
@@ -553,14 +578,18 @@ class PatientDischargeReportGenerator:
         
         # Add supply usage
         report += "\n---\n\n## SUPPLIES USED\n"
-        if data["supply_usage_summary"]["total_supplies_used"] > 0:
-            for supply in data["supply_usage_summary"]["supply_details"]:
+        supply_summary = data.get("supply_usage_summary", {})
+        total_supplies = supply_summary.get("total_supplies_used", 0)
+        supply_details = supply_summary.get("supply_details", [])
+        
+        if total_supplies > 0 and supply_details:
+            for supply in supply_details:
                 report += f"""
-### {supply['supply_name']} ({supply['supply_code']})
-- **Quantity Used:** {supply['quantity_used']}
-- **Date Used:** {supply['date_used']}
-- **Administered by:** {supply['administered_by']}
-- **Notes:** {supply['notes']}
+### {supply.get('supply_name', 'Unknown Supply')} ({supply.get('supply_code', 'N/A')})
+- **Quantity Used:** {supply.get('quantity_used', 'N/A')}
+- **Date Used:** {supply.get('date_used', 'N/A')}
+- **Administered by:** {supply.get('administered_by', 'N/A')}
+- **Notes:** {supply.get('notes', 'N/A')}
 """
         else:
             report += "\nNo supply usage recorded during this stay.\n"
