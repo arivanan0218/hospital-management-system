@@ -337,19 +337,73 @@ class PatientAdmissionWorkflow:
                 
                 # Assign primary doctor and nurse
                 if available_doctors and available_nurses:
-                    state["staff_assignments"] = [
-                        {
-                            "staff_id": str(available_doctors[0].id), 
-                            "role": "primary_doctor",
-                            "name": f"Dr. {available_doctors[0].user.first_name} {available_doctors[0].user.last_name}"
-                        },
-                        {
-                            "staff_id": str(available_nurses[0].id), 
-                            "role": "primary_nurse",
-                            "name": f"{available_nurses[0].user.first_name} {available_nurses[0].user.last_name}"
-                        }
-                    ]
+                    assigned_staff = []
                     
+                    # Create actual StaffAssignment database records
+                    if state.get("patient_id"):
+                        from database import StaffAssignment
+                        
+                        # Assign primary doctor
+                        doctor_assignment = StaffAssignment(
+                            id=uuid.uuid4(),
+                            patient_id=uuid.UUID(state["patient_id"]),
+                            staff_id=available_doctors[0].id,
+                            bed_id=uuid.UUID(state["bed_id"]) if state.get("bed_id") else None,
+                            assignment_type="primary_doctor",
+                            start_date=datetime.now(),
+                            shift="day",
+                            responsibilities="Primary medical care, treatment planning, discharge planning",
+                            notes=f"Assigned via LangGraph automated workflow on {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+                        )
+                        db.add(doctor_assignment)
+                        
+                        # Assign primary nurse
+                        nurse_assignment = StaffAssignment(
+                            id=uuid.uuid4(),
+                            patient_id=uuid.UUID(state["patient_id"]),
+                            staff_id=available_nurses[0].id,
+                            bed_id=uuid.UUID(state["bed_id"]) if state.get("bed_id") else None,
+                            assignment_type="primary_nurse",
+                            start_date=datetime.now(),
+                            shift="day",
+                            responsibilities="Patient care, medication administration, monitoring vital signs",
+                            notes=f"Assigned via LangGraph automated workflow on {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+                        )
+                        db.add(nurse_assignment)
+                        
+                        # Commit the assignments
+                        db.commit()
+                        
+                        assigned_staff = [
+                            {
+                                "staff_id": str(available_doctors[0].id), 
+                                "role": "primary_doctor",
+                                "name": f"Dr. {available_doctors[0].user.first_name} {available_doctors[0].user.last_name}",
+                                "assignment_id": str(doctor_assignment.id)
+                            },
+                            {
+                                "staff_id": str(available_nurses[0].id), 
+                                "role": "primary_nurse",
+                                "name": f"{available_nurses[0].user.first_name} {available_nurses[0].user.last_name}",
+                                "assignment_id": str(nurse_assignment.id)
+                            }
+                        ]
+                    else:
+                        # Fallback to memory-only assignments if no patient ID yet
+                        assigned_staff = [
+                            {
+                                "staff_id": str(available_doctors[0].id), 
+                                "role": "primary_doctor",
+                                "name": f"Dr. {available_doctors[0].user.first_name} {available_doctors[0].user.last_name}"
+                            },
+                            {
+                                "staff_id": str(available_nurses[0].id), 
+                                "role": "primary_nurse",
+                                "name": f"{available_nurses[0].user.first_name} {available_nurses[0].user.last_name}"
+                            }
+                        ]
+                    
+                    state["staff_assignments"] = assigned_staff
                     state["workflow_status"] = "staff_assigned"
                     state["steps_completed"].append("staff_assignment")
                     

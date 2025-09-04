@@ -2686,6 +2686,35 @@ def ai_clinical_assistant(query: str, context: Dict[str, Any] = None) -> Dict[st
         return {"success": False, "error": f"AI clinical assistant error: {str(e)}"}
 
 @mcp.tool()
+def natural_language_query(query: str) -> Dict[str, Any]:
+    """Process natural language queries for hospital management tasks.
+    
+    Args:
+        query: Natural language query (e.g., "Discharge Patient P1025", "List all patients")
+    """
+    import asyncio
+    from client import HospitalManagementClient
+    
+    try:
+        # Create a client instance to handle the natural language query
+        client = HospitalManagementClient()
+        
+        # Use asyncio to run the intelligent query handler
+        result = asyncio.run(client.intelligent_query_handler(query))
+        
+        return {
+            "success": True,
+            "query": query,
+            "response": result
+        }
+    except Exception as e:
+        return {
+            "success": False, 
+            "error": f"Natural language query processing error: {str(e)}",
+            "query": query
+        }
+
+@mcp.tool()
 def process_clinical_notes(document_text: str, extract_type: str = "comprehensive") -> Dict[str, Any]:
     """Extract structured data from clinical notes using NLP.
     

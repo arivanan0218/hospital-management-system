@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, date
 from typing import Dict, List, Any, Optional
 from sqlalchemy.orm import Session, joinedload
 from database import (
-    SessionLocal, Patient, Bed, User, Staff, Equipment,
+    SessionLocal, Patient, Bed, User, Staff, Equipment, Supply, PatientSupplyUsage,
     TreatmentRecord, EquipmentUsage, StaffAssignment, DischargeReport, Room, Department
 )
 
@@ -101,6 +101,7 @@ class PatientDischargeReportGenerator:
                 "patient_summary": self._get_patient_summary(patient, bed, admission_date, final_discharge_dt),
                 "treatment_summary": self._get_treatment_summary(patient.id, admission_date, final_discharge_dt),
                 "equipment_summary": self._get_equipment_summary(patient.id, admission_date, final_discharge_dt),
+                "supply_usage_summary": self._get_supply_usage_summary(patient.id, admission_date, final_discharge_dt),
                 "staff_summary": self._get_staff_summary(patient.id, admission_date, final_discharge_dt),
                 "medications": self._get_medications_summary(patient.id, admission_date, final_discharge_dt),
                 "procedures": self._get_procedures_summary(patient.id, admission_date, final_discharge_dt)
@@ -289,6 +290,46 @@ class PatientDischargeReportGenerator:
             "notes": eu.notes
         } for eu in equipment_usage]
     
+    def _get_supply_usage_summary(self, patient_id: str, admission_date: datetime, discharge_date: datetime) -> dict:
+        """Get supply usage summary."""
+        # Make date filtering more inclusive - look for supply usage within a reasonable window
+        extended_start = admission_date - timedelta(days=1) if admission_date else datetime.now() - timedelta(days=30)
+        extended_end = discharge_date + timedelta(days=1) if discharge_date else datetime.now()
+        
+        # Primary query: supply usage within the stay period
+        supply_usage = self.session.query(PatientSupplyUsage).filter(
+            PatientSupplyUsage.patient_id == patient_id,
+            PatientSupplyUsage.prescribed_date >= extended_start,
+            PatientSupplyUsage.prescribed_date <= extended_end
+        ).all()
+        
+        # Fallback: if no supply usage found with date filtering, get recent usage for this patient
+        if not supply_usage:
+            supply_usage = self.session.query(PatientSupplyUsage).filter(
+                PatientSupplyUsage.patient_id == patient_id
+            ).order_by(PatientSupplyUsage.prescribed_date.desc()).limit(10).all()
+        
+        if not supply_usage:
+            return {"total_supplies_used": 0, "supply_details": []}
+        
+        supply_details = []
+        for usage in supply_usage:
+            supply = self.session.query(Supply).filter(Supply.id == usage.supply_id).first()
+            admin_date = usage.administration_date or usage.prescribed_date
+            supply_details.append({
+                "supply_name": supply.name if supply else "Unknown Supply",
+                "supply_code": supply.item_code if supply else "Unknown",
+                "quantity_used": usage.quantity_used,
+                "date_used": admin_date.strftime("%Y-%m-%d") if admin_date else "N/A",
+                "administered_by": usage.administered_by_id or "N/A",
+                "notes": usage.notes or "N/A"
+            })
+        
+        return {
+            "total_supplies_used": len(supply_usage),
+            "supply_details": supply_details
+        }
+
     def _get_staff_summary(self, patient_id, admission_date, discharge_date) -> List[Dict[str, Any]]:
         """Get all staff assignments during the stay."""
         staff_assignments = self.session.query(StaffAssignment).filter(
@@ -509,6 +550,20 @@ class PatientDischargeReportGenerator:
 """
         else:
             report += "\nNo equipment usage recorded during this stay.\n"
+        
+        # Add supply usage
+        report += "\n---\n\n## SUPPLIES USED\n"
+        if data["supply_usage_summary"]["total_supplies_used"] > 0:
+            for supply in data["supply_usage_summary"]["supply_details"]:
+                report += f"""
+### {supply['supply_name']} ({supply['supply_code']})
+- **Quantity Used:** {supply['quantity_used']}
+- **Date Used:** {supply['date_used']}
+- **Administered by:** {supply['administered_by']}
+- **Notes:** {supply['notes']}
+"""
+        else:
+            report += "\nNo supply usage recorded during this stay.\n"
         
         # Add staff assignments
         report += "\n---\n\n## STAFF ASSIGNMENTS\n"

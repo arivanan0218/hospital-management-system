@@ -70,6 +70,76 @@ class DirectHttpAIMCPService {
     return null;
   }
 
+  /**
+   * Detect discharge messages and call backend tool directly to execute discharge workflow
+   * Returns the tool response when handled, or null when not applicable
+   */
+  async handleDischargeShortcut(userMessage) {
+    try {
+      const textLower = (userMessage || '').toLowerCase();
+      
+      // Check for discharge patterns
+      if (!textLower.includes('discharge') || !textLower.includes('patient')) {
+        return null;
+      }
+
+      console.log('🏥 Discharge request detected:', userMessage);
+
+      // Extract patient number/ID from the message
+      const getField = (regex) => {
+        const m = userMessage.match(regex);
+        return m ? m[1].trim() : null;
+      };
+
+      // Look for patient patterns like "Patient P1025" or "P1025"
+      let patient_number = getField(/patient\s+([a-zA-Z]?\d+)/i) || getField(/\b([pP]\d+)\b/i);
+      
+      if (patient_number) {
+        // Ensure patient number has P prefix
+        if (!patient_number.toUpperCase().startsWith('P')) {
+          patient_number = `P${patient_number}`;
+        }
+        patient_number = patient_number.toUpperCase();
+
+        console.log(`🏥 Attempting to discharge patient: ${patient_number}`);
+
+        // Extract optional discharge parameters
+        const discharge_condition = getField(/condition[:\s]+(\w+)/i) || 'stable';
+        const discharge_destination = getField(/destination[:\s]+(\w+)/i) || 'home';
+
+        const args = {
+          patient_number,
+          discharge_condition,
+          discharge_destination
+        };
+
+        // Ensure client is connected/initialized
+        if (!this.isInitialized) {
+          console.warn('DirectHttpAIMCPService not initialized - cannot call discharge tool directly');
+          return null;
+        }
+
+        try {
+          console.log('🔧 Calling discharge_patient_complete tool with args:', args);
+          const resp = await this.callToolDirectly('discharge_patient_complete', args);
+          console.log('✅ Discharge tool response:', resp);
+          return resp;
+        } catch (err) {
+          console.warn('Error calling discharge_patient_complete:', err);
+          return { success: false, error: err && err.message ? err.message : String(err) };
+        }
+      } else {
+        console.warn('❌ No patient number found in discharge request:', userMessage);
+        return { success: false, error: 'Please specify a patient number (e.g., "Discharge Patient P1025")' };
+      }
+    } catch (err) {
+      console.warn('Discharge parsing error:', err);
+      return { success: false, error: err && err.message ? err.message : String(err) };
+    }
+
+    return null;
+  }
+
   constructor() {
     this.mcpClient = new DirectHttpMCPClient();
     this.openaiApiKey = import.meta.env.VITE_OPENAI_API_KEY; // Get from environment
@@ -596,6 +666,56 @@ class DirectHttpAIMCPService {
         }
       } catch (err) {
         console.warn('Supply shortcut handling failed:', err);
+      }
+
+      // Quick path: detect and handle discharge requests directly
+      try {
+        const dischargeResult = await this.handleDischargeShortcut(userMessage);
+        if (dischargeResult) {
+          const success = dischargeResult && (dischargeResult.success === true || (dischargeResult.result && dischargeResult.result.success === true));
+          
+          let messageText;
+          if (success) {
+            const result = dischargeResult.result || dischargeResult;
+            messageText = `✅ ${result.message || 'Patient discharged successfully'}`;
+            
+            // Add additional details if available
+            if (result.report_number) {
+              messageText += `\n📄 Discharge Report: ${result.report_number}`;
+            }
+            if (result.report_download_url) {
+              messageText += `\n📥 Download: ${result.report_download_url}`;
+            }
+            if (result.bed_turnover && result.bed_turnover.success) {
+              messageText += `\n🛏️ Bed cleaning initiated - estimated ${result.cleaning_timer || '30 minutes'}`;
+            }
+            if (result.next_steps && result.next_steps.length > 0) {
+              messageText += '\n📋 Next Steps:';
+              result.next_steps.forEach(step => {
+                messageText += `\n   • ${step}`;
+              });
+            }
+          } else {
+            messageText = `❌ Failed to discharge patient: ${dischargeResult.message || 'Unknown error'}`;
+          }
+
+          // Add to conversation history
+          this.addToConversationHistory('assistant', messageText);
+
+          return {
+            success: success,
+            message: messageText,
+            response: messageText,
+            functionCalls: [],
+            toolResults: [dischargeResult],
+            serverInfo: this.getServerInfo(),
+            rawResponse: { choices: [{ message: { content: messageText } }] },
+            conversationLength: this.conversationHistory.length,
+            timing: { openAI: 0, tool: 0, agent: Date.now() - agentStart }
+          };
+        }
+      } catch (err) {
+        console.warn('Discharge shortcut handling failed:', err);
       }
 
       // Check if this is an assignment operation first
