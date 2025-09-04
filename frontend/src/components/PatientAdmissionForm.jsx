@@ -87,7 +87,13 @@ const PatientAdmissionForm = ({
         console.log('🚀 Starting enhanced admission workflow with LangGraph...');
         
         try {
-          // Trigger LangGraph admission workflow automatically
+          // Get patient ID from the response
+          const patientData = response.result?.data || response.data;
+          const patientId = patientData?.id || patientData?.patient_id;
+          
+          console.log('🆔 Patient created with ID:', patientId);
+          
+          // Trigger LangGraph admission workflow automatically with existing patient ID
           const workflowResponse = await aiMcpServiceRef.current.callToolDirectly(
             'execute_langraph_patient_admission', 
             { 
@@ -104,7 +110,8 @@ const PatientAdmissionForm = ({
                 blood_type: formData.blood_type,
                 allergies: formData.allergies,
                 medical_history: formData.medical_history
-              }
+              },
+              existing_patient_id: patientId  // Pass the existing patient ID
             }
           );
           

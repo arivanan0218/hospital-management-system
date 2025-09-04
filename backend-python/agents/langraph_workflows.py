@@ -160,8 +160,17 @@ class PatientAdmissionWorkflow:
         return state
     
     def create_patient_record(self, state: PatientAdmissionState) -> PatientAdmissionState:
-        """Create patient record in database"""
+        """Create patient record in database or use existing patient"""
         try:
+            # If patient_id already exists, skip creation
+            if state.get("patient_id"):
+                state["workflow_status"] = "patient_exists"
+                state["steps_completed"].append("patient_exists")
+                state["messages"].append(
+                    AIMessage(content=f"Using existing patient ID: {state['patient_id']}")
+                )
+                return state
+            
             if not DATABASE_AVAILABLE:
                 state["error_message"] = "Database not available"
                 return state
@@ -328,19 +337,73 @@ class PatientAdmissionWorkflow:
                 
                 # Assign primary doctor and nurse
                 if available_doctors and available_nurses:
-                    state["staff_assignments"] = [
-                        {
-                            "staff_id": str(available_doctors[0].id), 
-                            "role": "primary_doctor",
-                            "name": f"Dr. {available_doctors[0].user.first_name} {available_doctors[0].user.last_name}"
-                        },
-                        {
-                            "staff_id": str(available_nurses[0].id), 
-                            "role": "primary_nurse",
-                            "name": f"{available_nurses[0].user.first_name} {available_nurses[0].user.last_name}"
-                        }
-                    ]
+                    assigned_staff = []
                     
+                    # Create actual StaffAssignment database records
+                    if state.get("patient_id"):
+                        from database import StaffAssignment
+                        
+                        # Assign primary doctor
+                        doctor_assignment = StaffAssignment(
+                            id=uuid.uuid4(),
+                            patient_id=uuid.UUID(state["patient_id"]),
+                            staff_id=available_doctors[0].id,
+                            bed_id=uuid.UUID(state["bed_id"]) if state.get("bed_id") else None,
+                            assignment_type="primary_doctor",
+                            start_date=datetime.now(),
+                            shift="day",
+                            responsibilities="Primary medical care, treatment planning, discharge planning",
+                            notes=f"Assigned via LangGraph automated workflow on {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+                        )
+                        db.add(doctor_assignment)
+                        
+                        # Assign primary nurse
+                        nurse_assignment = StaffAssignment(
+                            id=uuid.uuid4(),
+                            patient_id=uuid.UUID(state["patient_id"]),
+                            staff_id=available_nurses[0].id,
+                            bed_id=uuid.UUID(state["bed_id"]) if state.get("bed_id") else None,
+                            assignment_type="primary_nurse",
+                            start_date=datetime.now(),
+                            shift="day",
+                            responsibilities="Patient care, medication administration, monitoring vital signs",
+                            notes=f"Assigned via LangGraph automated workflow on {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+                        )
+                        db.add(nurse_assignment)
+                        
+                        # Commit the assignments
+                        db.commit()
+                        
+                        assigned_staff = [
+                            {
+                                "staff_id": str(available_doctors[0].id), 
+                                "role": "primary_doctor",
+                                "name": f"Dr. {available_doctors[0].user.first_name} {available_doctors[0].user.last_name}",
+                                "assignment_id": str(doctor_assignment.id)
+                            },
+                            {
+                                "staff_id": str(available_nurses[0].id), 
+                                "role": "primary_nurse",
+                                "name": f"{available_nurses[0].user.first_name} {available_nurses[0].user.last_name}",
+                                "assignment_id": str(nurse_assignment.id)
+                            }
+                        ]
+                    else:
+                        # Fallback to memory-only assignments if no patient ID yet
+                        assigned_staff = [
+                            {
+                                "staff_id": str(available_doctors[0].id), 
+                                "role": "primary_doctor",
+                                "name": f"Dr. {available_doctors[0].user.first_name} {available_doctors[0].user.last_name}"
+                            },
+                            {
+                                "staff_id": str(available_nurses[0].id), 
+                                "role": "primary_nurse",
+                                "name": f"{available_nurses[0].user.first_name} {available_nurses[0].user.last_name}"
+                            }
+                        ]
+                    
+                    state["staff_assignments"] = assigned_staff
                     state["workflow_status"] = "staff_assigned"
                     state["steps_completed"].append("staff_assignment")
                     
@@ -442,7 +505,10 @@ class PatientAdmissionWorkflow:
         else:
             # Check if core components are completed
             steps = state.get("steps_completed", [])
-            if "patient_creation" in steps and "bed_selection" in steps and "staff_assignment" in steps:
+            # Include both patient_creation and patient_exists as valid patient steps
+            patient_step_completed = "patient_creation" in steps or "patient_exists" in steps
+            
+            if patient_step_completed and "bed_selection" in steps and "staff_assignment" in steps:
                 state["workflow_status"] = "admission_completed"
             else:
                 state["workflow_status"] = "admission_partial"
@@ -461,14 +527,14 @@ class PatientAdmissionWorkflow:
         
         return state
     
-    def execute_admission_workflow(self, patient_data: Dict[str, Any]) -> Dict[str, Any]:
+    def execute_admission_workflow(self, patient_data: Dict[str, Any], existing_patient_id: Optional[str] = None) -> Dict[str, Any]:
         """Execute the complete admission workflow"""
         if not self.graph:
             return {"error": "Workflow graph not available"}
         
         initial_state = PatientAdmissionState(
             patient_data=patient_data,
-            patient_id=None,
+            patient_id=existing_patient_id,  # Use existing patient ID if provided
             bed_id=None,
             staff_assignments=[],
             equipment_assignments=[],
@@ -782,9 +848,9 @@ class LangGraphWorkflowManager:
         self.clinical_workflow = ClinicalDecisionWorkflow()
         print("✅ LangGraph workflow manager initialized")
     
-    def execute_patient_admission(self, patient_data: Dict[str, Any]) -> Dict[str, Any]:
+    def execute_patient_admission(self, patient_data: Dict[str, Any], existing_patient_id: Optional[str] = None) -> Dict[str, Any]:
         """Execute patient admission workflow"""
-        return self.admission_workflow.execute_admission_workflow(patient_data)
+        return self.admission_workflow.execute_admission_workflow(patient_data, existing_patient_id)
     
     def execute_clinical_decision(self, query: str, patient_context: Optional[Dict] = None) -> Dict[str, Any]:
         """Execute clinical decision support workflow"""

@@ -96,8 +96,8 @@ backend-python/uploads/
 data_backup.json
 backend-python/medical_knowledge_db/
 backend-python/medical_knowledge_db/*
-
-
+medical_knowledge_db/
+    
 # ================================
 # AWS & DEPLOYMENT
 # ================================

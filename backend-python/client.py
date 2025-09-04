@@ -54,6 +54,7 @@ class HospitalManagementClient:
             system_prompt = """
             You are an intelligent hospital management AI assistant. You have access to various hospital management tools and can perform operations like:
             - Patient management (create, list, search patients)
+            - Patient discharge (complete discharge workflow with report generation)
             - Bed management (check availability, assign beds)
             - Staff management (list staff, departments)
             - Equipment tracking (list equipment, update status)
@@ -65,7 +66,7 @@ class HospitalManagementClient:
             2. Any parameters needed
             3. A helpful explanation
             
-            Available tools: list_patients, create_patient, list_beds, assign_bed_to_patient, list_staff, 
+            Available tools: list_patients, create_patient, discharge_patient_complete, list_beds, assign_bed_to_patient, list_staff, 
             list_departments, list_equipment, list_supplies, analyze_hospital_state
             """
             
@@ -134,6 +135,58 @@ class HospitalManagementClient:
                 low_count = len(low_stock.get("supplies", []))
                 return f"Inventory: {len(supplies)} total items, {low_count} items need restocking"
                 
+            elif any(word in query_lower for word in ["discharge", "discharge patient"]):
+                # Handle patient discharge requests
+                import re
+                
+                # Extract patient number/ID from the query
+                patient_match = re.search(r'patient\s+([a-zA-Z]?\d+)', query_lower)
+                if patient_match:
+                    patient_number = patient_match.group(1).upper()
+                    if not patient_number.startswith('P'):
+                        patient_number = f"P{patient_number}"
+                    
+                    print(f"🏥 Discharging patient {patient_number}...")
+                    
+                    # Call discharge_patient_complete tool
+                    result = await self._safe_call_tool("discharge_patient_complete", {
+                        "patient_number": patient_number,
+                        "discharge_condition": "stable",
+                        "discharge_destination": "home"
+                    })
+                    
+                    if result.get("success"):
+                        discharge_result = result.get("result", {})
+                        message = discharge_result.get("message", "Patient discharged successfully")
+                        
+                        # Format comprehensive response
+                        response_parts = [f"✅ {message}"]
+                        
+                        # Add report information
+                        if "report_number" in discharge_result:
+                            response_parts.append(f"📄 Discharge Report: {discharge_result['report_number']}")
+                        
+                        if "report_download_url" in discharge_result:
+                            response_parts.append(f"📥 Download: {discharge_result['report_download_url']}")
+                        
+                        # Add bed turnover information
+                        if "bed_turnover" in discharge_result:
+                            bed_info = discharge_result["bed_turnover"]
+                            if bed_info.get("success"):
+                                response_parts.append(f"🛏️ Bed cleaning initiated - estimated {discharge_result.get('cleaning_timer', '30 minutes')}")
+                        
+                        # Add next steps
+                        if "next_steps" in discharge_result:
+                            response_parts.append("📋 Next Steps:")
+                            for step in discharge_result["next_steps"]:
+                                response_parts.append(f"   • {step}")
+                        
+                        return "\n".join(response_parts)
+                    else:
+                        return f"❌ Failed to discharge patient {patient_number}: {result.get('message', 'Unknown error')}"
+                else:
+                    return "❌ Please specify a patient number (e.g., 'Discharge Patient P1025')"
+                
             elif any(word in query_lower for word in ["analyze", "analysis", "hospital state", "overview"]):
                 analysis = await self.analyze_hospital_state()
                 return "Hospital state analysis completed - see detailed output above"
@@ -144,7 +197,7 @@ class HospitalManagementClient:
                 
             else:
                 # Use LLM to provide general guidance
-                return "I can help you with hospital management tasks. Try asking about patients, beds, staff, departments, equipment, supplies, or hospital analysis."
+                return "I can help you with hospital management tasks. Try asking about patients, beds, staff, departments, equipment, supplies, patient discharge, or hospital analysis."
                 
         except Exception as e:
             return f"Error executing action: {str(e)}"

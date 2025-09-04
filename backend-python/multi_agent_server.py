@@ -183,14 +183,14 @@ def execute_workflow(workflow_name: str, workflow_params: Dict[str, Any]) -> Dic
 # ================================
 
 @mcp.tool()
-def execute_langraph_patient_admission(patient_data: Dict[str, Any]) -> Dict[str, Any]:
+def execute_langraph_patient_admission(patient_data: Dict[str, Any], existing_patient_id: str = None) -> Dict[str, Any]:
     """Execute patient admission using LangGraph workflow with intelligent state management."""
     if not MULTI_AGENT_AVAILABLE or not orchestrator:
         return {"error": "Multi-agent system not available"}
     
     try:
         if hasattr(orchestrator, 'execute_langraph_patient_admission'):
-            return orchestrator.execute_langraph_patient_admission(patient_data)
+            return orchestrator.execute_langraph_patient_admission(patient_data, existing_patient_id)
         else:
             return {"error": "LangGraph patient admission not available"}
     except Exception as e:
@@ -2684,6 +2684,35 @@ def ai_clinical_assistant(query: str, context: Dict[str, Any] = None) -> Dict[st
         return result.get("result", result)
     except Exception as e:
         return {"success": False, "error": f"AI clinical assistant error: {str(e)}"}
+
+@mcp.tool()
+def natural_language_query(query: str) -> Dict[str, Any]:
+    """Process natural language queries for hospital management tasks.
+    
+    Args:
+        query: Natural language query (e.g., "Discharge Patient P1025", "List all patients")
+    """
+    import asyncio
+    from client import HospitalManagementClient
+    
+    try:
+        # Create a client instance to handle the natural language query
+        client = HospitalManagementClient()
+        
+        # Use asyncio to run the intelligent query handler
+        result = asyncio.run(client.intelligent_query_handler(query))
+        
+        return {
+            "success": True,
+            "query": query,
+            "response": result
+        }
+    except Exception as e:
+        return {
+            "success": False, 
+            "error": f"Natural language query processing error: {str(e)}",
+            "query": query
+        }
 
 @mcp.tool()
 def process_clinical_notes(document_text: str, extract_type: str = "comprehensive") -> Dict[str, Any]:

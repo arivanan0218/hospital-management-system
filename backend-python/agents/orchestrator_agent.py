@@ -599,7 +599,7 @@ class OrchestratorAgent(BaseAgent):
     # LANGRAPH WORKFLOW INTEGRATION
     # ================================
     
-    def execute_langraph_patient_admission(self, patient_data: Dict[str, Any]) -> Dict[str, Any]:
+    def execute_langraph_patient_admission(self, patient_data: Dict[str, Any], existing_patient_id: Optional[str] = None) -> Dict[str, Any]:
         """Execute patient admission using LangGraph workflow"""
         if not self.workflow_manager:
             return {
@@ -610,14 +610,20 @@ class OrchestratorAgent(BaseAgent):
         
         try:
             # Log the interaction
+            patient_name = f"{patient_data.get('first_name', 'Unknown')} {patient_data.get('last_name', '')}"
+            if existing_patient_id:
+                query_msg = f"Execute LangGraph workflow for existing patient {patient_name} (ID: {existing_patient_id})"
+            else:
+                query_msg = f"Execute LangGraph patient admission for {patient_name}"
+                
             self.log_interaction(
-                query=f"Execute LangGraph patient admission for {patient_data.get('first_name', 'Unknown')}",
+                query=query_msg,
                 response="Starting LangGraph admission workflow",
                 tool_used="execute_langraph_patient_admission"
             )
             
-            # Execute LangGraph workflow
-            result = self.workflow_manager.execute_patient_admission(patient_data)
+            # Execute LangGraph workflow with existing patient ID if provided
+            result = self.workflow_manager.execute_patient_admission(patient_data, existing_patient_id)
             
             # Log completion
             self.log_interaction(
