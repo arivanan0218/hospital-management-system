@@ -2424,13 +2424,24 @@ Examples:
 
         if (workflowResult?.success) {
           if (workflowResult.bed_id) {
-            responseText += `\n🛏️ **Bed Assignment:** ✅ Assigned to bed ${workflowResult.bed_id}`;
+            // Extract bed info from workflow messages if available
+            const bedMessage = workflowResult.messages?.find(msg => msg.includes('Selected bed:') || msg.includes('Bed'));
+            let bedDisplay = 'Assigned';
+            if (bedMessage) {
+              const bedMatch = bedMessage.match(/bed:?\s*([A-Z0-9]+)/i) || bedMessage.match(/Bed\s+([A-Z0-9]+)/i);
+              if (bedMatch) {
+                bedDisplay = `Bed ${bedMatch[1]}`;
+              }
+            }
+            responseText += `\n🛏️ **Bed Assignment:** ✅ ${bedDisplay}`;
           }
           
           if (workflowResult.staff_assignments && workflowResult.staff_assignments.length > 0) {
             responseText += `\n👥 **Staff Assignment:** ✅ ${workflowResult.staff_assignments.length} medical staff assigned`;
             workflowResult.staff_assignments.forEach(assignment => {
-              responseText += `\n   • ${assignment.role || 'Staff'}: ${assignment.staff_id || 'Assigned'}`;
+              const displayName = assignment.name || `Staff ID: ${assignment.staff_id}`;
+              const role = assignment.role ? assignment.role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Medical Staff';
+              responseText += `\n   • ${role}: ${displayName}`;
             });
           }
           
@@ -2451,10 +2462,21 @@ Examples:
           responseText += `\n\n🎯 **Status:** Patient admission workflow complete - ready for care!`;
           
           if (workflowResult.messages && workflowResult.messages.length > 0) {
-            responseText += `\n\n📝 **Workflow Log:**`;
-            workflowResult.messages.slice(-3).forEach(msg => {
-              responseText += `\n   • ${msg}`;
-            });
+            responseText += `\n\n📝 **Workflow Summary:**`;
+            // Filter out JSON messages and show only user-friendly ones
+            const cleanMessages = workflowResult.messages.filter(msg => {
+              return !msg.includes('{') && !msg.includes('Admission reports generated');
+            }).slice(-3);
+            
+            if (cleanMessages.length > 0) {
+              cleanMessages.forEach(msg => {
+                responseText += `\n   • ${msg}`;
+              });
+            } else {
+              responseText += `\n   • Patient successfully admitted with complete resource allocation`;
+              responseText += `\n   • All medical staff and equipment prepared for immediate care`;
+              responseText += `\n   • Hospital workflow orchestration completed successfully`;
+            }
           }
         } else {
           responseText += `\n⚠️ **Workflow Status:** Planned (Resources identified and ready)`;

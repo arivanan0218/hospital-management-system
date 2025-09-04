@@ -130,43 +130,27 @@ class PatientAdmissionWorkflow:
         print("✅ Patient admission workflow graph compiled")
     
     def validate_patient_data(self, state: PatientAdmissionState) -> PatientAdmissionState:
-        """Validate patient data using LLM"""
+        """Validate patient data using simple validation logic"""
         try:
-            if not LANGCHAIN_AVAILABLE:
-                state["error_message"] = "LangChain not available"
-                state["workflow_status"] = "error"
-                return state
+            patient_data = state["patient_data"]
             
-            validation_prompt = ChatPromptTemplate.from_template("""
-            You are a hospital registration system validator. 
-            Validate the following patient data and ensure all required fields are present:
+            # Required fields validation
+            required_fields = ["first_name", "last_name", "date_of_birth", "phone"]
+            missing_fields = []
             
-            Patient Data: {patient_data}
+            for field in required_fields:
+                if not patient_data.get(field):
+                    missing_fields.append(field)
             
-            Required fields: first_name, last_name, date_of_birth, phone
-            Optional fields: email, address, emergency_contact, medical_history, allergies
-            
-            Return a JSON response with:
-            {{
-                "valid": true/false,
-                "missing_fields": ["field1", "field2"],
-                "suggestions": ["suggestion1", "suggestion2"],
-                "priority_level": "low/medium/high"
-            }}
-            """)
-            
-            chain = validation_prompt | llm | JsonOutputParser()
-            result = chain.invoke({"patient_data": state["patient_data"]})
-            
-            if result.get("valid", False):
+            if missing_fields:
+                state["error_message"] = f"Missing required fields: {missing_fields}"
+                state["workflow_status"] = "validation_failed"
+            else:
                 state["workflow_status"] = "validated"
                 state["steps_completed"].append("validation")
-            else:
-                state["error_message"] = f"Validation failed: {result.get('missing_fields', [])}"
-                state["workflow_status"] = "validation_failed"
             
             state["messages"].append(
-                AIMessage(content=f"Validation result: {result}")
+                AIMessage(content=f"Patient data validation: {'passed' if not missing_fields else 'failed'}")
             )
             
         except Exception as e:
@@ -456,13 +440,24 @@ class PatientAdmissionWorkflow:
         if state.get("error_message"):
             state["workflow_status"] = "admission_failed"
         else:
-            state["workflow_status"] = "admission_completed"
+            # Check if core components are completed
+            steps = state.get("steps_completed", [])
+            if "patient_creation" in steps and "bed_selection" in steps and "staff_assignment" in steps:
+                state["workflow_status"] = "admission_completed"
+            else:
+                state["workflow_status"] = "admission_partial"
             
         state["steps_completed"].append("finalization")
         
-        state["messages"].append(
-            AIMessage(content=f"Admission process {state['workflow_status']}")
-        )
+        final_status = state["workflow_status"]
+        if final_status == "admission_completed":
+            message = "🎉 Admission process completed successfully - patient ready for care!"
+        elif final_status == "admission_partial":
+            message = "✅ Admission process partially completed - resources identified and ready"
+        else:
+            message = f"⚠️ Admission process {final_status}"
+        
+        state["messages"].append(AIMessage(content=message))
         
         return state
     
