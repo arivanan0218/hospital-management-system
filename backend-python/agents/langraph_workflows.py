@@ -160,8 +160,17 @@ class PatientAdmissionWorkflow:
         return state
     
     def create_patient_record(self, state: PatientAdmissionState) -> PatientAdmissionState:
-        """Create patient record in database"""
+        """Create patient record in database or use existing patient"""
         try:
+            # If patient_id already exists, skip creation
+            if state.get("patient_id"):
+                state["workflow_status"] = "patient_exists"
+                state["steps_completed"].append("patient_exists")
+                state["messages"].append(
+                    AIMessage(content=f"Using existing patient ID: {state['patient_id']}")
+                )
+                return state
+            
             if not DATABASE_AVAILABLE:
                 state["error_message"] = "Database not available"
                 return state
@@ -442,7 +451,10 @@ class PatientAdmissionWorkflow:
         else:
             # Check if core components are completed
             steps = state.get("steps_completed", [])
-            if "patient_creation" in steps and "bed_selection" in steps and "staff_assignment" in steps:
+            # Include both patient_creation and patient_exists as valid patient steps
+            patient_step_completed = "patient_creation" in steps or "patient_exists" in steps
+            
+            if patient_step_completed and "bed_selection" in steps and "staff_assignment" in steps:
                 state["workflow_status"] = "admission_completed"
             else:
                 state["workflow_status"] = "admission_partial"
@@ -461,14 +473,14 @@ class PatientAdmissionWorkflow:
         
         return state
     
-    def execute_admission_workflow(self, patient_data: Dict[str, Any]) -> Dict[str, Any]:
+    def execute_admission_workflow(self, patient_data: Dict[str, Any], existing_patient_id: Optional[str] = None) -> Dict[str, Any]:
         """Execute the complete admission workflow"""
         if not self.graph:
             return {"error": "Workflow graph not available"}
         
         initial_state = PatientAdmissionState(
             patient_data=patient_data,
-            patient_id=None,
+            patient_id=existing_patient_id,  # Use existing patient ID if provided
             bed_id=None,
             staff_assignments=[],
             equipment_assignments=[],
@@ -782,9 +794,9 @@ class LangGraphWorkflowManager:
         self.clinical_workflow = ClinicalDecisionWorkflow()
         print("✅ LangGraph workflow manager initialized")
     
-    def execute_patient_admission(self, patient_data: Dict[str, Any]) -> Dict[str, Any]:
+    def execute_patient_admission(self, patient_data: Dict[str, Any], existing_patient_id: Optional[str] = None) -> Dict[str, Any]:
         """Execute patient admission workflow"""
-        return self.admission_workflow.execute_admission_workflow(patient_data)
+        return self.admission_workflow.execute_admission_workflow(patient_data, existing_patient_id)
     
     def execute_clinical_decision(self, query: str, patient_context: Optional[Dict] = None) -> Dict[str, Any]:
         """Execute clinical decision support workflow"""
