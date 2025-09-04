@@ -288,6 +288,133 @@ def create_sample_data():
         db.add_all(equipment)
         db.commit()
         
+        print("9. Creating supply categories...")
+        supply_categories_data = [
+            ("Medications", "Pharmaceuticals and medical drugs"),
+            ("Surgical Supplies", "Items used in surgical procedures"),
+            ("Wound Care", "Supplies for wound treatment and dressing"),
+            ("IV and Injection", "Intravenous and injection related supplies"),
+            ("Diagnostic Supplies", "Items for patient diagnosis and testing"),
+            ("Personal Protective Equipment", "Safety equipment for staff and patients"),
+            ("Patient Care", "General patient care and comfort items"),
+            ("Laboratory Supplies", "Lab testing and analysis materials"),
+            ("Emergency Supplies", "Emergency response and trauma care items"),
+            ("Rehabilitation", "Physical therapy and recovery supplies"),
+            ("Nutrition", "Dietary and nutritional supplements"),
+            ("Sterilization", "Cleaning and sterilization materials"),
+            ("Respiratory Care", "Breathing and oxygen therapy supplies"),
+            ("Cardiac Care", "Heart and cardiovascular care supplies"),
+            ("Pediatric Care", "Children's healthcare specific supplies")
+        ]
+        
+        supply_categories = []
+        for name, description in supply_categories_data:
+            category = SupplyCategory(
+                name=name,
+                description=description
+            )
+            supply_categories.append(category)
+        
+        db.add_all(supply_categories)
+        db.commit()
+        
+        print("10. Creating supplies...")
+        supplies_by_category = {
+            "Medications": [
+                ("Acetaminophen 500mg", "Pain reliever and fever reducer", "tablet"),
+                ("Ibuprofen 200mg", "Anti-inflammatory pain reliever", "tablet"),
+                ("Morphine 10mg/ml", "Strong pain medication", "ml"),
+                ("Insulin (Regular)", "Diabetes medication", "unit"),
+                ("Epinephrine 1mg/ml", "Emergency allergy/cardiac medication", "ml"),
+                ("Amoxicillin 500mg", "Antibiotic medication", "tablet"),
+                ("Lisinopril 10mg", "Blood pressure medication", "tablet"),
+                ("Albuterol Inhaler", "Respiratory bronchodilator", "inhaler"),
+                ("Normal Saline 0.9%", "IV fluid solution", "ml"),
+                ("Heparin 5000u/ml", "Blood thinner injection", "ml")
+            ],
+            "Surgical Supplies": [
+                ("Surgical Gloves (Size 7)", "Sterile latex surgical gloves", "pair"),
+                ("Surgical Mask", "Disposable surgical face mask", "piece"),
+                ("Surgical Gown", "Sterile surgical protection gown", "piece"),
+                ("Scalpel Blade #15", "Disposable surgical blade", "piece"),
+                ("Surgical Suture 3-0", "Non-absorbable suture material", "piece"),
+                ("Surgical Staples", "Wound closure staples", "piece"),
+                ("Surgical Sponges", "Absorbent surgical sponges", "piece"),
+                ("Endotracheal Tube 7.0", "Airway intubation tube", "piece"),
+                ("Trocar 5mm", "Laparoscopic port", "piece"),
+                ("Hemostatic Agent", "Bleeding control powder", "g")
+            ],
+            "Wound Care": [
+                ("Gauze Pads 4x4", "Sterile wound dressing pads", "piece"),
+                ("Medical Tape 1 inch", "Adhesive medical tape", "roll"),
+                ("Transparent Dressing", "Clear adhesive wound cover", "piece"),
+                ("Antibiotic Ointment", "Topical infection prevention", "g"),
+                ("Betadine Solution", "Antiseptic wound cleaner", "ml"),
+                ("Alcohol Prep Pads", "Skin preparation wipes", "piece"),
+                ("Elastic Bandage 4 inch", "Compression support bandage", "roll"),
+                ("Pressure Bandage", "Emergency bleeding control", "piece"),
+                ("Hydrocolloid Dressing", "Advanced wound healing dressing", "piece"),
+                ("Silver Sulfadiazine Cream", "Antimicrobial wound cream", "g")
+            ],
+            "IV and Injection": [
+                ("IV Catheter 18G", "Large bore IV catheter", "piece"),
+                ("IV Catheter 20G", "Medium bore IV catheter", "piece"),
+                ("Syringe 5ml", "Standard injection syringe", "piece"),
+                ("Needle 23G 1 inch", "Standard injection needle", "piece"),
+                ("IV Bag 500ml Normal Saline", "IV fluid bag", "bag"),
+                ("Blood Collection Tube", "Vacuum blood draw tube", "piece"),
+                ("Butterfly Needle 23G", "Winged blood collection needle", "piece"),
+                ("IV Tubing Set", "Standard IV administration set", "piece"),
+                ("Tourniquet", "Blood draw compression band", "piece"),
+                ("IV Site Dressing", "Catheter site protection", "piece")
+            ],
+            "Personal Protective Equipment": [
+                ("N95 Respirator Mask", "High filtration respiratory protection", "piece"),
+                ("Nitrile Gloves Medium", "Powder-free examination gloves", "piece"),
+                ("Face Shield", "Full face protection shield", "piece"),
+                ("Isolation Gown", "Protective clothing garment", "piece"),
+                ("Hand Sanitizer 500ml", "Alcohol-based hand disinfectant", "bottle"),
+                ("Disinfectant Wipes", "Surface cleaning wipes", "piece"),
+                ("Biohazard Bag", "Infectious waste disposal bag", "piece"),
+                ("Sharps Container", "Needle disposal container", "piece"),
+                ("Safety Goggles", "Eye protection glasses", "piece"),
+                ("Shoe Covers", "Disposable foot protection", "pair")
+            ]
+        }
+        
+        supplies = []
+        supply_counter = 1
+        
+        for category_name, supply_items in supplies_by_category.items():
+            # Find the category
+            category = next(c for c in supply_categories if c.name == category_name)
+            
+            for name, description, unit in supply_items:
+                supply = Supply(
+                    item_code=f"SUP{supply_counter:05d}",
+                    name=name,
+                    category_id=category.id,
+                    description=description,
+                    unit_of_measure=unit,
+                    minimum_stock_level=random.randint(10, 50),
+                    maximum_stock_level=random.randint(100, 500),
+                    current_stock=random.randint(25, 200),
+                    unit_cost=Decimal(f"{random.uniform(0.5, 50.0):.2f}"),
+                    supplier=random.choice([
+                        "MedSupply Corp", "Healthcare Solutions", "Medical Distributors Inc",
+                        "Premier Medical", "Cardinal Health"
+                    ]),
+                    expiry_date=date.today() + timedelta(days=random.randint(180, 1095)),
+                    location=random.choice([
+                        "Pharmacy", "Supply Room A", "Central Storage", "Emergency Stock"
+                    ])
+                )
+                supplies.append(supply)
+                supply_counter += 1
+        
+        db.add_all(supplies)
+        db.commit()
+        
         print("✅ Sample data created successfully!")
         
         # Print summary
@@ -300,12 +427,14 @@ def create_sample_data():
         print(f"Beds: {db.query(Bed).count()}")
         print(f"Equipment Categories: {db.query(EquipmentCategory).count()}")
         print(f"Equipment: {db.query(Equipment).count()}")
+        print(f"Supply Categories: {db.query(SupplyCategory).count()}")
+        print(f"Supplies: {db.query(Supply).count()}")
         
         print(f"\n📈 Data Statistics:")
         total_records = sum([
             db.query(User).count(), db.query(Department).count(), db.query(Staff).count(),
             db.query(Patient).count(), db.query(Room).count(), db.query(Bed).count(),
-            db.query(Equipment).count()
+            db.query(Equipment).count(), db.query(Supply).count(), db.query(SupplyCategory).count()
         ])
         print(f"Total Records Created: {total_records}")
         
