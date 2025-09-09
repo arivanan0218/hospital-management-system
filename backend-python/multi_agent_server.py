@@ -7,7 +7,7 @@ import sys
 import traceback
 import uuid
 import re
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 import uvicorn
@@ -21,7 +21,7 @@ except ImportError:
     print("⚠️ python-dotenv not available, using system environment variables only")
 
 from sqlalchemy.orm import Session
-from sqlalchemy import Date, text
+from sqlalchemy import Date, text, func
 from mcp.server.fastmcp import FastMCP
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -48,18 +48,47 @@ except ImportError:
     MULTI_AGENT_AVAILABLE = False
     print("WARNING: Multi-agent system not available")
 
+# Import advanced LangChain/LangGraph systems
+try:
+    from agents.master_integration_system import MasterHospitalManagementSystem, IntegrationLevel
+    from agents.enhanced_orchestrator_agent import EnhancedOrchestratorAgent
+    from agents.real_time_monitoring_agent import RealTimeMonitoringAgent
+    from agents.predictive_analytics_agent import AdvancedPredictiveSystem, PredictionType, ForecastHorizon
+    from agents.multilingual_support_agent import MultiLanguageSupport, LanguageCode, ContentType
+    from agents.equipment_lifecycle_agent import EquipmentLifecycleManager
+    ADVANCED_AI_AVAILABLE = True
+    print("✅ Advanced LangChain/LangGraph systems loaded successfully")
+except ImportError as e:
+    ADVANCED_AI_AVAILABLE = False
+    print(f"⚠️ Advanced AI systems not available: {e}")
+
 # Initialize FastMCP server
 mcp = FastMCP("hospital-management-system-multi-agent")
 
-# Initialize orchestrator agent
+# Initialize orchestrator agent (legacy)
 orchestrator = None
 if MULTI_AGENT_AVAILABLE:
     try:
         orchestrator = OrchestratorAgent()
-        print("🤖 Multi-agent system initialized successfully!")
+        print("🤖 Legacy multi-agent system initialized successfully!")
     except Exception as e:
-        print(f"❌ Failed to initialize multi-agent system: {str(e)}")
+        print(f"❌ Failed to initialize legacy multi-agent system: {str(e)}")
         MULTI_AGENT_AVAILABLE = False
+
+# Initialize Advanced AI Master System
+master_ai_system = None
+if ADVANCED_AI_AVAILABLE:
+    try:
+        master_ai_system = MasterHospitalManagementSystem(IntegrationLevel.ENTERPRISE)
+        print("🚀 Master AI Hospital Management System initialized successfully!")
+        print(f"   - Enhanced Orchestrator: ✅")
+        print(f"   - Real-time Monitoring: ✅")
+        print(f"   - Predictive Analytics: ✅")
+        print(f"   - Multi-language Support: ✅")
+        print(f"   - Equipment Lifecycle: ✅")
+    except Exception as e:
+        print(f"❌ Failed to initialize Master AI system: {str(e)}")
+        ADVANCED_AI_AVAILABLE = False
 
 # Database helper functions (kept for backward compatibility)
 def get_db_session() -> Session:
@@ -319,6 +348,211 @@ def enhanced_clinical_risk_assessment(risk_data: Dict[str, Any]) -> Dict[str, An
             return {"error": "Enhanced AI Clinical Assistant not available"}
     except Exception as e:
         return {"error": f"Enhanced clinical risk assessment failed: {str(e)}"}
+
+# ================================
+# ADVANCED AI MASTER SYSTEM TOOLS
+# ================================
+
+@mcp.tool()
+async def ai_master_request(user_request: str, user_id: str = "anonymous", 
+                          context: Dict[str, Any] = None) -> Dict[str, Any]:
+    """Process requests through the Master AI Hospital Management System with all advanced features."""
+    if not ADVANCED_AI_AVAILABLE or not master_ai_system:
+        return {"error": "Advanced AI Master System not available"}
+    
+    try:
+        result = await master_ai_system.process_request(user_request, user_id, context)
+        return result
+    except Exception as e:
+        return {"error": f"Master AI request failed: {str(e)}"}
+
+@mcp.tool()
+async def get_ai_system_dashboard() -> Dict[str, Any]:
+    """Get comprehensive AI system dashboard with all metrics and insights."""
+    if not ADVANCED_AI_AVAILABLE or not master_ai_system:
+        return {"error": "Advanced AI Master System not available"}
+    
+    try:
+        dashboard = await master_ai_system.get_comprehensive_dashboard()
+        return dashboard
+    except Exception as e:
+        return {"error": f"Failed to get AI dashboard: {str(e)}"}
+
+@mcp.tool()
+async def run_predictive_forecast(prediction_type: str, forecast_horizon: str = "daily", 
+                                periods: int = 30) -> Dict[str, Any]:
+    """Run predictive analytics forecast for hospital planning."""
+    if not ADVANCED_AI_AVAILABLE or not master_ai_system:
+        return {"error": "Advanced AI Master System not available"}
+    
+    try:
+        # Map string inputs to enums
+        pred_type_map = {
+            "bed_demand": PredictionType.BED_DEMAND,
+            "staff_requirements": PredictionType.STAFF_REQUIREMENTS,
+            "supply_consumption": PredictionType.SUPPLY_CONSUMPTION,
+            "equipment_failure": PredictionType.EQUIPMENT_FAILURE,
+            "patient_length_of_stay": PredictionType.PATIENT_LENGTH_OF_STAY,
+            "readmission_risk": PredictionType.READMISSION_RISK
+        }
+        
+        horizon_map = {
+            "hourly": ForecastHorizon.HOURLY,
+            "daily": ForecastHorizon.DAILY,
+            "weekly": ForecastHorizon.WEEKLY,
+            "monthly": ForecastHorizon.MONTHLY
+        }
+        
+        pred_type = pred_type_map.get(prediction_type, PredictionType.BED_DEMAND)
+        horizon = horizon_map.get(forecast_horizon, ForecastHorizon.DAILY)
+        
+        forecast = await master_ai_system.predictive_system.run_prediction(pred_type, horizon, periods)
+        
+        return {
+            "prediction_id": forecast.prediction_id,
+            "prediction_type": forecast.prediction_type.value,
+            "forecast_horizon": forecast.forecast_horizon.value,
+            "predictions": forecast.predictions,
+            "confidence_intervals": forecast.confidence_intervals,
+            "accuracy_metrics": forecast.accuracy_metrics,
+            "recommendations": forecast.recommendations,
+            "timestamp": forecast.timestamp.isoformat()
+        }
+    except Exception as e:
+        return {"error": f"Predictive forecast failed: {str(e)}"}
+
+@mcp.tool()
+async def translate_medical_text(text: str, target_language: str, 
+                               content_type: str = "general_communication",
+                               patient_id: str = None) -> Dict[str, Any]:
+    """Translate medical text with cultural adaptation and medical terminology."""
+    if not ADVANCED_AI_AVAILABLE or not master_ai_system:
+        return {"error": "Advanced AI Master System not available"}
+    
+    try:
+        # Map string inputs to enums
+        lang_map = {
+            "spanish": LanguageCode.SPANISH, "es": LanguageCode.SPANISH,
+            "french": LanguageCode.FRENCH, "fr": LanguageCode.FRENCH,
+            "german": LanguageCode.GERMAN, "de": LanguageCode.GERMAN,
+            "chinese": LanguageCode.CHINESE_SIMPLIFIED, "zh": LanguageCode.CHINESE_SIMPLIFIED,
+            "japanese": LanguageCode.JAPANESE, "ja": LanguageCode.JAPANESE,
+            "korean": LanguageCode.KOREAN, "ko": LanguageCode.KOREAN,
+            "arabic": LanguageCode.ARABIC, "ar": LanguageCode.ARABIC,
+            "hindi": LanguageCode.HINDI, "hi": LanguageCode.HINDI,
+            "portuguese": LanguageCode.PORTUGUESE, "pt": LanguageCode.PORTUGUESE,
+            "russian": LanguageCode.RUSSIAN, "ru": LanguageCode.RUSSIAN
+        }
+        
+        content_map = {
+            "medical_forms": ContentType.MEDICAL_FORMS,
+            "discharge_instructions": ContentType.DISCHARGE_INSTRUCTIONS,
+            "consent_forms": ContentType.CONSENT_FORMS,
+            "medication_labels": ContentType.MEDICATION_LABELS,
+            "treatment_plans": ContentType.TREATMENT_PLANS,
+            "general_communication": ContentType.GENERAL_COMMUNICATION,
+            "emergency_instructions": ContentType.EMERGENCY_INSTRUCTIONS
+        }
+        
+        target_lang = lang_map.get(target_language.lower(), LanguageCode.SPANISH)
+        content_t = content_map.get(content_type, ContentType.GENERAL_COMMUNICATION)
+        
+        translation = await master_ai_system.multilingual_agent.translate_text(
+            text, target_lang, content_t, patient_id
+        )
+        
+        return {
+            "request_id": translation.request_id,
+            "translated_text": translation.translated_text,
+            "confidence_score": translation.confidence_score,
+            "cultural_adaptations": translation.cultural_adaptations,
+            "medical_terminology_notes": translation.medical_terminology_notes,
+            "alternative_translations": translation.alternative_translations,
+            "timestamp": translation.timestamp.isoformat()
+        }
+    except Exception as e:
+        return {"error": f"Medical translation failed: {str(e)}"}
+
+@mcp.tool()
+async def manage_equipment_lifecycle(asset_id: str) -> Dict[str, Any]:
+    """Run comprehensive equipment lifecycle management analysis."""
+    if not ADVANCED_AI_AVAILABLE or not master_ai_system:
+        return {"error": "Advanced AI Master System not available"}
+    
+    try:
+        result = await master_ai_system.equipment_manager.manage_equipment_lifecycle(asset_id)
+        return result
+    except Exception as e:
+        return {"error": f"Equipment lifecycle management failed: {str(e)}"}
+
+@mcp.tool()
+def get_equipment_dashboard(asset_id: str) -> Dict[str, Any]:
+    """Get comprehensive equipment dashboard for specific asset."""
+    if not ADVANCED_AI_AVAILABLE or not master_ai_system:
+        return {"error": "Advanced AI Master System not available"}
+    
+    try:
+        dashboard = master_ai_system.equipment_manager.get_equipment_dashboard(asset_id)
+        return dashboard
+    except Exception as e:
+        return {"error": f"Equipment dashboard failed: {str(e)}"}
+
+@mcp.tool()
+def get_fleet_overview() -> Dict[str, Any]:
+    """Get overview of entire equipment fleet with lifecycle analytics."""
+    if not ADVANCED_AI_AVAILABLE or not master_ai_system:
+        return {"error": "Advanced AI Master System not available"}
+    
+    try:
+        overview = master_ai_system.equipment_manager.get_fleet_overview()
+        return overview
+    except Exception as e:
+        return {"error": f"Fleet overview failed: {str(e)}"}
+
+@mcp.tool()
+def get_supported_languages() -> List[Dict[str, str]]:
+    """Get list of supported languages for translation."""
+    if not ADVANCED_AI_AVAILABLE or not master_ai_system:
+        return []
+    
+    try:
+        languages = master_ai_system.multilingual_agent.get_supported_languages()
+        return languages
+    except Exception as e:
+        return []
+
+@mcp.tool()
+def get_emergency_phrases(language: str) -> List[Dict[str, str]]:
+    """Get emergency medical phrases in specified language."""
+    if not ADVANCED_AI_AVAILABLE or not master_ai_system:
+        return []
+    
+    try:
+        lang_map = {
+            "spanish": LanguageCode.SPANISH, "es": LanguageCode.SPANISH,
+            "french": LanguageCode.FRENCH, "fr": LanguageCode.FRENCH,
+            "german": LanguageCode.GERMAN, "de": LanguageCode.GERMAN,
+            "chinese": LanguageCode.CHINESE_SIMPLIFIED, "zh": LanguageCode.CHINESE_SIMPLIFIED,
+            "arabic": LanguageCode.ARABIC, "ar": LanguageCode.ARABIC
+        }
+        
+        target_lang = lang_map.get(language.lower(), LanguageCode.SPANISH)
+        phrases = master_ai_system.multilingual_agent.get_emergency_phrases(target_lang)
+        return phrases
+    except Exception as e:
+        return []
+
+@mcp.tool()
+def get_ai_system_health() -> Dict[str, Any]:
+    """Get comprehensive AI system health status."""
+    if not ADVANCED_AI_AVAILABLE or not master_ai_system:
+        return {"error": "Advanced AI Master System not available"}
+    
+    try:
+        health = master_ai_system.get_system_health_summary()
+        return health
+    except Exception as e:
+        return {"error": f"System health check failed: {str(e)}"}
 
 # ================================
 # USER MANAGEMENT TOOLS
