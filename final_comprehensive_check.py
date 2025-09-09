@@ -44,17 +44,40 @@ def comprehensive_final_check():
     print("\n1️⃣ PATIENT VERIFICATION:")
     patient_result = make_mcp_request("get_patient_by_id", {"patient_id": PATIENT_ID}, 1)
     if patient_result and patient_result.get("success"):
-        patient = patient_result["result"]["data"]
-        print(f"   ✅ Name: {patient['first_name'].strip()} {patient['last_name']}")
-        print(f"   🆔 Patient Number: {patient['patient_number']}")
-        print(f"   📧 Email: {patient['email']}")
+        # Handle different response structures
+        if "result" in patient_result and "data" in patient_result["result"]:
+            patient = patient_result["result"]["data"]
+        elif "result" in patient_result:
+            patient = patient_result["result"]
+        else:
+            patient = patient_result.get("data", patient_result)
+            
+        print(f"   ✅ Patient found: {patient}")
+        # Try different field names
+        first_name = patient.get('first_name') or patient.get('firstName') or patient.get('name', 'Unknown').split()[0]
+        last_name = patient.get('last_name') or patient.get('lastName') or patient.get('name', 'Unknown').split()[-1] if ' ' in patient.get('name', '') else 'Unknown'
+        email = patient.get('email') or patient.get('emailAddress') or 'No email'
+        patient_number = patient.get('patient_number') or patient.get('patientNumber') or patient.get('id', 'No number')
+        
+        print(f"   ✅ Name: {first_name} {last_name}")
+        print(f"   🆔 Patient Number: {patient_number}")
+        print(f"   📧 Email: {email}")
+    else:
+        print(f"   ❌ Failed to get patient data: {patient_result}")
     
     # 2. Bed assignment check
     print("\n2️⃣ BED ASSIGNMENT CHECK:")
     beds_result = make_mcp_request("list_beds", {}, 2)
     assigned_bed = None
     if beds_result and beds_result.get("success"):
-        beds = beds_result["result"]["data"]
+        # Handle different response structures
+        if "result" in beds_result and "data" in beds_result["result"]:
+            beds = beds_result["result"]["data"]
+        elif "result" in beds_result:
+            beds = beds_result["result"]
+        else:
+            beds = beds_result.get("data", beds_result)
+            
         for bed in beds:
             if bed.get("patient_id") == PATIENT_ID:
                 assigned_bed = bed

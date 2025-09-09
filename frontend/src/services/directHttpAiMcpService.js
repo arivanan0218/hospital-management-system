@@ -605,6 +605,43 @@ class DirectHttpAIMCPService {
       };
     }
 
+    // 🚀 ADVANCED AI: Try using master AI system for complex requests
+    const complexPatterns = [
+      /predict/i, /forecast/i, /analysis/i, /insight/i, /trend/i, /analytics/i,
+      /comprehensive/i, /dashboard/i, /overview/i, /summary/i, /report/i,
+      /multi.*language/i, /translate/i, /equipment.*lifecycle/i, /maintenance/i,
+      /monitor/i, /real.*time/i, /alert/i, /notification/i
+    ];
+    
+    const isComplexRequest = complexPatterns.some(pattern => pattern.test(userMessage));
+    
+    if (isComplexRequest) {
+      console.log('🚀 Complex request detected, using Master AI System:', userMessage);
+      try {
+        const masterResponse = await this.callToolDirectly('ai_master_request', {
+          user_request: userMessage,
+          user_id: 'frontend_user',
+          context: { timestamp: new Date().toISOString() }
+        });
+        
+        if (masterResponse && masterResponse.success) {
+          const responseText = masterResponse.response || masterResponse.message || 'Request processed successfully';
+          return {
+            success: true,
+            message: `🧠 **Advanced AI Response:**\n${responseText}`,
+            response: `🧠 **Advanced AI Response:**\n${responseText}`,
+            functionCalls: [{ function: 'ai_master_request', result: masterResponse }],
+            serverInfo: this.getServerInfo(),
+            rawResponse: { choices: [{ message: { content: responseText } }] },
+            conversationLength: this.conversationHistory.length,
+            timing: { openAI: 0, tool: 100, agent: 100 }
+          };
+        }
+      } catch (error) {
+        console.warn('Master AI system failed, falling back to standard processing:', error);
+      }
+    }
+
     const agentStart = Date.now();
     console.log('🤖 [Hospital AI] Processing request:', userMessage);
     
@@ -4612,10 +4649,27 @@ Respond naturally and helpfully based on the user's request and the tool results
       "Today is: " + todayDate + ".",
       "",
       "🏥 **Hospital System Context:**",
-      "- Server: Direct HTTP FastMCP Server", 
+      "- Server: Direct HTTP FastMCP Server with Advanced AI Systems", 
       "- Available Tools: " + (functions ? functions.length : 0) + " medical management tools",
       "- Active Agents: " + (availableAgents ? availableAgents.length : 0) + " specialized agents",
       "- Connection: Direct HTTP communication via MCP protocol",
+      "",
+      "🚀 **ADVANCED AI CAPABILITIES AVAILABLE:**",
+      "The system includes 6 enterprise-level AI systems that you can access:",
+      "1. **Master AI System (ai_master_request)**: For complex analysis, insights, and comprehensive responses",
+      "2. **Predictive Analytics (run_predictive_forecast)**: Bed demand, staff requirements, supply consumption forecasts",
+      "3. **Real-time Monitoring (get_ai_system_dashboard)**: Live system status and comprehensive metrics",
+      "4. **Multi-language Support (translate_text)**: Patient communication in multiple languages",
+      "5. **Equipment Lifecycle Management (manage_equipment_lifecycle)**: Advanced asset tracking and maintenance",
+      "6. **Emergency Response (get_emergency_phrases)**: Multi-language emergency communication",
+      "",
+      "🔧 **WHEN TO USE ADVANCED AI TOOLS:**",
+      "- Complex queries requiring analysis → ai_master_request",
+      "- Predictions or forecasts → run_predictive_forecast", 
+      "- System overview or dashboard → get_ai_system_dashboard",
+      "- Translation needs → translate_text",
+      "- Equipment maintenance → manage_equipment_lifecycle",
+      "- Emergency situations → get_emergency_phrases",
       "",
       "**Specialized Agents:**",
       availableAgents && availableAgents.length > 0 ? 
