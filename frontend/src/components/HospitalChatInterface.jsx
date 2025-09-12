@@ -1,7 +1,8 @@
 import React, { useRef, useEffect } from 'react';
-import { LogOut, User, Settings, Upload, FileText, History, CheckCircle, Plus, X, Mic, MicOff, VolumeX, BarChart3, Brain, Stethoscope } from 'lucide-react';
+import { LogOut, User, Settings, Upload, FileText, History, CheckCircle, Plus, X, Mic, MicOff, VolumeX, BarChart3, Brain, Stethoscope, Database } from 'lucide-react';
 import EnhancedMedicalDocumentUpload from './EnhancedMedicalDocumentUpload.jsx';
 import MedicalHistoryViewer from './MedicalHistoryViewer.jsx';
+import BulkDataUpload from './BulkDataUpload.jsx';
 
 const HospitalChatInterface = ({
   // User and server info
@@ -542,15 +543,15 @@ const HospitalChatInterface = ({
                 </button>
                 
                 {showPlusMenu && (
-                  <div className="absolute bottom-full left-0 mb-2 bg-[#2a2a2a] border border-gray-600 rounded-lg shadow-lg min-w-48 z-50">
+                  <div className="absolute bottom-full left-0 mb-2 bg-[#2a2a2a] border border-gray-600 rounded-lg shadow-lg min-w-44 sm:min-w-48 z-50">
                     <button
                       onClick={() => {
                         setActiveTab('upload');
                         setShowPlusMenu(false);
                       }}
-                      className="w-full text-left px-3 py-2 text-sm text-white hover:bg-gray-700 rounded-t-lg flex items-center space-x-2"
+                      className="w-full text-left px-2 sm:px-3 py-2 text-xs sm:text-sm text-white hover:bg-gray-700 rounded-t-lg flex items-center space-x-2"
                     >
-                      <Upload className="w-4 h-4" />
+                      <Upload className="w-3 h-3 sm:w-4 sm:h-4" />
                       <span>Upload Documents</span>
                     </button>
                     <button
@@ -558,10 +559,20 @@ const HospitalChatInterface = ({
                         setActiveTab('history');
                         setShowPlusMenu(false);
                       }}
-                      className="w-full text-left px-3 py-2 text-sm text-white hover:bg-gray-700 rounded-b-lg border-t border-gray-600 flex items-center space-x-2"
+                      className="w-full text-left px-2 sm:px-3 py-2 text-xs sm:text-sm text-white hover:bg-gray-700 border-t border-gray-600 flex items-center space-x-2"
                     >
-                      <History className="w-4 h-4" />
+                      <History className="w-3 h-3 sm:w-4 sm:h-4" />
                       <span>Medical History</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setActiveTab('bulk-data');
+                        setShowPlusMenu(false);
+                      }}
+                      className="w-full text-left px-2 sm:px-3 py-2 text-xs sm:text-sm text-white hover:bg-gray-700 rounded-b-lg border-t border-gray-600 flex items-center space-x-2"
+                    >
+                      <Database className="w-3 h-3 sm:w-4 sm:h-4" />
+                      <span>Add Data</span>
                     </button>
                   </div>
                 )}
@@ -874,6 +885,26 @@ const HospitalChatInterface = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Bulk Data Upload Modal */}
+      {activeTab === 'bulk-data' && (
+        <BulkDataUpload
+          onClose={() => setActiveTab('chat')}
+          onUploadComplete={(tableType, result) => {
+            setActiveTab('chat');
+            // Add a success message to chat
+            if (setMessages) {
+              const successMessage = {
+                id: Date.now(),
+                content: `✅ Successfully uploaded ${result.inserted} records to ${tableType} table via bulk CSV upload.`,
+                sender: 'ai',
+                timestamp: new Date().toLocaleTimeString()
+              };
+              setMessages(prev => [...prev, successMessage]);
+            }
+          }}
+        />
       )}
     </div>
   );
