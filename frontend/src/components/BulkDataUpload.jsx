@@ -19,26 +19,30 @@ const BulkDataUpload = ({ onClose, onUploadComplete }) => {
         'bed_number',
         'room_number', // This will be converted to room_id
         'bed_type',
-        'status'
+        'status',
+        'notes'
       ],
       example: [
         {
           bed_number: 'B101A',
           room_number: 'R101',
           bed_type: 'standard',
-          status: 'available'
+          status: 'available',
+          notes: 'Standard patient bed'
         },
         {
-          bed_number: 'B101B',
-          room_number: 'R101',
+          bed_number: 'B201B',
+          room_number: 'R201',
           bed_type: 'icu',
-          status: 'maintenance'
+          status: 'maintenance',
+          notes: 'ICU bed with monitoring equipment'
         }
       ],
       notes: [
-        'bed_type: standard, icu, emergency',
-        'status: available, occupied, maintenance',
-        'room_number will be automatically mapped to room_id'
+        'bed_type: standard, icu, emergency, pediatric, maternity, surgical, psychiatric, isolation',
+        'status: available, occupied, maintenance, reserved, cleaning, out_of_service',
+        'room_number will be automatically mapped to room_id',
+        'notes field is optional for additional information'
       ]
     },
     equipment: {
@@ -52,9 +56,15 @@ const BulkDataUpload = ({ onClose, onUploadComplete }) => {
         'model',
         'manufacturer',
         'serial_number',
+        'purchase_date', // YYYY-MM-DD format
+        'warranty_expiry', // YYYY-MM-DD format
         'department_name', // This will be converted to department_id
         'status',
-        'location'
+        'location',
+        'last_maintenance', // YYYY-MM-DD format
+        'next_maintenance', // YYYY-MM-DD format
+        'cost',
+        'notes'
       ],
       example: [
         {
@@ -64,15 +74,23 @@ const BulkDataUpload = ({ onClose, onUploadComplete }) => {
           model: 'XR-2000',
           manufacturer: 'MedTech Corp',
           serial_number: 'SN123456',
+          purchase_date: '2023-01-15',
+          warranty_expiry: '2026-01-15',
           department_name: 'Radiology',
-          status: 'available',
-          location: 'Room 201'
+          status: 'operational',
+          location: 'Room 201',
+          last_maintenance: '2024-06-01',
+          next_maintenance: '2024-12-01',
+          cost: '50000.00',
+          notes: 'Digital X-ray system with advanced imaging'
         }
       ],
       notes: [
-        'status: available, in_use, maintenance, out_of_order',
+        'status: operational, maintenance, out_of_order, retired',
         'category_name will be mapped to existing categories',
         'department_name will be mapped to existing departments',
+        'Date format: YYYY-MM-DD (e.g., 2024-12-31)',
+        'cost should be numeric (e.g., 15000.50)',
         'New categories/departments will be created if not found'
       ]
     },
@@ -92,7 +110,7 @@ const BulkDataUpload = ({ onClose, onUploadComplete }) => {
         {
           room_number: 'R101',
           floor_number: 1,
-          room_type: 'general',
+          room_type: 'patient',
           department_name: 'Internal Medicine',
           capacity: 2,
           status: 'available'
@@ -107,9 +125,11 @@ const BulkDataUpload = ({ onClose, onUploadComplete }) => {
         }
       ],
       notes: [
-        'room_type: general, icu, private, emergency, surgery',
+        'room_type: patient, icu, operation, emergency, consultation, diagnostic, laboratory, pharmacy, storage, administrative',
         'status: available, occupied, maintenance, cleaning',
-        'department_name will be mapped to existing departments'
+        'department_name will be mapped to existing departments',
+        'capacity: maximum number of beds/occupants',
+        'floor_number should be numeric'
       ]
     },
     supplies: {
@@ -123,9 +143,12 @@ const BulkDataUpload = ({ onClose, onUploadComplete }) => {
         'description',
         'unit_of_measure',
         'minimum_stock_level',
+        'maximum_stock_level',
         'current_stock',
         'unit_cost',
-        'supplier'
+        'supplier',
+        'expiry_date', // YYYY-MM-DD format
+        'location'
       ],
       example: [
         {
@@ -135,16 +158,21 @@ const BulkDataUpload = ({ onClose, onUploadComplete }) => {
           description: 'Latex-free surgical gloves, size M',
           unit_of_measure: 'box',
           minimum_stock_level: 10,
+          maximum_stock_level: 100,
           current_stock: 50,
           unit_cost: 15.99,
-          supplier: 'MedSupply Inc'
+          supplier: 'MedSupply Inc',
+          expiry_date: '2025-12-31',
+          location: 'Storage Room A'
         }
       ],
       notes: [
-        'unit_of_measure: box, unit, bottle, kg, etc.',
+        'unit_of_measure: box, unit, bottle, kg, ml, etc.',
         'category_name will be mapped to existing categories',
         'New categories will be created if not found',
-        'unit_cost should be numeric (e.g., 15.99)'
+        'Numeric fields: stock levels should be integers, unit_cost should be decimal',
+        'Date format: YYYY-MM-DD (e.g., 2025-12-31)',
+        'All stock and cost fields are optional but recommended'
       ]
     }
   };
@@ -224,16 +252,46 @@ const BulkDataUpload = ({ onClose, onUploadComplete }) => {
     }
 
     const template = csvTemplates[activeCard];
-    const requiredFields = template.fields.filter(field => 
-      !['department_name', 'category_name', 'room_number'].includes(field)
-    );
+    
+    // Define required fields for each table type
+    let requiredFields = [];
+    switch (activeCard) {
+      case 'beds':
+        requiredFields = ['bed_number']; // room_number is also important but handled separately
+        break;
+      case 'equipment':
+        requiredFields = ['equipment_id', 'name']; // category_name, department_name handled separately
+        break;
+      case 'rooms':
+        requiredFields = ['room_number']; // department_name handled separately
+        break;
+      case 'supplies':
+        requiredFields = ['item_code', 'name', 'unit_of_measure']; // category_name handled separately
+        break;
+      default:
+        requiredFields = [];
+    }
 
     // Validate required fields
     const firstRow = data[0];
-    const missingFields = requiredFields.filter(field => !firstRow.hasOwnProperty(field));
+    const missingFields = requiredFields.filter(field => !firstRow.hasOwnProperty(field) || !firstRow[field]?.toString().trim());
     
     if (missingFields.length > 0) {
       throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
+    }
+
+    // Additional validation for foreign key reference fields
+    if (activeCard === 'beds' && !firstRow.room_number?.toString().trim()) {
+      throw new Error('room_number is required for bed creation');
+    }
+    if (activeCard === 'equipment' && !firstRow.category_name?.toString().trim()) {
+      throw new Error('category_name is required for equipment creation');
+    }
+    if (activeCard === 'rooms' && !firstRow.department_name?.toString().trim()) {
+      throw new Error('department_name is required for room creation');
+    }
+    if (activeCard === 'supplies' && !firstRow.category_name?.toString().trim()) {
+      throw new Error('category_name is required for supply creation');
     }
 
     // Process the data based on table type
@@ -293,7 +351,8 @@ const BulkDataUpload = ({ onClose, onUploadComplete }) => {
       bed_number: row.bed_number,
       room_id: roomMappings[row.room_number],
       bed_type: row.bed_type,
-      status: row.status || 'available'
+      status: row.status || 'available',
+      notes: row.notes || ''
     }));
   };
 
@@ -313,9 +372,15 @@ const BulkDataUpload = ({ onClose, onUploadComplete }) => {
       model: row.model,
       manufacturer: row.manufacturer,
       serial_number: row.serial_number,
+      purchase_date: row.purchase_date || null,
+      warranty_expiry: row.warranty_expiry || null,
       department_id: departmentMappings[row.department_name],
-      status: row.status || 'available',
-      location: row.location
+      status: row.status || 'operational',
+      location: row.location,
+      last_maintenance: row.last_maintenance || null,
+      next_maintenance: row.next_maintenance || null,
+      cost: parseFloat(row.cost) || 0,
+      notes: row.notes || ''
     }));
   };
 
@@ -341,12 +406,15 @@ const BulkDataUpload = ({ onClose, onUploadComplete }) => {
       item_code: row.item_code,
       name: row.name,
       category_id: categoryMappings[row.category_name],
-      description: row.description,
+      description: row.description || '',
       unit_of_measure: row.unit_of_measure,
       minimum_stock_level: parseInt(row.minimum_stock_level) || 0,
+      maximum_stock_level: parseInt(row.maximum_stock_level) || 0,
       current_stock: parseInt(row.current_stock) || 0,
       unit_cost: parseFloat(row.unit_cost) || 0,
-      supplier: row.supplier
+      supplier: row.supplier || '',
+      expiry_date: row.expiry_date || null,
+      location: row.location || ''
     }));
   };
 
@@ -479,10 +547,27 @@ const BulkDataUpload = ({ onClose, onUploadComplete }) => {
                     <div className="text-xs text-gray-400 space-y-1">
                       <div className="flex flex-wrap gap-1 sm:gap-2">
                         {csvTemplates[activeCard].fields.map(field => (
-                          <div key={field} className="font-mono bg-gray-800 px-2 py-1 rounded text-xs">
+                          <div key={field} className={`font-mono bg-gray-800 px-2 py-1 rounded text-xs ${
+                            // Highlight required fields based on table type
+                            ((activeCard === 'beds' && ['bed_number', 'room_number'].includes(field)) ||
+                             (activeCard === 'equipment' && ['equipment_id', 'name', 'category_name'].includes(field)) ||
+                             (activeCard === 'rooms' && ['room_number', 'department_name'].includes(field)) ||
+                             (activeCard === 'supplies' && ['item_code', 'name', 'unit_of_measure', 'category_name'].includes(field)))
+                            ? 'bg-blue-800 text-blue-200' : 'bg-gray-800 text-gray-300'
+                          }`}>
                             {field}
+                            {/* Mark required fields */}
+                            {((activeCard === 'beds' && ['bed_number', 'room_number'].includes(field)) ||
+                             (activeCard === 'equipment' && ['equipment_id', 'name', 'category_name'].includes(field)) ||
+                             (activeCard === 'rooms' && ['room_number', 'department_name'].includes(field)) ||
+                             (activeCard === 'supplies' && ['item_code', 'name', 'unit_of_measure', 'category_name'].includes(field))) && 
+                             <span className="text-red-400 ml-1">*</span>
+                            }
                           </div>
                         ))}
+                      </div>
+                      <div className="text-xs text-blue-300 mt-2">
+                        <span className="text-red-400">*</span> Required fields
                       </div>
                     </div>
                   </div>

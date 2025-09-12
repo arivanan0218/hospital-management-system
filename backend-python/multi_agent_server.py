@@ -3069,14 +3069,44 @@ async def bulk_upload_handler(request: Request):
                     bed = Bed(
                         bed_number=item['bed_number'],
                         room_id=item['room_id'],
-                        bed_type=item['bed_type'],
-                        status=item['status']
+                        bed_type=item.get('bed_type'),
+                        status=item.get('status', 'available'),
+                        notes=item.get('notes')
                     )
                     db.add(bed)
                     inserted_count += 1
             
             elif table_type == 'equipment':
                 for item in data:
+                    # Handle date fields
+                    purchase_date = None
+                    if item.get('purchase_date'):
+                        try:
+                            purchase_date = datetime.strptime(item['purchase_date'], '%Y-%m-%d').date()
+                        except ValueError:
+                            pass
+                    
+                    warranty_expiry = None
+                    if item.get('warranty_expiry'):
+                        try:
+                            warranty_expiry = datetime.strptime(item['warranty_expiry'], '%Y-%m-%d').date()
+                        except ValueError:
+                            pass
+                    
+                    last_maintenance = None
+                    if item.get('last_maintenance'):
+                        try:
+                            last_maintenance = datetime.strptime(item['last_maintenance'], '%Y-%m-%d').date()
+                        except ValueError:
+                            pass
+                    
+                    next_maintenance = None
+                    if item.get('next_maintenance'):
+                        try:
+                            next_maintenance = datetime.strptime(item['next_maintenance'], '%Y-%m-%d').date()
+                        except ValueError:
+                            pass
+                    
                     equipment = Equipment(
                         equipment_id=item['equipment_id'],
                         name=item['name'],
@@ -3084,9 +3114,15 @@ async def bulk_upload_handler(request: Request):
                         model=item.get('model'),
                         manufacturer=item.get('manufacturer'),
                         serial_number=item.get('serial_number'),
+                        purchase_date=purchase_date,
+                        warranty_expiry=warranty_expiry,
                         department_id=item.get('department_id'),
-                        status=item['status'],
-                        location=item.get('location')
+                        status=item.get('status', 'operational'),
+                        location=item.get('location'),
+                        last_maintenance=last_maintenance,
+                        next_maintenance=next_maintenance,
+                        cost=item.get('cost'),
+                        notes=item.get('notes')
                     )
                     db.add(equipment)
                     inserted_count += 1
@@ -3095,27 +3131,38 @@ async def bulk_upload_handler(request: Request):
                 for item in data:
                     room = Room(
                         room_number=item['room_number'],
-                        floor_number=item['floor_number'],
-                        room_type=item['room_type'],
-                        department_id=item['department_id'],
-                        capacity=item['capacity'],
-                        status=item['status']
+                        floor_number=item.get('floor_number'),
+                        room_type=item.get('room_type'),
+                        department_id=item.get('department_id'),
+                        capacity=item.get('capacity', 1),
+                        status=item.get('status', 'available')
                     )
                     db.add(room)
                     inserted_count += 1
             
             elif table_type == 'supplies':
                 for item in data:
+                    # Handle expiry date
+                    expiry_date = None
+                    if item.get('expiry_date'):
+                        try:
+                            expiry_date = datetime.strptime(item['expiry_date'], '%Y-%m-%d').date()
+                        except ValueError:
+                            pass
+                    
                     supply = Supply(
                         item_code=item['item_code'],
                         name=item['name'],
                         category_id=item['category_id'],
                         description=item.get('description'),
                         unit_of_measure=item['unit_of_measure'],
-                        minimum_stock_level=item['minimum_stock_level'],
-                        current_stock=item['current_stock'],
-                        unit_cost=item['unit_cost'],
-                        supplier=item.get('supplier')
+                        minimum_stock_level=item.get('minimum_stock_level', 0),
+                        maximum_stock_level=item.get('maximum_stock_level', 0),
+                        current_stock=item.get('current_stock', 0),
+                        unit_cost=item.get('unit_cost', 0),
+                        supplier=item.get('supplier'),
+                        expiry_date=expiry_date,
+                        location=item.get('location')
                     )
                     db.add(supply)
                     inserted_count += 1
