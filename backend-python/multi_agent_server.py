@@ -3036,6 +3036,195 @@ class ToolCallRequest(BaseModel):
     jsonrpc: str = "2.0"
     params: dict
 
+class BulkUploadRequest(BaseModel):
+    table: str
+    data: List[Dict[str, Any]]
+
+class NameMappingRequest(BaseModel):
+    department_names: Optional[List[str]] = None
+    category_names: Optional[List[str]] = None
+    room_numbers: Optional[List[str]] = None
+    type: Optional[str] = None
+
+# Bulk data upload handler
+async def bulk_upload_handler(request: Request):
+    """Handle bulk data upload from CSV files."""
+    try:
+        body = await request.json()
+        table_type = body.get('table')
+        data = body.get('data', [])
+        
+        if not table_type or not data:
+            return JSONResponse({
+                "success": False,
+                "message": "Missing table type or data"
+            }, status_code=400)
+        
+        db = get_db_session()
+        inserted_count = 0
+        
+        try:
+            if table_type == 'beds':
+                for item in data:
+                    bed = Bed(
+                        bed_number=item['bed_number'],
+                        room_id=item['room_id'],
+                        bed_type=item['bed_type'],
+                        status=item['status']
+                    )
+                    db.add(bed)
+                    inserted_count += 1
+            
+            elif table_type == 'equipment':
+                for item in data:
+                    equipment = Equipment(
+                        equipment_id=item['equipment_id'],
+                        name=item['name'],
+                        category_id=item['category_id'],
+                        model=item.get('model'),
+                        manufacturer=item.get('manufacturer'),
+                        serial_number=item.get('serial_number'),
+                        department_id=item.get('department_id'),
+                        status=item['status'],
+                        location=item.get('location')
+                    )
+                    db.add(equipment)
+                    inserted_count += 1
+            
+            elif table_type == 'rooms':
+                for item in data:
+                    room = Room(
+                        room_number=item['room_number'],
+                        floor_number=item['floor_number'],
+                        room_type=item['room_type'],
+                        department_id=item['department_id'],
+                        capacity=item['capacity'],
+                        status=item['status']
+                    )
+                    db.add(room)
+                    inserted_count += 1
+            
+            elif table_type == 'supplies':
+                for item in data:
+                    supply = Supply(
+                        item_code=item['item_code'],
+                        name=item['name'],
+                        category_id=item['category_id'],
+                        description=item.get('description'),
+                        unit_of_measure=item['unit_of_measure'],
+                        minimum_stock_level=item['minimum_stock_level'],
+                        current_stock=item['current_stock'],
+                        unit_cost=item['unit_cost'],
+                        supplier=item.get('supplier')
+                    )
+                    db.add(supply)
+                    inserted_count += 1
+            
+            else:
+                return JSONResponse({
+                    "success": False,
+                    "message": f"Unsupported table type: {table_type}"
+                }, status_code=400)
+            
+            db.commit()
+            
+            return JSONResponse({
+                "success": True,
+                "inserted": inserted_count,
+                "message": f"Successfully inserted {inserted_count} records"
+            })
+            
+        except Exception as e:
+            db.rollback()
+            raise e
+        finally:
+            db.close()
+            
+    except Exception as e:
+        return JSONResponse({
+            "success": False,
+            "message": str(e)
+        }, status_code=500)
+
+# Name to ID mapping handlers
+async def get_room_mappings_handler(request: Request):
+    """Get room number to ID mappings."""
+    try:
+        body = await request.json()
+        room_numbers = body.get('room_numbers', [])
+        
+        db = get_db_session()
+        try:
+            rooms = db.query(Room).filter(Room.room_number.in_(room_numbers)).all()
+            mappings = {room.room_number: str(room.id) for room in rooms}
+            return JSONResponse(mappings)
+        finally:
+            db.close()
+            
+    except Exception as e:
+        return JSONResponse({
+            "error": str(e)
+        }, status_code=500)
+
+async def get_department_mappings_handler(request: Request):
+    """Get department name to ID mappings."""
+    try:
+        body = await request.json()
+        department_names = body.get('department_names', [])
+        
+        db = get_db_session()
+        try:
+            departments = db.query(Department).filter(Department.name.in_(department_names)).all()
+            mappings = {dept.name: str(dept.id) for dept in departments}
+            return JSONResponse(mappings)
+        finally:
+            db.close()
+            
+    except Exception as e:
+        return JSONResponse({
+            "error": str(e)
+        }, status_code=500)
+
+async def get_category_mappings_handler(request: Request):
+    """Get category name to ID mappings."""
+    try:
+        body = await request.json()
+        category_names = body.get('category_names', [])
+        category_type = body.get('type', 'equipment')  # 'equipment' or 'supply'
+        
+        db = get_db_session()
+        try:
+            if category_type == 'equipment':
+                categories = db.query(EquipmentCategory).filter(EquipmentCategory.name.in_(category_names)).all()
+            else:  # supply
+                categories = db.query(SupplyCategory).filter(SupplyCategory.name.in_(category_names)).all()
+                
+            mappings = {cat.name: str(cat.id) for cat in categories}
+            
+            # Create missing categories
+            existing_names = set(mappings.keys())
+            missing_names = set(category_names) - existing_names
+            
+            for name in missing_names:
+                if category_type == 'equipment':
+                    new_category = EquipmentCategory(name=name, description=f"Auto-created category: {name}")
+                else:
+                    new_category = SupplyCategory(name=name, description=f"Auto-created category: {name}")
+                
+                db.add(new_category)
+                db.flush()  # Flush to get the ID
+                mappings[name] = str(new_category.id)
+            
+            db.commit()
+            return JSONResponse(mappings)
+        finally:
+            db.close()
+            
+    except Exception as e:
+        return JSONResponse({
+            "error": str(e)
+        }, status_code=500)
+
 # Tool call endpoint handler
 async def call_tool_http(request: Request):
     try:
@@ -3267,6 +3456,10 @@ if __name__ == "__main__":
             Route("/tools/call", call_tool_http, methods=["POST"]),
             Route("/tools/list", list_tools_http, methods=["GET"]),
             Route("/health", health_check, methods=["GET"]),
+            Route("/api/bulk-upload", bulk_upload_handler, methods=["POST"]),
+            Route("/api/rooms/by-numbers", get_room_mappings_handler, methods=["POST"]),
+            Route("/api/departments/by-names", get_department_mappings_handler, methods=["POST"]),
+            Route("/api/categories/by-names", get_category_mappings_handler, methods=["POST"]),
             Mount("/discharge", StaticFiles(directory=reports_dir), name="static"),
         ]
         
@@ -3292,6 +3485,10 @@ if __name__ == "__main__":
         print("   POST /tools/call - Call MCP tools via HTTP")
         print("   GET /tools/list - List available tools")
         print("   GET /health - Health check")
+        print("   POST /api/bulk-upload - Bulk data upload from CSV")
+        print("   POST /api/rooms/by-numbers - Get room ID mappings")
+        print("   POST /api/departments/by-names - Get department ID mappings")
+        print("   POST /api/categories/by-names - Get category ID mappings")
         
         # Run with uvicorn - bind to 0.0.0.0 for Docker container access
         uvicorn.run(app, host="0.0.0.0", port=8000)
