@@ -44,12 +44,33 @@ jobs:
       run: |
         cd backend-python
         pip install uv
-        uv pip install --system -e .
+        if [ -f uv.lock ]; then
+          uv export --frozen --no-dev --no-emit-project -o /tmp/requirements.txt
+          uv pip install --system -r /tmp/requirements.txt
+        fi
+        uv pip install --system --no-deps -e .
     
     - name: Run basic health check
       run: |
         cd backend-python
         python -c "import database; print('✅ Database module imported successfully')"
+
+    - name: Install test dependencies
+      run: |
+        cd backend-python
+        uv pip install --system pytest pytest-cov pytest-asyncio
+
+    - name: Run test suite
+      run: |
+        cd backend-python
+        pytest -q --junitxml=pytest-report.xml
+
+    - name: Upload test report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: pytest-report
+        path: backend-python/pytest-report.xml
     
     - name: Test PDF dependencies
       run: |

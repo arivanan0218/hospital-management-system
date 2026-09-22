@@ -3499,7 +3499,86 @@ if __name__ == "__main__":
         import os
         reports_dir = os.path.join(os.path.dirname(__file__), "reports", "discharge")
         
-        custom_routes = [
+        # ------------------------------------------------------------------
+        # Guarded execution path (hms_agent).
+        #
+        # Controlled by TOOL_EXECUTION_MODE, which defaults to "legacy" so this
+        # is inert until explicitly switched on:
+        #   legacy  - only the original /tools/call is served (default)
+        #   shadow  - guarded routes also mounted, legacy still serves /tools/call
+        #   guarded - /tools/call is served by the guarded pipeline
+        # ------------------------------------------------------------------
+        guarded_routes = []
+        sse_auth_wrapper = None
+        try:
+            from hms_agent.audit import SqlAlchemyAuditSink, create_audit_tables
+            from hms_agent.auth import LoginService, SqlAlchemyUserRepository, TokenIssuer
+            from hms_agent.config import ToolExecutionMode
+            from hms_agent.http import ToolCallService, build_guarded_routes
+            from hms_agent.http.app import build_login_route
+            from hms_agent.policy import PolicyEngine
+            from hms_agent.registry import CanonicalToolRegistry
+
+            execution_mode = ToolExecutionMode.current()
+
+            if execution_mode is not ToolExecutionMode.LEGACY:
+                from database import SessionLocal
+                from database import engine as db_engine
+
+                token_issuer = TokenIssuer()          # raises unless HMS_JWT_SECRET is set
+
+                # Audit events go to PostgreSQL. strict=True means an action that
+                # cannot be recorded is not performed: ToolCallService writes the
+                # EXECUTING event before dispatch, so a failed audit write stops
+                # the call rather than producing an unlogged mutation.
+                create_audit_tables(db_engine)
+                audit_strict = (os.getenv("HMS_AUDIT_STRICT") or "true").lower() != "false"
+                audit_sink = SqlAlchemyAuditSink(SessionLocal, strict=audit_strict)
+                tool_registry = CanonicalToolRegistry.from_agents(orchestrator.agents)
+                tool_service = ToolCallService(
+                    tool_registry, PolicyEngine(), token_issuer, audit_sink
+                )
+                login_service = LoginService(
+                    SqlAlchemyUserRepository(SessionLocal), token_issuer
+                )
+
+                guarded_routes = (
+                    build_login_route(login_service)
+                    + build_guarded_routes(tool_service, path="/v2/tools/call")
+                )
+                if execution_mode is ToolExecutionMode.GUARDED:
+                    guarded_routes += build_guarded_routes(tool_service, path="/tools/call")
+
+                    # Close the SSE transport too. Guarding only HTTP would leave
+                    # mcp.sse_app() serving the same agent methods unguarded.
+                    from hms_agent.transport import RequireBearerAuth, guard_tool_manager
+
+                    guard_tool_manager(
+                        mcp,
+                        PolicyEngine(),
+                        allowed_tools=tool_registry.names(),
+                        audit_sink=audit_sink,
+                    )
+                    sse_auth_wrapper = (RequireBearerAuth, token_issuer)
+                    sse_state = "guarded"
+                else:
+                    sse_state = "UNGUARDED"
+
+                print(f"🔒 Guarded execution enabled (mode={execution_mode.value}, "
+                      f"{len(tool_registry.names())} tools bound, sse={sse_state})")
+            else:
+                print("⚠️  TOOL_EXECUTION_MODE=legacy - /tools/call is unauthenticated")
+        except Exception as guard_error:
+            # Never take the server down for a guarded-path misconfiguration, but
+            # never silently fall back to the open path either.
+            if (os.getenv("TOOL_EXECUTION_MODE") or "legacy").strip().lower() != "legacy":
+                raise RuntimeError(
+                    f"TOOL_EXECUTION_MODE is not 'legacy' but the guarded path "
+                    f"failed to initialise: {guard_error}"
+                ) from guard_error
+            print(f"⚠️  Guarded path unavailable: {guard_error}")
+
+        custom_routes = guarded_routes + [
             Route("/tools/call", call_tool_http, methods=["POST"]),
             Route("/tools/list", list_tools_http, methods=["GET"]),
             Route("/health", health_check, methods=["GET"]),
@@ -3537,6 +3616,13 @@ if __name__ == "__main__":
         print("   POST /api/departments/by-names - Get department ID mappings")
         print("   POST /api/categories/by-names - Get category ID mappings")
         
+        # Applied last: RequireBearerAuth is a bare ASGI callable, so it must wrap
+        # the app only after .routes and .add_middleware have been used.
+        if sse_auth_wrapper is not None:
+            wrapper_cls, wrapper_issuer = sse_auth_wrapper
+            app = wrapper_cls(app, wrapper_issuer)
+            print("🔒 SSE transport requires a bearer token")
+
         # Run with uvicorn - bind to 0.0.0.0 for Docker container access
         uvicorn.run(app, host="0.0.0.0", port=8000)
         
