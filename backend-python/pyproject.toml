@@ -9,9 +9,11 @@ description = "Hospital Management System MCP Server using FastMCP"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "mcp[cli]>=1.0.0",
-    "pydantic>=2.0.0",
-    "fastmcp>=0.2.0",
+    # Pinned below 2.0: the code uses the v1 API (mcp.server.fastmcp.FastMCP,
+    # multi_agent_server.py:25). mcp 2.x renamed that module, so an unpinned
+    # ">=1.0.0" now resolves to a release this codebase cannot import.
+    "mcp[cli]>=1.9,<2",
+    "pydantic>=2.0.0,<3",
     "google-generativeai>=0.8.0",
     "prompt-toolkit>=3.0.0",
     "python-dotenv>=1.0.0",
@@ -19,8 +21,8 @@ dependencies = [
     "streamlit>=1.47.1",
     "protobuf==3.20.3",
     "psycopg2-binary>=2.9.0",
-    "sqlalchemy>=2.0.0",
-    "fastapi>=0.104.0",
+    "sqlalchemy>=2.0.0,<3",
+    "fastapi>=0.104.0,<1",
     "uvicorn[standard]>=0.24.0",
     # Google API Dependencies for Calendar and Meet Integration
     "google-auth>=2.0.0",
@@ -35,13 +37,13 @@ dependencies = [
     "pillow>=10.0.0",
     "pypdf>=4.0.0",
     # Vector Database for RAG
-    "chromadb>=0.4.0",
+    "chromadb>=0.4.0,<2",
     # LangChain and LangGraph Integration
-    "langchain>=0.1.0",
-    "langchain-community>=0.1.0",
-    "langchain-openai>=0.1.0",
-    "langgraph>=0.1.0",
-    "langsmith>=0.1.0",
+    "langchain>=0.1.0,<1",
+    "langchain-community>=0.1.0,<1",
+    "langchain-openai>=0.1.0,<1",
+    "langgraph>=0.1.0,<1",
+    "langsmith>=0.1.0,<1",
     # Temporarily commented out for deployment - large model dependencies
     # "sentence-transformers>=2.2.0",
     # AI/ML Processing
@@ -64,7 +66,15 @@ dependencies = [
     "markdown2>=2.4.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "pytest-asyncio>=0.23",
+    "tiktoken>=0.7",
+]
+
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["agents*"]
+include = ["agents*", "hms_agent*"]
 exclude = ["hospital_env*", "data*", "__pycache__*"]

@@ -15,7 +15,14 @@ COPY pyproject.toml uv.lock* ./
 RUN pip install uv
 
 # Install dependencies
-RUN uv pip install --system -e .
+# Install from uv.lock so the image matches the tested resolution. The previous
+# `uv pip install --system -e .` re-resolved from pyproject and ignored the lock,
+# which is how an upstream major release could reach the image untested.
+RUN if [ -f uv.lock ]; then \
+        uv export --frozen --no-dev --no-emit-project -o /tmp/requirements.txt && \
+        uv pip install --system -r /tmp/requirements.txt; \
+    fi
+RUN uv pip install --system --no-deps -e .
 
 # Copy application code
 COPY . .
