@@ -1,291 +1,119 @@
 /**
- * Mock Authentication Service for Hospital Management System
- * In a real application, this would connect to your backend API
+ * Authentication against the server.
+ *
+ * Replaces the previous mock, which seeded demo accounts into localStorage,
+ * minted `mock_token_${id}_${Date.now()}`, and recovered the role by splitting
+ * that string. A role the browser writes is not an authorization signal, so the
+ * backend policy engine could not be built on it.
+ *
+ * Identity now comes from POST /auth/login and the role is whatever the server
+ * put in the signed token. Nothing here can change it.
+ *
+ * The public method names are unchanged so existing callers keep working.
  */
 
+import apiClient, { AuthRequiredError } from './apiClient';
+
 class AuthService {
-  constructor() {
-    // Determine the correct base URL based on environment
-    this.baseURL = window.location.hostname === 'localhost' && window.location.port === '5173' 
-      ? 'http://localhost:8000'  // Local development
-      : '';                      // Deployment (through nginx proxy)
-    this.storageKey = 'hospital_users_db';
-    this.initializeDefaultUsers();
-  }
-
   /**
-   * Initialize default demo users in localStorage if not exists
-   */
-  initializeDefaultUsers() {
-    const existingUsers = this.getStoredUsers();
-    if (existingUsers.length === 0) {
-      const defaultUsers = [
-        {
-          id: '1',
-          email: 'admin@hospital.com',
-          password: 'admin123', // In real app, this would be hashed
-          fullName: 'Dr. Administrator',
-          role: 'admin',
-          department: 'Administration',
-          createdAt: new Date().toISOString()
-        },
-        {
-          id: '2', 
-          email: 'doctor@hospital.com',
-          password: 'doctor123',
-          fullName: 'Dr. Sarah Johnson',
-          role: 'doctor',
-          department: 'Cardiology',
-          createdAt: new Date().toISOString()
-        },
-        {
-          id: '3',
-          email: 'nurse@hospital.com',
-          password: 'nurse123',
-          fullName: 'Mary Wilson',
-          role: 'nurse',
-          department: 'Emergency',
-          createdAt: new Date().toISOString()
-        }
-      ];
-      
-      localStorage.setItem(this.storageKey, JSON.stringify(defaultUsers));
-    }
-  }
-
-  /**
-   * Get stored users from localStorage
-   */
-  getStoredUsers() {
-    try {
-      const users = localStorage.getItem(this.storageKey);
-      return users ? JSON.parse(users) : [];
-    } catch (error) {
-      console.error('Error reading stored users:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Store users to localStorage
-   */
-  storeUsers(users) {
-    try {
-      localStorage.setItem(this.storageKey, JSON.stringify(users));
-      return true;
-    } catch (error) {
-      console.error('Error storing users:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Simulate user sign in
+   * Sign in. Returns { success, user, token } or { success: false, error }.
+   *
+   * `email` is passed through as the username: the backend accepts either,
+   * because the seeded rows use both.
    */
   async signIn(email, password) {
     try {
-      // Simulate network delay (reduced for better UX)
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      // Get all stored users (demo + registered users)
-      const allUsers = this.getStoredUsers();
-
-      // Find user by email
-      const user = allUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
-      
-      if (!user) {
-        throw new Error('Invalid email or password');
-      }
-
-      // Validate password
-      if (user.password !== password) {
-        throw new Error('Invalid email or password');
-      }
-
-      // Return user data without password
-      const { password: _, ...userWithoutPassword } = user;
-
-      return {
-        success: true,
-        user: userWithoutPassword,
-        token: `mock_token_${user.id}_${Date.now()}` // In real app, this would be a JWT
-      };
-
-    } catch (error) {
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  }
-
-  /**
-   * Simulate user sign up
-   */
-  async signUp(userData) {
-    try {
-      // Simulate network delay (reduced for better UX)
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      // Simple validation
-      if (!userData.email || !userData.password || !userData.fullName) {
-        throw new Error('All fields are required');
-      }
-
-      if (userData.password.length < 6) {
-        throw new Error('Password must be at least 6 characters long');
-      }
-
-      // Get existing users
-      const existingUsers = this.getStoredUsers();
-      
-      // Check if user already exists
-      const existingUser = existingUsers.find(u => 
-        u.email.toLowerCase() === userData.email.toLowerCase()
-      );
-      
-      if (existingUser) {
-        throw new Error('User with this email already exists');
-      }
-
-      // Create new user
-      const newUser = {
-        id: Date.now().toString(),
-        email: userData.email,
-        password: userData.password, // In real app, this would be hashed
-        fullName: userData.fullName,
-        role: userData.role,
-        department: this.getDepartmentByRole(userData.role),
-        createdAt: new Date().toISOString()
-      };
-
-      // Add to stored users
-      const updatedUsers = [...existingUsers, newUser];
-      const stored = this.storeUsers(updatedUsers);
-      
-      if (!stored) {
-        throw new Error('Failed to create user account');
-      }
-
-      // Return user data without password
-      const { password: _, ...userWithoutPassword } = newUser;
-
-      return {
-        success: true,
-        user: userWithoutPassword,
-        token: `mock_token_${newUser.id}_${Date.now()}`
-      };
-
-    } catch (error) {
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  }
-
-  /**
-   * Get user profile (mock)
-   */
-  async getUserProfile(token) {
-    try {
-      // In real app, this would validate the JWT token
-      // const response = await fetch(`${this.baseURL}/auth/profile`, {
-      //   headers: { 'Authorization': `Bearer ${token}` }
-      // });
-
-      // For demo, extract user ID from mock token
-      const parts = token.split('_');
-      const userId = parts[2];
-
-      // Mock user data
+      const body = await apiClient.login(email, password);
       return {
         success: true,
         user: {
-          id: userId,
-          email: 'user@hospital.com',
-          fullName: 'Hospital User',
-          role: 'staff'
-        }
+          id: body.user?.id,
+          email,
+          role: body.user?.role,
+          department: this.getDepartmentByRole(body.user?.role),
+        },
+        token: body.token,
       };
-
     } catch (error) {
+      // The server deliberately returns one message for every failure mode, so
+      // a wrong password and an unknown account are indistinguishable here too.
       return {
         success: false,
-        error: error.message
+        error: error instanceof AuthRequiredError ? error.message : 'Unable to sign in',
       };
     }
   }
 
   /**
-   * Sign out user
+   * Self-service registration is not available.
+   *
+   * The previous implementation let the caller choose their own `role`, which
+   * under server-side authorization would be a privilege-escalation path: pick
+   * "admin" at signup and the policy engine would honour it. Accounts are
+   * created administratively, and the role is set on the user record.
+   *
+   * See backend-python/scripts/reset_dev_users.py for development accounts.
    */
-  async signOut(token) {
-    try {
-      // In real app:
-      // await fetch(`${this.baseURL}/auth/signout`, {
-      //   method: 'POST',
-      //   headers: { 'Authorization': `Bearer ${token}` }
-      // });
-
-      return {
-        success: true,
-        message: 'Signed out successfully'
-      };
-
-    } catch (error) {
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  }
-
-  /**
-   * Helper to map roles to departments
-   */
-  getDepartmentByRole(role) {
-    const roleMap = {
-      admin: 'Administration',
-      doctor: 'General Medicine',
-      nurse: 'Nursing',
-      manager: 'Management',
-      staff: 'General'
+  async signUp() {
+    return {
+      success: false,
+      error:
+        'Account creation is handled by an administrator. Please contact your system administrator for access.',
     };
-    return roleMap[role] || 'General';
   }
 
-  /**
-   * Get all registered users (for admin purposes - removes passwords)
-   */
-  getAllUsers() {
-    const users = this.getStoredUsers();
-    return users.map(({ password, ...user }) => user);
+  /** The signed-in user, from the stored session. */
+  async getUserProfile() {
+    const user = apiClient.getUser();
+    if (!user || !apiClient.isAuthenticated()) {
+      return { success: false, error: 'Not signed in' };
+    }
+    return {
+      success: true,
+      user: {
+        id: user.id,
+        role: user.role,
+        department: this.getDepartmentByRole(user.role),
+      },
+    };
   }
 
-  /**
-   * Check if backend is available
-   */
+  async signOut() {
+    apiClient.logout();
+    return { success: true };
+  }
+
+  isAuthenticated() {
+    return apiClient.isAuthenticated();
+  }
+
+  getCurrentUser() {
+    return apiClient.getUser();
+  }
+
+  getCurrentRole() {
+    return apiClient.getUser()?.role || null;
+  }
+
+  /** Display-only helper. Never used for authorization. */
+  getDepartmentByRole(role) {
+    const departments = {
+      admin: 'Administration',
+      doctor: 'Medical',
+      nurse: 'Nursing',
+      manager: 'Operations',
+      receptionist: 'Front Desk',
+    };
+    return departments[role] || 'General';
+  }
+
   async checkBackendHealth() {
     try {
-      const response = await fetch(`${this.baseURL}/health`, {
-        method: 'GET',
-        timeout: 5000
-      });
-      
-      return response.ok;
+      const response = await fetch(`${apiClient.baseURL}/health`);
+      return { success: response.ok, status: response.status };
     } catch (error) {
-      console.warn('Backend health check failed:', error.message);
-      return false;
+      return { success: false, error: error.message };
     }
-  }
-
-  /**
-   * Clear all stored users (for testing purposes)
-   */
-  clearAllUsers() {
-    localStorage.removeItem(this.storageKey);
-    this.initializeDefaultUsers();
   }
 }
 

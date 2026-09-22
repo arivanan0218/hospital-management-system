@@ -71,6 +71,21 @@ jobs:
       with:
         name: pytest-report
         path: backend-python/pytest-report.xml
+
+    - name: Set up Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install frontend dependencies
+      run: |
+        cd frontend
+        npm ci
+
+    - name: Run frontend tests
+      run: |
+        cd frontend
+        npm test
     
     - name: Test PDF dependencies
       run: |

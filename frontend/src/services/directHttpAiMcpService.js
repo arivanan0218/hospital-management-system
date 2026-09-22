@@ -5152,6 +5152,11 @@ Respond naturally and helpfully based on the user's request and the tool results
           arguments: functionArgs,
           result: result,
           parsedResult: parsed,
+          // Comes from the backend envelope, not from the HTTP status. Only a
+          // true here means the action actually happened.
+          executed: result?.executed === true,
+          outcome: result?.outcome,
+          runId: result?.runId,
           tool_call_id: toolCall.id
         });
 
@@ -5167,12 +5172,26 @@ Respond naturally and helpfully based on the user's request and the tool results
         }
 
       } catch (error) {
-        console.error(`❌ Function ${functionName} failed:`, error);
-        
+        // A tool that was denied, or is awaiting a human, is NOT a failure —
+        // and must not be reported to the user or the model as one. It also
+        // must never be reported as completed.
+        const notExecuted = error?.name === 'ToolNotExecutedError';
+
+        if (notExecuted) {
+          console.warn(`⛔ Function ${functionName} not executed (${error.outcome}):`, error.reason || error.message);
+        } else {
+          console.error(`❌ Function ${functionName} failed:`, error);
+        }
+
         results.push({
           function: functionName,
           arguments: functionArgs,
-          error: error.message,
+          error: notExecuted ? error.userMessage : error.message,
+          executed: false,
+          outcome: notExecuted ? error.outcome : 'FAILED',
+          awaitingHuman: notExecuted ? error.awaitingHuman : false,
+          violations: notExecuted ? error.violations : undefined,
+          runId: notExecuted ? error.runId : undefined,
           tool_call_id: toolCall.id
         });
       }
