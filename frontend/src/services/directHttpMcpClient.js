@@ -1,7 +1,61 @@
 /**
  * Direct HTTP MCP Client - Connects directly to FastMCP HTTP server
  * Uses HTTP requests for MCP communication
+ *
+ * Tool calls route through apiClient, which attaches the bearer token and
+ * interprets the guarded response envelope. See ToolNotExecutedError below for
+ * why a non-executed outcome throws rather than returning.
  */
+
+import apiClient, { Outcome } from './apiClient';
+
+/**
+ * Raised when the backend accepted the request but did NOT perform the action:
+ * denied by policy, awaiting approval, rejected by schema, or failed.
+ *
+ * This throws rather than returning a value on purpose. Callers already wrap
+ * tool calls in try/catch, and an exception cannot be mistaken for a result —
+ * whereas a returned object can be, and an approval-pending action rendered as
+ * "done" is exactly the failure this architecture exists to prevent.
+ */
+export class ToolNotExecutedError extends Error {
+  constructor(outcome) {
+    super(outcome.error?.message || outcome.reason || `${outcome.tool} was not executed`);
+    this.name = 'ToolNotExecutedError';
+    this.outcome = outcome.outcome;
+    this.tool = outcome.tool;
+    this.runId = outcome.runId;
+    this.reason = outcome.reason || '';
+    this.violations = outcome.violations || [];
+    this.executed = false;
+  }
+
+  /** True when a person needs to approve or confirm before this can proceed. */
+  get awaitingHuman() {
+    return (
+      this.outcome === Outcome.AWAITING_APPROVAL ||
+      this.outcome === Outcome.AWAITING_CONFIRMATION
+    );
+  }
+
+  /** Message suitable for showing a user. */
+  get userMessage() {
+    switch (this.outcome) {
+      case Outcome.AWAITING_APPROVAL:
+        return `This action needs approval before it can be carried out. ${this.reason}`.trim();
+      case Outcome.AWAITING_CONFIRMATION:
+        return `Please confirm this action before it is carried out. ${this.reason}`.trim();
+      case Outcome.DENIED:
+        return `You do not have permission to do this. ${this.message}`.trim();
+      case Outcome.INVALID:
+        return `The request was incomplete or invalid. ${this.message}`.trim();
+      case Outcome.UNKNOWN_TOOL:
+        return `That operation is not available.`;
+      default:
+        return `The action could not be completed. ${this.message}`.trim();
+    }
+  }
+}
 
 class DirectHttpMCPClient {
   constructor() {
@@ -113,13 +167,47 @@ class DirectHttpMCPClient {
   }
 
   /**
-   * Call a tool on the server
+   * Call a tool on the server.
+   *
+   * Returns the legacy JSON-RPC shape so existing callers keep working, but
+   * only ever for an action that actually executed. Anything else throws
+   * ToolNotExecutedError.
    */
   async callTool(toolName, args = {}) {
-    return await this.sendRequest('tools/call', {
-      name: toolName,
-      arguments: args
-    });
+    const outcome = await apiClient.callTool(toolName, args);
+
+    if (!outcome.executed) {
+      throw new ToolNotExecutedError(outcome);
+    }
+
+    return {
+      jsonrpc: '2.0',
+      id: this.generateId(),
+      result: {
+        content: [
+          {
+            type: 'text',
+            text:
+              typeof outcome.result === 'string'
+                ? outcome.result
+                : JSON.stringify(outcome.result),
+          },
+        ],
+      },
+      executed: true,
+      outcome: outcome.outcome,
+      runId: outcome.runId,
+    };
+  }
+
+  /**
+   * Call a tool and get the normalised outcome without exceptions.
+   *
+   * Preferred for new UI code that wants to render "awaiting approval" or
+   * "denied" states rather than treat them as errors.
+   */
+  async callToolDetailed(toolName, args = {}) {
+    return await apiClient.callTool(toolName, args);
   }
 
   /**

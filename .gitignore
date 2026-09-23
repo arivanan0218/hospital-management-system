@@ -217,3 +217,22 @@ backend-python/reports/
 
 # Documentation artifacts (optional - remove if you want to commit them)
 # *.md
+
+# ================================
+# SECRETS & KEYS (never commit)
+# ================================
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa
+id_ed25519
+.env.*
+!.env.example
+!.env.*.example
+secrets/
+credentials.json
+service-account*.json
+backend-python/.env

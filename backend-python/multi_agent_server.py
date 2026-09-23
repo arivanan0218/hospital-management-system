@@ -3360,6 +3360,38 @@ async def call_tool_http(request: Request):
         }, status_code=500)
 
 # List tools endpoint handler
+#: Set at startup when guarded mode is on: the canonical tool names, used to
+#: stop /tools/list advertising capabilities that cannot be executed.
+GUARDED_TOOL_NAMES = None
+GUARDED_POLICY_ENGINE = None
+GUARDED_TOKEN_ISSUER = None
+
+
+def _visible_tool_names(request):
+    """Names this caller could actually execute, or None when unguarded.
+
+    Narrowed by role when the request carries a valid token. Without one the
+    listing still never exceeds the canonical registry — advertising a tool that
+    would be refused is a bad contract, and for an LLM client every unusable
+    name is a plausible thing to propose and then be denied.
+    """
+    if GUARDED_TOOL_NAMES is None:
+        return None
+
+    visible = set(GUARDED_TOOL_NAMES)
+    if GUARDED_POLICY_ENGINE is None or GUARDED_TOKEN_ISSUER is None:
+        return visible
+
+    try:
+        from hms_agent.auth import principal_from_request
+
+        principal = principal_from_request(request.headers, GUARDED_TOKEN_ISSUER)
+    except Exception:
+        return visible
+
+    return visible & set(GUARDED_POLICY_ENGINE.tools_for_role(principal.role))
+
+
 async def list_tools_http(request: Request):
     try:
         tools_list = []
@@ -3439,6 +3471,10 @@ async def list_tools_http(request: Request):
                         "description": getattr(tool, 'description', "No description available")
                     })
         
+        visible = _visible_tool_names(request)
+        if visible is not None:
+            tools_list = [x for x in tools_list if x.get("name") in visible]
+
         return JSONResponse({
             "jsonrpc": "2.0",
             "result": {
@@ -3499,7 +3535,142 @@ if __name__ == "__main__":
         import os
         reports_dir = os.path.join(os.path.dirname(__file__), "reports", "discharge")
         
-        custom_routes = [
+        # ------------------------------------------------------------------
+        # Guarded execution path (hms_agent).
+        #
+        # Controlled by TOOL_EXECUTION_MODE, which defaults to "legacy" so this
+        # is inert until explicitly switched on:
+        #   legacy  - only the original /tools/call is served (default)
+        #   shadow  - guarded routes also mounted, legacy still serves /tools/call
+        #   guarded - /tools/call is served by the guarded pipeline
+        # ------------------------------------------------------------------
+        guarded_routes = []
+        sse_auth_wrapper = None
+        try:
+            from hms_agent.audit import SqlAlchemyAuditSink, create_audit_tables
+            from hms_agent.idempotency import IdempotencyStore, create_idempotency_tables
+            from hms_agent.auth import LoginService, SqlAlchemyUserRepository, TokenIssuer
+            from hms_agent.config import ToolExecutionMode
+            from hms_agent.http import ToolCallService, build_guarded_routes
+            from hms_agent.http.app import build_login_route
+            from hms_agent.policy import PolicyEngine
+            from hms_agent.registry import CanonicalToolRegistry
+
+            execution_mode = ToolExecutionMode.current()
+
+            if execution_mode is not ToolExecutionMode.LEGACY:
+                from database import SessionLocal
+                from database import engine as db_engine
+
+                token_issuer = TokenIssuer()          # raises unless HMS_JWT_SECRET is set
+
+                # Audit events go to PostgreSQL. strict=True means an action that
+                # cannot be recorded is not performed: ToolCallService writes the
+                # EXECUTING event before dispatch, so a failed audit write stops
+                # the call rather than producing an unlogged mutation.
+                create_audit_tables(db_engine)
+                audit_strict = (os.getenv("HMS_AUDIT_STRICT") or "true").lower() != "false"
+                audit_sink = SqlAlchemyAuditSink(SessionLocal, strict=audit_strict)
+                tool_registry = CanonicalToolRegistry.from_agents(orchestrator.agents)
+
+                # Idempotency for state-changing tools. Without this the store
+                # is None and the whole check is skipped, so a retried mutation
+                # would execute twice -- the protection would exist in the tests
+                # and not in the running server.
+                create_idempotency_tables(db_engine)
+                idempotency_store = IdempotencyStore(SessionLocal)
+
+                tool_service = ToolCallService(
+                    tool_registry, PolicyEngine(), token_issuer, audit_sink,
+                    idempotency_store=idempotency_store,
+                )
+                login_service = LoginService(
+                    SqlAlchemyUserRepository(SessionLocal), token_issuer
+                )
+
+                guarded_routes = (
+                    build_login_route(login_service)
+                    + build_guarded_routes(tool_service, path="/v2/tools/call")
+                )
+
+                # Agent endpoint. Mounted only when a planner can be built and a
+                # checkpointer is available, because approval is not resumable
+                # without one -- better to omit the route than to serve an agent
+                # whose pauses cannot be resumed.
+                try:
+                    from langgraph.checkpoint.sqlite import SqliteSaver
+
+                    from hms_agent.graph import LLMPlanner
+                    from hms_agent.http import AgentRunService, build_agent_routes
+                    from hms_agent.observability import MetricsRegistry
+
+                    if not os.getenv("OPENAI_API_KEY"):
+                        raise RuntimeError("OPENAI_API_KEY is not set")
+
+                    checkpoint_path = os.getenv(
+                        "HMS_CHECKPOINT_PATH",
+                        os.path.join(os.path.dirname(__file__), "agent_checkpoints.sqlite"),
+                    )
+                    # Held open for the process lifetime: suspended runs must
+                    # outlive the request that created them.
+                    _checkpointer_cm = SqliteSaver.from_conn_string(checkpoint_path)
+                    agent_checkpointer = _checkpointer_cm.__enter__()
+
+                    agent_metrics = MetricsRegistry()
+                    agent_service = AgentRunService(
+                        planner=LLMPlanner(PolicyEngine(), tool_registry.names()),
+                        policy_engine=PolicyEngine(),
+                        tool_service=tool_service,
+                        issuer=token_issuer,
+                        checkpointer=agent_checkpointer,
+                        metrics=agent_metrics,
+                    )
+                    guarded_routes += build_agent_routes(agent_service)
+                    print(f"🤖 Agent endpoint enabled (checkpoints: {checkpoint_path})")
+                except Exception as agent_error:
+                    print(f"ℹ️  Agent endpoint not mounted: {agent_error}")
+                if execution_mode is ToolExecutionMode.GUARDED:
+                    guarded_routes += build_guarded_routes(tool_service, path="/tools/call")
+
+                    # Close the SSE transport too. Guarding only HTTP would leave
+                    # mcp.sse_app() serving the same agent methods unguarded.
+                    from hms_agent.transport import RequireBearerAuth, guard_tool_manager
+
+                    guard_tool_manager(
+                        mcp,
+                        PolicyEngine(),
+                        allowed_tools=tool_registry.names(),
+                        audit_sink=audit_sink,
+                    )
+                    sse_auth_wrapper = (RequireBearerAuth, token_issuer)
+                    sse_state = "guarded"
+                else:
+                    sse_state = "UNGUARDED"
+
+                # Publish to the /tools/list handler so it cannot advertise
+                # capabilities the guarded path would refuse. This runs at module
+                # scope, so plain assignment rebinds the module globals; a
+                # `global` statement here is a SyntaxError because the names are
+                # assigned earlier in the same scope.
+                GUARDED_TOOL_NAMES = tool_registry.names()
+                GUARDED_POLICY_ENGINE = PolicyEngine()
+                GUARDED_TOKEN_ISSUER = token_issuer
+
+                print(f"🔒 Guarded execution enabled (mode={execution_mode.value}, "
+                      f"{len(tool_registry.names())} tools bound, sse={sse_state})")
+            else:
+                print("⚠️  TOOL_EXECUTION_MODE=legacy - /tools/call is unauthenticated")
+        except Exception as guard_error:
+            # Never take the server down for a guarded-path misconfiguration, but
+            # never silently fall back to the open path either.
+            if (os.getenv("TOOL_EXECUTION_MODE") or "legacy").strip().lower() != "legacy":
+                raise RuntimeError(
+                    f"TOOL_EXECUTION_MODE is not 'legacy' but the guarded path "
+                    f"failed to initialise: {guard_error}"
+                ) from guard_error
+            print(f"⚠️  Guarded path unavailable: {guard_error}")
+
+        custom_routes = guarded_routes + [
             Route("/tools/call", call_tool_http, methods=["POST"]),
             Route("/tools/list", list_tools_http, methods=["GET"]),
             Route("/health", health_check, methods=["GET"]),
@@ -3537,6 +3708,13 @@ if __name__ == "__main__":
         print("   POST /api/departments/by-names - Get department ID mappings")
         print("   POST /api/categories/by-names - Get category ID mappings")
         
+        # Applied last: RequireBearerAuth is a bare ASGI callable, so it must wrap
+        # the app only after .routes and .add_middleware have been used.
+        if sse_auth_wrapper is not None:
+            wrapper_cls, wrapper_issuer = sse_auth_wrapper
+            app = wrapper_cls(app, wrapper_issuer)
+            print("🔒 SSE transport requires a bearer token")
+
         # Run with uvicorn - bind to 0.0.0.0 for Docker container access
         uvicorn.run(app, host="0.0.0.0", port=8000)
         
