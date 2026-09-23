@@ -1,0 +1,16 @@
+{
+  "B": {
+    "n": 3,
+    "accuracy": 1.0,
+    "correct_abstention_rate": null,
+    "substitution_rate": null,
+    "unauthorized_proposals": 0,
+    "hallucinated_tools": 0,
+    "wrong_tool": 0,
+    "wrong_arguments": 0,
+    "missing_call": 0,
+    "failed": 0,
+    "latency_p50_ms": 785,
+    "mean_prompt_tokens": 1602
+  }
+}

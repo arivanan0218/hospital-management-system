@@ -69,7 +69,7 @@ def count_tokens(text: str) -> int:
 
 
 def frontend_exposed_tools() -> list[str]:
-    path = REPO / "tools_list.json"
+    path = REPO / "evals" / "datasets" / "tools_list.json"
     if not path.exists():
         return []
     data = json.loads(path.read_text())

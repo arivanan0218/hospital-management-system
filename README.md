@@ -33,7 +33,7 @@ setup-aws.bat
 ```
 
 ### Option 2: Manual Setup
-Follow the complete guide in [`AWS-DEPLOYMENT-GUIDE.md`](AWS-DEPLOYMENT-GUIDE.md)
+Follow the complete guide in [`COMPLETE-DEPLOYMENT-GUIDE.md`](docs/deployment/COMPLETE-DEPLOYMENT-GUIDE.md)
 
 ## 🛠️ Local Development
 
@@ -72,19 +72,34 @@ Visit `http://localhost:3000` for the frontend and `http://localhost:8000` for t
 
 ```
 hospital-management-system/
-├── backend-python/          # FastAPI backend
-│   ├── comprehensive_server.py  # Main server
-│   ├── database.py         # Database models
-│   ├── Dockerfile          # Backend container
-│   └── pyproject.toml      # Python dependencies
-├── frontend/               # React frontend
-│   ├── src/               # Source code
-│   ├── Dockerfile         # Frontend container
-│   └── package.json       # Node dependencies
-├── .github/workflows/     # GitHub Actions CI/CD
-├── aws-infrastructure.yml # CloudFormation template
-└── docker-compose.simple.yml # Local development
+├── backend-python/          # FastAPI + MCP backend
+│   ├── hms_agent/           # guarded agent layer (policy, auth, audit, graph)
+│   ├── agents/              # domain agents
+│   ├── tests/               # unit, security, integration, contract, failure
+│   ├── scripts/             # operational scripts
+│   ├── database.py          # SQLAlchemy models
+│   └── multi_agent_server.py
+├── frontend/                # React + Vite
+│   └── src/services/        # authenticated API client
+├── evals/                   # measurement harnesses
+│   ├── datasets/            # labelled cases + generators
+│   ├── runners/             # scripts that produce numbers
+│   └── results/             # raw output, committed
+├── docs/                    # see docs/README.md
+│   ├── architecture/        # audit, Phase 20 standard
+│   ├── operations/          # cutover, staging gates
+│   ├── evaluation/          # measured results
+│   ├── deployment/          # AWS, CI/CD, Docker
+│   └── guides/              # feature guides
+├── deploy/
+│   ├── aws/                 # CloudFormation + ECS task definitions
+│   └── scripts/             # deployment scripts
+├── .github/workflows/       # CI/CD
+├── docker-compose.yml
+└── nginx.conf
 ```
+
+Documentation index: [`docs/README.md`](docs/README.md)
 
 ## 🔧 API Endpoints
 
@@ -150,7 +165,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🆘 Support
 
-- **Documentation**: Check [`AWS-DEPLOYMENT-GUIDE.md`](AWS-DEPLOYMENT-GUIDE.md)
+- **Documentation**: Check [`COMPLETE-DEPLOYMENT-GUIDE.md`](docs/deployment/COMPLETE-DEPLOYMENT-GUIDE.md)
 - **Issues**: Create a GitHub issue
 - **Logs**: Check CloudWatch logs in AWS Console
 

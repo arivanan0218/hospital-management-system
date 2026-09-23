@@ -252,17 +252,39 @@ class InventoryAgent(BaseAgent):
         
         try:
             db = self.get_db_session()
-            supply = db.query(Supply).filter(Supply.id == uuid.UUID(supply_id)).first()
-            
+
+            # Lock the supply row before reading current_stock.
+            #
+            # This is a read-modify-write: without the lock, two concurrent
+            # decrements both read the same old_stock, both compute the same
+            # new_stock, and the second overwrites the first. One decrement is
+            # silently lost and the recorded stock is wrong.
+            #
+            # FOR UPDATE serialises the pair, so the second request reads the
+            # value the first committed. The read below, the arithmetic, the
+            # sufficiency check and the write all happen inside one transaction
+            # while the lock is held.
+            #
+            # Note: SQLite silently ignores FOR UPDATE, so this protection only
+            # exists on PostgreSQL. The concurrency test is Postgres-only.
+            supply = (
+                db.query(Supply)
+                .filter(Supply.id == uuid.UUID(supply_id))
+                .with_for_update()
+                .first()
+            )
+
             if not supply:
+                db.rollback()
                 db.close()
                 return {"success": False, "message": "Supply not found"}
-            
-            # Calculate new stock level
+
+            # Read after the lock, never before it.
             old_stock = supply.current_stock
             new_stock = old_stock + quantity_change
-            
+
             if new_stock < 0:
+                db.rollback()
                 db.close()
                 return {"success": False, "message": f"Insufficient stock. Current: {old_stock}, Requested: {abs(quantity_change)}"}
             

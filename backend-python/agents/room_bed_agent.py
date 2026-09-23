@@ -370,18 +370,47 @@ class RoomBedAgent(BaseAgent):
         
         try:
             db = self.get_db_session()
-            bed = db.query(Bed).filter(Bed.id == uuid.UUID(bed_id)).first()
+
+            # Lock the bed row for the remainder of this transaction.
+            #
+            # Without the lock two concurrent requests both read status
+            # "available", both pass the check below, and both assign the same
+            # bed. Idempotency does not help here: those are two *different*
+            # requests, each legitimately entitled to run once.
+            #
+            # FOR UPDATE makes the second request wait until the first commits,
+            # after which it re-reads the row and sees "occupied". The
+            # availability check below is therefore evaluated against state that
+            # cannot change underneath it.
+            #
+            # Note: SQLite silently ignores FOR UPDATE, so this protection only
+            # exists on PostgreSQL. The concurrency test is Postgres-only for
+            # that reason.
+            bed = (
+                db.query(Bed)
+                .filter(Bed.id == uuid.UUID(bed_id))
+                .with_for_update()
+                .first()
+            )
             patient = db.query(Patient).filter(Patient.id == uuid.UUID(patient_id)).first()
-            
+
             if not bed:
+                db.rollback()
                 db.close()
                 return {"success": False, "message": "Bed not found"}
             if not patient:
+                db.rollback()
                 db.close()
                 return {"success": False, "message": "Patient not found"}
             if bed.status != "available":
+                # Re-checked while holding the lock, so this is authoritative.
+                # Read the status into a local BEFORE rolling back: rollback
+                # expires the instance, and touching an expired attribute on a
+                # closed session raises instead of returning the value.
+                current_status = bed.status
+                db.rollback()
                 db.close()
-                return {"success": False, "message": f"Bed is not available (current status: {bed.status})"}
+                return {"success": False, "message": f"Bed is not available (current status: {current_status})"}
             
             # Assign bed to patient
             bed.patient_id = uuid.UUID(patient_id)

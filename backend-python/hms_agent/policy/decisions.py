@@ -51,6 +51,50 @@ class Principal:
 
 
 @dataclass(frozen=True)
+class ApprovalGrant:
+    """Evidence that a human approved one specific action.
+
+    Bound to the tool *and* a hash of its arguments. Approving "discharge bed
+    B1" therefore cannot be replayed to discharge B2 — the hash will not match
+    and the boundary refuses.
+
+    A grant can satisfy REQUIRE_HUMAN_APPROVAL or REQUIRE_CONFIRMATION. It can
+    never turn a DENY into an ALLOW: no amount of approval grants a role a
+    capability its policy does not include.
+    """
+
+    tool: str
+    approver_id: str
+    approver_role: str
+    arguments_hash: str
+
+    def matches(self, tool: str, arguments_hash: str) -> bool:
+        return self.tool == tool and self.arguments_hash == arguments_hash
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "tool": self.tool,
+            "approver_id": self.approver_id,
+            "approver_role": self.approver_role,
+            "arguments_hash": self.arguments_hash,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any] | None) -> "ApprovalGrant | None":
+        if not data:
+            return None
+        try:
+            return cls(
+                tool=data["tool"],
+                approver_id=data["approver_id"],
+                approver_role=data["approver_role"],
+                arguments_hash=data["arguments_hash"],
+            )
+        except (KeyError, TypeError):
+            return None
+
+
+@dataclass(frozen=True)
 class PolicyDecision:
     decision: Decision
     tool: str

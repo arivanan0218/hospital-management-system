@@ -53,7 +53,7 @@ export TOOL_EXECUTION_MODE=shadow
 `/tools/call` behaves exactly as before. `/auth/login` and `/v2/tools/call` become
 available for migration work and live comparison traffic.
 
-### 2. Migrate the frontend
+### 2. Migrate the frontend — DONE (not yet verified against a live server)
 
 Replace the `localStorage` mock in `frontend/src/services/authService.js`:
 
@@ -165,6 +165,39 @@ convention; a grant makes it an infrastructure guarantee.
 ## Not yet done
 
 - **No idempotency.** Retried mutations are not deduplicated.
-- **Frontend still uses the localStorage mock.**
-- **The server has not been booted.** Wiring is verified by tests that mirror the
-  assembly, not by a live start.
+- **The server has not been booted.** Both the backend wiring and the frontend
+  migration are verified by tests against mocked transports, not a live start.
+  Staging is the first place these meet.
+- **`/tools/list` is still unauthenticated.** It is read-only, but it advertises
+  the whole tool surface and should eventually be scoped per role.
+- **Self-service registration is disabled, not replaced.** `signUp` previously
+  let a caller choose their own role, which server-side authorization would have
+  honoured. There is no `/auth/register` endpoint; accounts are created
+  administratively (`scripts/reset_dev_users.py` for development).
+
+
+## Frontend
+
+`src/services/apiClient.js` is the single place the frontend holds identity and
+interprets the response envelope. Everything that calls a tool goes through it.
+
+* Token in `sessionStorage`, not `localStorage` — clinical workstations are
+  shared, so a token that dies with the tab is the safer default. Neither
+  survives XSS; an httpOnly SameSite cookie is the stronger option if the API
+  ever moves to the same origin.
+* `exp` is read client-side only to avoid sending a token already known to be
+  stale. Verification remains the server's job.
+* A 401 clears the session and fires `apiClient.onAuthRequired`, so the app can
+  require login again.
+
+**The rule the tests exist to protect:** execution is read from the `executed`
+field, never inferred from an HTTP status. A 202 is a successful request for an
+action that deliberately did not happen.
+
+`mcpClient.callTool` therefore *throws* `ToolNotExecutedError` for any
+non-executed outcome rather than returning a value. Callers already wrap tool
+calls in try/catch, and an exception cannot be rendered as "done" — whereas a
+returned object can be. `callToolDetailed` returns the outcome without throwing,
+for UI that wants to render an "awaiting approval" state explicitly.
+
+Run the frontend suite with `npm test` in `frontend/`.

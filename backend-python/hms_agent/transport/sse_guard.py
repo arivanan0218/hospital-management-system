@@ -105,14 +105,36 @@ def guard_tool_manager(
     allowed_tools: Iterable[str] | None = None,
     audit_sink: Any | None = None,
 ) -> Callable[[], None]:
-    """Wrap a FastMCP instance's tool dispatch with the policy boundary.
+    """Wrap a FastMCP instance's tool dispatch and listing with the boundary.
 
-    Returns a callable that restores the original dispatch, so tests can undo it.
+    Both are wrapped, not just dispatch. Listing 129 tools while only 26 can be
+    executed is a poor contract for any client, and for an LLM client it is
+    actively harmful: every unusable name is a plausible thing to propose and
+    then be refused. It also discloses the full internal tool surface to anyone
+    who can open a session.
+
+    Returns a callable that restores the originals, so tests can undo it.
     """
     engine = engine or PolicyEngine()
     manager = mcp._tool_manager
     original: Callable[..., Awaitable[Any]] = manager.call_tool
+    original_list = manager.list_tools
     permitted = frozenset(allowed_tools) if allowed_tools is not None else None
+
+    def guarded_list_tools(*args: Any, **kwargs: Any):
+        """Advertise only what this caller could actually execute."""
+        tools = original_list(*args, **kwargs)
+        if permitted is None:
+            return tools
+
+        visible = permitted
+        principal = SSE_PRINCIPAL.get()
+        if principal is not None:
+            # Narrow further to the caller's role. Absent a principal we still
+            # never exceed the canonical registry.
+            visible = permitted & engine.tools_for_role(principal.role)
+
+        return [t for t in tools if getattr(t, "name", None) in visible]
 
     async def guarded_call_tool(name: str, arguments: dict, *args: Any, **kwargs: Any):
         trail = AuditTrail(audit_sink) if audit_sink is not None else None
@@ -174,8 +196,10 @@ def guard_tool_manager(
         return result
 
     manager.call_tool = guarded_call_tool
+    manager.list_tools = guarded_list_tools
 
     def restore() -> None:
         manager.call_tool = original
+        manager.list_tools = original_list
 
     return restore

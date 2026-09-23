@@ -14,6 +14,15 @@ dependencies = [
     # ">=1.0.0" now resolves to a release this codebase cannot import.
     "mcp[cli]>=1.9,<2",
     "pydantic>=2.0.0,<3",
+    # Required by hms_agent.auth: tokens.py imports jwt, passwords.py imports bcrypt.
+    "pyjwt>=2.8,<3",
+    "bcrypt>=4.1,<6",
+    # Imported directly by hms_agent.http and hms_agent.transport. Arrives
+    # transitively via fastapi, but a direct import deserves a direct pin.
+    "starlette>=0.37,<2",
+    # Imported directly by hms_agent.graph.llm_planner. Arrives transitively via
+    # langchain-openai, but a direct import deserves a direct pin.
+    "openai>=1.40,<3",
     "google-generativeai>=0.8.0",
     "prompt-toolkit>=3.0.0",
     "python-dotenv>=1.0.0",
@@ -72,6 +81,10 @@ dev = [
     "pytest-cov>=5.0",
     "pytest-asyncio>=0.23",
     "tiktoken>=0.7",
+    # starlette's TestClient transport
+    "httpx>=0.27,<1",
+    # in-process checkpointer for LangGraph resume tests
+    "langgraph-checkpoint-sqlite>=2.0,<3",
 ]
 
 [tool.setuptools.packages.find]

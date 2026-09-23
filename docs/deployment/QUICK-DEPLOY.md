@@ -86,6 +86,6 @@ aws cloudformation describe-stacks --stack-name hospital-infrastructure
 
 ## Quick Links
 
-- [Full Deployment Guide](AWS-DEPLOYMENT-GUIDE.md)
+- [Full Deployment Guide](COMPLETE-DEPLOYMENT-GUIDE.md)
 - [AWS Console](https://console.aws.amazon.com/)
 - [GitHub Actions](https://github.com/YOUR-USERNAME/hospital-management-system/actions)
